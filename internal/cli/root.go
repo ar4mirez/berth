@@ -43,13 +43,17 @@ func NewRoot() *cobra.Command {
 	// Defined here so cobra skips its default -v shorthand (ccenv has no -v; berth may want it for verbose).
 	root.Flags().Bool("version", false, "print the berth version")
 	root.SetVersionTemplate("berth {{.Version}}\n")
+	addGlobalFlags(root)
 	return root
 }
 
 // Execute runs berth with args and returns the process exit code.
 // Errors print as "berth: <msg>" on stderr and exit 1.
 func Execute(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	root := NewRoot()
+	return execute(NewRoot(), args, stdin, stdout, stderr)
+}
+
+func execute(root *cobra.Command, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	root.SetArgs(args)
 	root.SetIn(stdin)
 	root.SetOut(stdout)
