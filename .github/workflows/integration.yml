@@ -1,0 +1,40 @@
+name: integration
+
+# Tests that need a real Docker daemon. The dev container has no Docker on purpose (docs/plan.md,
+# "Dogfooding setup"), so these run here: on PRs, on main, or by hand with `gh workflow run integration`.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOPROXY: https://proxy.golang.org
+  GOTOOLCHAIN: local
+  GOFLAGS: -mod=readonly
+
+jobs:
+  docker:
+    name: docker smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
+      - name: daemon
+        run: |
+          docker version
+          docker compose version
+      - name: build berth
+        run: |
+          go build -o "$RUNNER_TEMP/berth" ./cmd/berth
+          "$RUNNER_TEMP/berth" --version
+      - name: compose lifecycle (t-smoke)
+        run: test/integration/compose-smoke.sh
