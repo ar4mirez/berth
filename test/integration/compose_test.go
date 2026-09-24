@@ -4,6 +4,7 @@ package integration
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,6 +13,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/host/local"
 )
 
 const org = "t-smoke"
@@ -191,10 +195,28 @@ func TestComposeLifecycle(t *testing.T) {
 	})
 
 	t.Run("ports", func(t *testing.T) {
-		for port, host := range map[string]string{"2222/tcp": "2290", "7681/tcp": "7790"} {
+		for port, hostPort := range map[string]string{"2222/tcp": "2290", "7681/tcp": "7790"} {
 			b := c.NetworkSettings.Ports[port]
-			if len(b) != 1 || b[0].HostIp != "127.0.0.1" || b[0].HostPort != host {
-				t.Errorf("%s bound to %+v, want 127.0.0.1:%s", port, b, host)
+			if len(b) != 1 || b[0].HostIp != "127.0.0.1" || b[0].HostPort != hostPort {
+				t.Errorf("%s bound to %+v, want 127.0.0.1:%s", port, b, hostPort)
+			}
+		}
+	})
+
+	// host/local against the real engine: the org's published ports must count as in use, or the
+	// port allocator could hand them to the next org.
+	t.Run("local host sees the ports", func(t *testing.T) {
+		h := local.New()
+		if err := host.NewEngine(h.Docker).Ping(context.Background()); err != nil {
+			t.Fatalf("engine ping: %v", err)
+		}
+		ports, err := h.Facts.PortsInUse(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range []int{2290, 7790} {
+			if !slices.Contains(ports, p) {
+				t.Errorf("port %d not reported in use: %v", p, ports)
 			}
 		}
 	})

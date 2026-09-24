@@ -112,7 +112,8 @@ type File struct {
 
 func readFile(path string) (File, error) {
 	var f File
-	b, err := os.ReadFile(path) // #nosec G304 -- the user's own config file, not org state
+	// The operator's own config, on the machine berth runs on (not a host), so not org state.
+	b, err := os.ReadFile(path) //nolint:forbidigo,gosec // see above; the path is berth's own config location
 	if errors.Is(err, fs.ErrNotExist) {
 		return f, nil
 	}
