@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Same pins as mise.toml, so CI and the dev container resolve modules the same way.
+env:
+  GOPROXY: https://proxy.golang.org
+  GOTOOLCHAIN: local
+  GOFLAGS: -mod=readonly
+
+jobs:
+  check:
+    name: build, vet, test, lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - name: build
+        run: go build ./...
+      - name: vet
+        run: go vet ./...
+      - name: test
+        run: go test -race ./...
+      - name: golangci-lint
+        run: golangci-lint run
+
+  vuln:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  snapshot:
+    name: goreleaser snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v3
+      - run: goreleaser release --snapshot --clean
+      - name: smoke-test the linux/amd64 binary
+        run: |
+          ./dist/berth_linux_amd64_v1/berth --version
+          ./dist/berth_linux_amd64_v1/berth >/dev/null
+          if ./dist/berth_linux_amd64_v1/berth no-such-command >/dev/null; then exit 1; fi

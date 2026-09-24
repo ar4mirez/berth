@@ -40,6 +40,8 @@ func NewRoot() *cobra.Command {
 	}
 	// ccenv has its own `completion` (bash); it is ported with the read-only commands.
 	root.CompletionOptions.DisableDefaultCmd = true
+	// Defined here so cobra skips its default -v shorthand (ccenv has no -v; berth may want it for verbose).
+	root.Flags().Bool("version", false, "print the berth version")
 	root.SetVersionTemplate("berth {{.Version}}\n")
 	return root
 }

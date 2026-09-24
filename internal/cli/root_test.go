@@ -49,3 +49,10 @@ func TestVersion(t *testing.T) {
 		t.Fatalf("code=%d stdout=%q", code, out)
 	}
 }
+
+func TestNoVersionShorthand(t *testing.T) {
+	_, errOut, code := run(t, "-v")
+	if code != 1 || !strings.HasPrefix(errOut, "berth: ") {
+		t.Fatalf("-v should be an unknown flag: code=%d stderr=%q", code, errOut)
+	}
+}
