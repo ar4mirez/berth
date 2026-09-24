@@ -60,6 +60,12 @@ func ConfigPath(in Inputs) string {
 	return filepath.Join(xdg(in, "XDG_CONFIG_HOME", ".config"), "berth", "config.yaml")
 }
 
+// KnownHostsPath is berth's own SSH known_hosts, next to config.yaml. berth never reads or
+// writes ~/.ssh/known_hosts.
+func KnownHostsPath(in Inputs) string {
+	return filepath.Join(xdg(in, "XDG_CONFIG_HOME", ".config"), "berth", "known_hosts")
+}
+
 // DefaultHome is the state root when nothing else is set: $XDG_DATA_HOME/berth, else ~/.local/share/berth.
 func DefaultHome(in Inputs) string {
 	return filepath.Join(xdg(in, "XDG_DATA_HOME", filepath.Join(".local", "share")), "berth")

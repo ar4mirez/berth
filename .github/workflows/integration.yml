@@ -22,7 +22,7 @@ env:
 
 jobs:
   docker:
-    name: docker smoke
+    name: docker
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -36,5 +36,5 @@ jobs:
         run: |
           go build -o "$RUNNER_TEMP/berth" ./cmd/berth
           "$RUNNER_TEMP/berth" --version
-      - name: compose lifecycle (t-smoke)
+      - name: integration tests (compose lifecycle, ssh host against sshd + dind)
         run: go test -tags integration -count=1 -v ./test/integration/...

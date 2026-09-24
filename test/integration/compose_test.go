@@ -142,9 +142,7 @@ func projectIDs(t *testing.T, kind string) []string {
 }
 
 func TestComposeLifecycle(t *testing.T) {
-	if err := exec.Command("docker", "info").Run(); err != nil {
-		t.Fatalf("no Docker daemon: %v", err) // fail, don't skip: this test only runs where Docker is expected
-	}
+	requireDocker(t)
 	f := newFixture(t)
 	name := "claude-" + org
 	t.Cleanup(func() { _ = exec.Command("docker", "rm", "-f", name).Run() })
