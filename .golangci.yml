@@ -1,5 +1,10 @@
 version: "2"
 
+# Lint the Docker-only tests too, even though a plain build skips them.
+run:
+  build-tags:
+    - integration
+
 linters:
   default: standard
   enable:
