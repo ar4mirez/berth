@@ -10,6 +10,7 @@ KbdInteractiveAuthentication no
 AuthorizedKeysFile .ssh/authorized_keys
 # The Docker engine is reached through a direct-streamlocal channel to its unix socket.
 AllowStreamLocalForwarding yes
-AllowTcpForwarding no
+# Not "AllowTcpForwarding no": OpenSSH checks it for unix-socket forwarding too, so it would
+# block the Docker channel even with AllowStreamLocalForwarding yes.
 Subsystem sftp internal-sftp
 LogLevel VERBOSE

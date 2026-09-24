@@ -266,7 +266,15 @@ type docker struct {
 // DialEngine opens a direct-streamlocal channel to the remote engine socket (like ssh -L to a
 // unix socket), so the engine is never exposed on a TCP port.
 func (d docker) DialEngine(ctx context.Context) (net.Conn, error) {
-	return d.client.DialContext(ctx, "unix", d.sock)
+	c, err := d.client.DialContext(ctx, "unix", d.sock)
+	var oce *gossh.OpenChannelError
+	if errors.As(err, &oce) {
+		// sshd gives the same "open failed" for a refusal and a missing socket; its log tells which.
+		return nil, fmt.Errorf("docker engine %s over ssh: %w (the host's sshd must allow it: "+
+			"AllowStreamLocalForwarding yes, and AllowTcpForwarding not \"no\", which OpenSSH also applies to "+
+			"unix sockets; and Docker must be running)", d.sock, err)
+	}
+	return c, err
 }
 
 // ---------------------------------------------------------------------------- fs
