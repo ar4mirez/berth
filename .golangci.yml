@@ -10,6 +10,7 @@ linters:
   enable:
     - bodyclose
     - errorlint
+    - forbidigo
     - gocritic
     - gosec
     - misspell
@@ -17,6 +18,20 @@ linters:
     - revive
     - unconvert
   settings:
+    # Org state is only touched through host.FS / host.Execer (CLAUDE.md, "Hard rules").
+    # internal/host/local is the one package allowed to call these; see the exclusion below.
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^os\.(Create|CreateTemp|Open|OpenFile|OpenRoot|OpenInRoot|ReadFile|WriteFile|ReadDir|DirFS|CopyFS|Mkdir|MkdirAll|MkdirTemp|Remove|RemoveAll|Rename|Chmod|Chown|Lchown|Chtimes|Link|Symlink|Readlink|Truncate|Stat|Lstat)$
+          pkg: ^os$
+          msg: go through host.FS (only internal/host/local may use os file I/O)
+        - pattern: ^ioutil\.
+          pkg: ^io/ioutil$
+          msg: go through host.FS (only internal/host/local may use os file I/O)
+        - pattern: ^exec\.Command(Context)?$
+          pkg: ^os/exec$
+          msg: go through host.Execer (only internal/host/local may start processes)
     revive:
       rules:
         - name: exported
@@ -27,7 +42,11 @@ linters:
       - std-error-handling
     rules:
       - path: _test\.go
-        linters: [gosec]
+        linters: [gosec, forbidigo]
+      - path: ^internal/host/local/
+        linters: [forbidigo]
+      - path: ^test/
+        linters: [forbidigo]
 
 formatters:
   enable:
