@@ -1,0 +1,14 @@
+# Minimal sshd for the host/ssh integration test. Several host key types on purpose: the client
+# must negotiate the one pinned in berth's known_hosts, not whichever the server prefers.
+Port 22
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_rsa_key
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AuthorizedKeysFile .ssh/authorized_keys
+# The Docker engine is reached through a direct-streamlocal channel to its unix socket.
+AllowStreamLocalForwarding yes
+AllowTcpForwarding no
+Subsystem sftp internal-sftp
