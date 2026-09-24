@@ -12,3 +12,4 @@ AuthorizedKeysFile .ssh/authorized_keys
 AllowStreamLocalForwarding yes
 AllowTcpForwarding no
 Subsystem sftp internal-sftp
+LogLevel VERBOSE

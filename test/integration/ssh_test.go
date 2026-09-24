@@ -56,8 +56,10 @@ func startSSHTarget(t *testing.T) *sshTarget {
 		"-e", "DOCKER_TLS_CERTDIR=", "-p", "127.0.0.1::22", img)
 	t.Cleanup(func() {
 		if t.Failed() {
-			out, _ := exec.Command("docker", "logs", "--tail", "40", name).CombinedOutput()
+			out, _ := exec.Command("docker", "logs", "--tail", "15", name).CombinedOutput()
 			t.Logf("fixture logs:\n%s", out)
+			out, _ = exec.Command("docker", "exec", name, "tail", "-n", "40", "/var/log/sshd.log").CombinedOutput()
+			t.Logf("sshd log:\n%s", out)
 		}
 		_ = exec.Command("docker", "rm", "-f", name).Run()
 	})
