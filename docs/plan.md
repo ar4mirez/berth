@@ -86,10 +86,9 @@ Three adversarial reviews (parity, security/remote, dogfooding) found 7+ blocker
   2. **GitHub Actions** for everything that needs real Docker. Claude runs `gh workflow run` + `gh run watch`.
   3. *(Deferred)* A disposable tailnet VM as an SSH host, for faster feedback.
 - **GitHub access:**
-  - a **fine-grained PAT** for `ar4mirez/berth` only (Contents, PRs, Actions, Workflows) as `GH_TOKEN`;
+  - `ccenv gh-login` (full account token, like the other orgs). **Accepted tradeoff:** the token reaches every repo the account can, and it can approve releases, so Claude may cut and approve releases. Revisit (with a fine-grained PAT for this repo only, and a `release` environment gated on the owner) before berth is used by anyone else;
   - a write-enabled **deploy key** for git;
-  - **no** `ccenv gh-login` in this org (the full account token would expose other orgs' repos);
-  - protect `main` and `v*` with a ruleset so Claude can't cut a release that you then install on the host.
+  - `main` ruleset: no deletion, no force-push, changes via PR (the admin can bypass). Not a release gate while gh-login is in use.
 - **Firewall additions:** `vuln.go.dev`, `pkg.go.dev`, and the Actions log hosts: `results-receiver`, `pipelines.actions.githubusercontent.com`, and `productionresultssa0..19.blob.core.windows.net`.
 - **`mise.toml`:** `GOPROXY=https://proxy.golang.org`, `GOTOOLCHAIN=local`, `GOFLAGS=-mod=readonly`. The `direct` fallback would hit `git-ssh-guard`.
 - **Safety:**
@@ -108,8 +107,8 @@ git commit -am "legacy: overridable state root, manager guard" && git tag legacy
 # (done) berth created fresh on the host, not from claude-envs history; files copied and scrubbed
 gh repo create ar4mirez/berth --public --source . --push -d "Isolated Claude Code environments per org — local, on-prem, cloud"
 #   ccenv's legacy-v1 also fixed a backup bug for orgs without a mise config (archive.sh, jq + pipefail)
-ccenv init ar4mirez --email <email>             # edit org.env: GH_TOKEN=<fine-grained PAT, ar4mirez/berth only>,
-                                                         #   SHARED_ACCOUNT=1 (set BEFORE auth), keep REMOTE_CONTROL=1 (default), REMOTE_CAPACITY=8
+ccenv init ar4mirez --email <email>             # edit org.env: SHARED_ACCOUNT=1 (set BEFORE auth); then ccenv gh-login ar4mirez after up,
+                                                         #   keep REMOTE_CONTROL=1 (default), REMOTE_CAPACITY=8
 gh repo deploy-key add orgs/ar4mirez/ssh/id_ed25519.pub -R ar4mirez/berth --allow-write --title claude-ar4mirez
 ccenv fw ar4mirez allow vuln.go.dev pkg.go.dev results-receiver.actions.githubusercontent.com pipelines.actions.githubusercontent.com productionresultssa{0..19}.blob.core.windows.net
 ccenv up ar4mirez
