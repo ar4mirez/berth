@@ -1,0 +1,14 @@
+Port 2222
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile /etc/ssh/authorized_keys/%u
+AllowUsers node
+UsePAM no
+X11Forwarding no
+AllowTcpForwarding yes
+ClientAliveInterval 30
+ClientAliveCountMax 6
+HostKey /etc/ssh/keys/ssh_host_ed25519_key
+HostKey /etc/ssh/keys/ssh_host_rsa_key

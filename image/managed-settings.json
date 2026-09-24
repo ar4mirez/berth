@@ -1,0 +1,13 @@
+{
+  "model": "opus",
+  "permissions": { "defaultMode": "bypassPermissions" },
+  "skipDangerousModePermissionPrompt": true,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read|Edit|MultiEdit|Write|NotebookEdit|NotebookRead|Glob|Grep|LS",
+        "hooks": [ { "type": "command", "command": "node /usr/local/lib/claude-env/repo-guard.js", "timeout": 10 } ]
+      }
+    ]
+  }
+}

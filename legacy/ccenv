@@ -1,0 +1,1067 @@
+#!/usr/bin/env bash
+# ccenv: manage one Claude Code container per organization.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+ORGS="${CCENV_ORGS:-$ROOT/orgs}"
+
+die()  { echo "ccenv: $*" >&2; exit 1; }
+need_org() {
+  [ -n "${1:-}" ] || die "missing <org>"
+  [ -f "$ORGS/$1/org.env" ] || die "unknown org '$1' (run: ccenv init $1)"
+  berth_owned "$1" && die "org '$1' is managed by berth (MANAGER=berth); use: berth ... $1"
+  return 0
+}
+berth_owned() { [ "$(grep -E '^MANAGER=' "$ORGS/$1/org.env" | tail -1 | cut -d= -f2-)" = berth ]; }
+envval() { grep -E "^$2=" "$ORGS/$1/org.env" | tail -1 | cut -d= -f2-; }
+setval() {  # setval <org> KEY VALUE  (replace or append; value never hits argv of sed)
+  local f="$ORGS/$1/org.env" tmp; tmp=$(mktemp)
+  KEY="$2" VAL="$3" awk 'BEGIN{k=ENVIRON["KEY"]; v=ENVIRON["VAL"]; d=0}
+    $0 ~ "^"k"=" {print k"="v; d=1; next} {print} END{if(!d) print k"="v}' "$f" > "$tmp"
+  cat "$tmp" > "$f"; rm -f "$tmp"
+}
+resolve_bind() {  # BIND_ADDR=tailscale -> this host's current Tailscale IPv4 (portable across hosts)
+  local b; b=$(envval "$1" BIND_ADDR)
+  if [ "$b" = "tailscale" ]; then
+    b=$(tailscale ip -4 2>/dev/null | head -1) || true
+    [ -n "$b" ] || die "BIND_ADDR=tailscale but tailscale is not up on this host"
+  fi
+  echo "${b:-127.0.0.1}"
+}
+compose() {
+  local org="$1"; shift
+  # Create bind-mount sources ourselves so Docker doesn't create them root-owned (older orgs lack home-config/).
+  local sub_dir
+  for sub_dir in home-config quarantine; do
+    [ -d "$ORGS/$org/$sub_dir" ] || { mkdir -p "$ORGS/$org/$sub_dir"; chmod 700 "$ORGS/$org/$sub_dir"; }
+  done
+  BIND_ADDR="$(resolve_bind "$org")" \
+  ORG="$org" ORG_DIR="$ORGS/$org" HOST_UID="$(id -u)" HOST_GID="$(id -g)" \
+    docker compose -f "$ROOT/compose.yml" --env-file "$ORGS/$org/org.env" "$@"
+}
+running() { docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "claude-$1"; }
+need_up() { running "$1" || die "claude-$1 is not running (ccenv up $1)"; }
+next_port() {  # next_port KEY BASE
+  local max=$(( $2 - 1 )) p
+  for f in "$ORGS"/*/org.env; do
+    [ -f "$f" ] || continue
+    p=$(grep -E "^$1=" "$f" | cut -d= -f2); [ -n "$p" ] && [ "$p" -gt "$max" ] && max=$p
+  done
+  echo $(( max + 1 ))
+}
+host_addr() {  # the address remote clients should use
+  local b; b=$(resolve_bind "$1")
+  case "$b" in 127.0.0.1) echo "127.0.0.1 (local only; set BIND_ADDR=tailscale)";;
+    0.0.0.0) echo "${CCENV_HOST:-$(hostname)}";; *) echo "$b";; esac
+}
+new_password() { head -c 64 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32; }
+write_secret() {  # write_secret <file> <value>  (0600, never passed through argv of another program)
+  (umask 077; printf '%s' "$2" > "$1")
+}
+
+# ---------------------------------------------------------------------------- init
+write_firewall_template() {
+  cat <<EOF
+# Egress allowlist for $1, applied live by: ccenv fw $1 ...
+# One entry per line:  domain (pypi.org) | IP or CIDR (10.0.0.0/8) | @preset (@python) | mode on|off
+# Always allowed: Anthropic/Claude, GitHub, npm.  List presets: ccenv fw $1 presets
+# Entries are resolved to IPs, so wildcards (*.example.com) are not supported.
+mode on
+# Toolchain installs via mise, plus package registries for common languages:
+@mise
+@python
+@go
+@rust
+@ruby
+EOF
+}
+
+cmd_init() {
+  local org="${1:-}"; shift || true
+  [[ "$org" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "org name must be lowercase [a-z0-9-]"
+  local d="$ORGS/$org"; [ -e "$d/org.env" ] && die "$org already exists"
+  local name="" email=""
+  while [ $# -gt 0 ]; do case "$1" in
+    --name) name="$2"; shift 2;; --email) email="$2"; shift 2;; *) die "unknown flag $1";; esac; done
+  [ -n "$name" ]  || name="$(git config --global user.name 2>/dev/null || true)"
+  [ -n "$email" ] || email="$(git config --global user.email 2>/dev/null || true)"
+
+  mkdir -p "$d"/{workspace,claude,ssh,sshd,mise,home-config,config/secrets}
+  chmod 700 "$d" "$d/ssh" "$d/claude" "$d/home-config" "$d/config/secrets"
+  ssh-keygen -q -t ed25519 -N '' -C "claude-$org@$(hostname)" -f "$d/ssh/id_ed25519"
+  cat "$HOME"/.ssh/*.pub > "$d/config/authorized_keys" 2>/dev/null || : > "$d/config/authorized_keys"
+  write_secret "$d/config/secrets/ttyd_credential" "node:$(new_password)"
+  write_firewall_template "$org" > "$d/config/firewall.txt"
+
+  cat > "$d/org.env" <<EOF
+# ---- Claude account (use: ccenv token $org) ---------------------------------
+CLAUDE_CODE_OAUTH_TOKEN=
+# Alternative, API/Console billing:
+# ANTHROPIC_API_KEY=
+
+# ---- Git identity for this org ------------------------------------------------
+GIT_USER_NAME=$name
+GIT_USER_EMAIL=$email
+# Optional: gh CLI + HTTPS git for this org
+GH_TOKEN=
+
+# ---- Access ---------------------------------------------------------------------
+# tailscale = this host's Tailscale IP (reachable from your tailnet anywhere)
+# 127.0.0.1 = this host only; 0.0.0.0 = all interfaces (not recommended)
+BIND_ADDR=$(command -v tailscale >/dev/null && echo tailscale || echo 127.0.0.1)
+SSH_PORT=$(next_port SSH_PORT 2201)
+TTYD_PORT=$(next_port TTYD_PORT 7701)
+# Remote Control service: start sessions from claude.ai/code (needs: ccenv login $org)
+REMOTE_CONTROL=1
+REMOTE_CAPACITY=8
+
+# ---- Repos ----------------------------------------------------------------------------
+# Only repos registered with 'ccenv repo add' may be used (config/repos.txt).
+# enforce = block Claude + git, and quarantine anything else in /workspace; warn = log only; off
+REPO_POLICY=enforce
+
+# ---- Resources --------------------------------------------------------------------
+MEM_LIMIT=8g
+CPUS=4
+EOF
+  chmod 600 "$d/org.env"
+  echo "Created $d"
+  echo
+  echo "Next:"
+  echo "  1. Start:   ccenv up $org"
+  echo "  2. Git key: add to $org's GitHub:  $(cat "$d/ssh/id_ed25519.pub")"
+  echo "  3. Sign in: ccenv auth $org   (private browser window, $org's Claude account)"
+  echo "  4. Repos:   ccenv repo add $org <owner/repo>   (only registered repos are allowed)"
+}
+
+# ---------------------------------------------------------------------------- secrets
+browser_hint() {
+  cat <<EOF
+Sign in as the $1 Claude account. The flow runs inside the $1 container, so your host's Claude
+session is not touched. Only your browser session matters:
+  -> open the link in a PRIVATE/INCOGNITO window (or a browser profile for $1),
+     sign in to claude.ai with the $1 account, approve, and paste the code back here.
+EOF
+}
+
+cmd_token() {  # token <org> [--paste] [--no-restart]: get a 1-year token via `claude setup-token` in the org's container
+  local org="" paste=0 restart=1 t=""
+  while [ $# -gt 0 ]; do case "$1" in
+    --paste) paste=1; shift ;; --no-restart) restart=0; shift ;; *) org="$1"; shift ;; esac; done
+  need_org "$org"
+  if [ $paste = 0 ]; then
+    need_up "$org"
+    browser_hint "$org"; echo
+    # Capture the session in RAM (/dev/shm) to pick the token out, then wipe it. A wide pty keeps the token on one line.
+    docker exec -it -u node -w /workspace claude-"$org" bash -c '
+      umask 077; log=$(mktemp -p /dev/shm); trap "rm -f $log" EXIT
+      script -qfec "stty cols 2000 2>/dev/null; env -u CLAUDE_CODE_OAUTH_TOKEN claude setup-token" "$log" >/dev/tty
+      grep -ao "sk-ant-oat[0-9A-Za-z_-]*" "$log" | tail -1 > /dev/shm/.ccenv-token' || true
+    t=$(docker exec claude-"$org" sh -c 'cat /dev/shm/.ccenv-token 2>/dev/null; rm -f /dev/shm/.ccenv-token')
+    [ -n "$t" ] || { echo; echo "Couldn't read the token from the output; paste it instead."; }
+  fi
+  if [ -z "$t" ]; then read -r -s -p "Paste CLAUDE_CODE_OAUTH_TOKEN for $org: " t; echo; fi
+  [[ "$t" == sk-ant-* ]] || die "that doesn't look like a Claude token (sk-ant-...)"
+  setval "$org" CLAUDE_CODE_OAUTH_TOKEN "$t"
+  echo "Token saved for $org."
+  if [ $restart = 1 ] && running "$org"; then
+    echo "Restarting claude-$org to apply it (open terminal sessions in it will reconnect)..."
+    compose "$org" up -d --force-recreate >/dev/null 2>&1; sleep 3
+  fi
+}
+
+cmd_auth() {  # both credentials for an org in one go: token (for claude) + full login (for Remote Control)
+  need_org "${1:-}"; need_up "$1"
+  echo "== Step 1/2: long-lived token (used by every session)"; cmd_token "$1"
+  echo; echo "== Step 2/2: full login (used by Remote Control / claude.ai)"
+  echo "Use the SAME private window: you're already signed in there, so it's one click."; echo
+  cmd_login "$1"
+}
+
+cmd_whoami() {  # which Claude account each org is actually using
+  local o orgs=("$@") st gh
+  [ ${#orgs[@]} -gt 0 ] || for d in "$ORGS"/*/; do [ -f "$d/org.env" ] && orgs+=("$(basename "$d")"); done
+  printf '%-12s %-7s %-14s %s\n' ORG TOKEN "GITHUB (gh)" "REMOTE-CONTROL LOGIN (account)"
+  for o in "${orgs[@]}"; do
+    need_org "$o"
+    st="(container down)"; gh="-"
+    if running "$o"; then
+      st=$(docker exec -u node claude-"$o" sh -c 'env -u CLAUDE_CODE_OAUTH_TOKEN claude auth status 2>/dev/null; true' \
+           | jq -r 'if .loggedIn then "\(.email)  [\(.orgName)]" else "not logged in (ccenv login '"$o"')" end' 2>/dev/null || echo "not logged in")
+      gh=$(gh_account "$o"); [ -n "$gh" ] || gh="not signed in"
+    fi
+    printf '%-12s %-7s %-14s %s\n' "$o" "$([ -n "$(envval "$o" CLAUDE_CODE_OAUTH_TOKEN)" ] && echo set || echo MISSING)" "$gh" "$st"
+  done
+}
+
+cmd_password() {
+  need_org "$1"; local f="$ORGS/$1/config/secrets/ttyd_credential"
+  case "${2:-show}" in
+    show)   [ -s "$f" ] || die "no password set (ccenv password $1 rotate)"
+            echo "user: node"; echo "pass: $(cut -d: -f2- "$f")" ;;
+    rotate) write_secret "$f" "node:$(new_password)"
+            if running "$1"; then docker exec claude-"$1" pkill -x ttyd || true; fi
+            echo "Rotated; the browser terminal restarts with it in ~3s."
+            echo "pass: $(cut -d: -f2- "$f")" ;;
+    *) die "usage: ccenv password <org> [show|rotate]" ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------- firewall
+fw_apply() {
+  if running "$1"; then docker exec claude-"$1" init-firewall.sh apply
+  else echo "(saved; applies on: ccenv up $1)"; fi
+}
+cmd_fw() {
+  need_org "${1:-}"; local org="$1" f="$ORGS/$1/config/firewall.txt" tmp e; shift
+  [ -f "$f" ] || write_firewall_template "$org" > "$f"
+  local sub="${1:-show}"; shift || true
+  case "$sub" in
+    show)
+      echo "$f"
+      grep -vE '^\s*(#|$)' "$f" | sed 's/^/  /'
+      if running "$org"; then echo "live: $(docker exec claude-"$org" cat /run/firewall.status 2>/dev/null || echo unknown)"; fi ;;
+    allow|add)
+      [ $# -ge 1 ] || die "usage: ccenv fw $org allow <domain|ip|cidr|@preset>..."
+      for e in "$@"; do
+        e="${e#*://}"; e="${e%%/*}"; e="${e%%:*}"          # accept URLs: https://x.com:443/path -> x.com
+        if grep -qxF "$e" "$f"; then echo "already allowed: $e"; else echo "$e" >> "$f"; echo "allowed: $e"; fi
+      done; fw_apply "$org" ;;
+    deny|remove|rm)
+      [ $# -ge 1 ] || die "usage: ccenv fw $org deny <entry>..."
+      for e in "$@"; do
+        grep -qxF "$e" "$f" || { echo "not in list: $e"; continue; }
+        tmp=$(mktemp); grep -vxF "$e" "$f" > "$tmp"; cat "$tmp" > "$f"; rm -f "$tmp"; echo "removed: $e"
+      done; fw_apply "$org" ;;
+    on|off)
+      tmp=$(mktemp); grep -vE '^\s*mode\s+(on|off)\s*$' "$f" > "$tmp" || true
+      echo "mode $sub" >> "$tmp"; cat "$tmp" > "$f"; rm -f "$tmp"; fw_apply "$org" ;;
+    edit)    "${EDITOR:-vi}" "$f"; fw_apply "$org" ;;
+    reload)  fw_apply "$org" ;;
+    presets)
+      if running "$org"; then docker exec claude-"$org" init-firewall.sh presets
+      else docker run --rm --entrypoint init-firewall.sh claude-env presets; fi ;;
+    test)
+      need_up "$org"; [ $# -ge 1 ] || set -- api.anthropic.com github.com example.com
+      for e in "$@"; do [[ "$e" == *://* ]] || e="https://$e"
+        if docker exec -u node claude-"$org" curl -s -o /dev/null --max-time 6 "$e"
+        then echo "ALLOWED  $e"; else echo "blocked  $e"; fi
+      done ;;
+    *) die "usage: ccenv fw <org> [show|allow|deny|on|off|edit|reload|presets|test]" ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------- remote control
+rc_logged_in() { docker exec claude-"$1" test -f /home/node/.claude/.credentials.json; }
+rc_running()   { docker exec claude-"$1" pgrep -f "claude remote-control" >/dev/null; }
+rc_blocked()   { docker exec claude-"$1" sh -c 'tail -n 2 /home/node/.claude/remote-control.log 2>/dev/null' | grep -q "blocked by organization policy"; }
+rc_url() {
+  docker exec claude-"$1" sh -c 'grep -ao "https://claude.ai/code?environment=[A-Za-z0-9_]*" /home/node/.claude/remote-control.log 2>/dev/null | tail -1' || true
+}
+rc_log() {  # last N lines of the service log, ANSI stripped
+  docker exec claude-"$1" sh -c "sed -e 's/\x1b\][^\x1b]*\x1b\\\\//g' -e 's/\x1b\[[0-9;]*[A-Za-z]//g' /home/node/.claude/remote-control.log 2>/dev/null | grep -av '^\s*\$' | tail -$2"
+}
+cmd_remote() {
+  need_org "${1:-}"; local org="$1"; need_up "$org"
+  case "${2:-status}" in
+    status)
+      if ! rc_logged_in "$org"; then echo "Remote Control: not logged in. Run: ccenv login $org"; return; fi
+      if rc_running "$org"; then
+        echo "Remote Control: running"
+        echo "  Open:  $(rc_url "$org")"
+        echo "  Or:    claude.ai/code or the Claude app -> pick environment '$org' -> New session"
+        rc_log "$org" 200 | grep -a "Capacity" | tail -1 | sed 's/^ */  /'
+      elif rc_blocked "$org"; then
+        echo "Remote Control: BLOCKED by the Claude organization's policy for this account."
+        echo "  An admin of that Claude organization must enable Remote Control. The service retries hourly and"
+        echo "  recovers on its own. Meanwhile use SSH, the browser terminal, VS Code or 'ccenv attach $org'."
+        echo "  To stop trying: set REMOTE_CONTROL=0 in orgs/$org/org.env, then ccenv restart $org"
+      else
+        echo "Remote Control: restarting (see: ccenv remote $org logs)"
+      fi ;;
+    logs)    rc_log "$org" 40 ;;
+    restart) docker exec claude-"$org" pkill -f "claude remote-control" || true
+             echo "Restarting; back in ~5s." ;;
+    *) die "usage: ccenv remote <org> [status|logs|restart]" ;;
+  esac
+}
+rc_account() {  # "<orgId> <email> [<orgName>]" of the org's full login, or empty
+  docker exec -u node claude-"$1" sh -c 'env -u CLAUDE_CODE_OAUTH_TOKEN claude auth status 2>/dev/null; true' \
+    | jq -r 'select(.loggedIn) | "\(.orgId) \(.email) [\(.orgName)]"' 2>/dev/null || true
+}
+check_account() {  # warn if another org uses the same Claude *organization* (one email can belong to several)
+  local org="$1" me o other; me=$(rc_account "$org"); [ -n "$me" ] || return 0
+  echo "Signed in as: ${me#* }"
+  [ "$(envval "$org" SHARED_ACCOUNT)" = 1 ] && return 0
+  for o in "$ORGS"/*/; do o=$(basename "$o"); [ "$o" = "$org" ] && continue
+    running "$o" || continue; [ "$(envval "$o" SHARED_ACCOUNT)" = 1 ] && continue; other=$(rc_account "$o")
+    if [ -n "$other" ] && [ "${other%% *}" = "${me%% *}" ]; then
+      echo
+      echo "WARNING: '$org' is using the same Claude organization as '$o': ${me#* }"
+      echo "  Intended?  Silence this: echo SHARED_ACCOUNT=1 >> orgs/$org/org.env"
+      echo "  Mistake?   ccenv logout $org && ccenv auth $org. In the private window, check which account"
+      echo "             claude.ai shows first, and if you belong to several organizations, pick the right one"
+      echo "             on the organization screen during sign-in."
+    fi
+  done
+}
+cmd_login() {
+  need_org "${1:-}"; need_up "$1"
+  # Start clean so a previous (possibly wrong) login can't be reused silently.
+  docker exec -u node claude-"$1" sh -c 'env -u CLAUDE_CODE_OAUTH_TOKEN claude auth logout >/dev/null 2>&1; rm -f $CLAUDE_CONFIG_DIR/.credentials.json'
+  browser_hint "$1"; echo
+  docker exec -it -u node -w /workspace claude-"$1" env -u CLAUDE_CODE_OAUTH_TOKEN claude auth login
+  docker exec claude-"$1" pkill -f "claude remote-control" 2>/dev/null || true   # pick up the new login now
+  echo "Waiting for the Remote Control service..."
+  for _ in $(seq 1 20); do sleep 2; rc_running "$1" && [ -n "$(rc_url "$1")" ] && break; rc_blocked "$1" && break; done
+  cmd_remote "$1" status
+  echo; check_account "$1"
+}
+
+gh_account() { docker exec -u node claude-"$1" sh -c 'gh api user -q .login 2>/dev/null; true'; }
+cmd_gh_login() {  # gh CLI sign-in inside the org's container (device code); stored in orgs/<org>/home-config/gh
+  need_org "${1:-}"; need_up "$1"; local org="$1" acct
+  acct=$(gh_account "$org")
+  if [ -n "$acct" ] && [ "${2:-}" != "--force" ]; then
+    echo "$org: gh already signed in as $acct (use --force to sign in again)"; return 0
+  fi
+  echo "Signing the gh CLI in for $org, inside its container (your host gh is not touched)."
+  echo "  -> Open https://github.com/login/device in a browser signed in to the GitHub account for $org"
+  echo "     and enter the one-time code shown below."
+  echo
+  # BROWSER=true: there's no browser in the container, so gh just prints the URL and code.
+  docker exec -it -u node -w /workspace -e BROWSER=true claude-"$org" \
+    gh auth login --hostname github.com --git-protocol ssh --skip-ssh-key --web --scopes "read:org,repo,workflow"
+  acct=$(gh_account "$org")
+  [ -n "$acct" ] || die "gh sign-in didn't complete for $org"
+  echo
+  echo "$org: gh signed in as $acct"
+}
+
+cmd_logout() {  # logout <org> [--all]: remove the Remote Control login (and with --all, the token too)
+  need_org "${1:-}"; local org="$1"
+  if running "$org"; then
+    docker exec -u node claude-"$org" sh -c 'env -u CLAUDE_CODE_OAUTH_TOKEN claude auth logout >/dev/null 2>&1; rm -f $CLAUDE_CONFIG_DIR/.credentials.json'
+    docker exec claude-"$org" pkill -f "claude remote-control" 2>/dev/null || true
+  else rm -f "$ORGS/$org/claude/.credentials.json"; fi
+  echo "Logged out $org (Remote Control login removed)."
+  if [ "${2:-}" = "--all" ]; then
+    setval "$org" CLAUDE_CODE_OAUTH_TOKEN ""
+    echo "Token removed too."; running "$org" && { compose "$org" up -d --force-recreate >/dev/null 2>&1; echo "Restarted claude-$org."; }
+  fi
+  return 0
+}
+
+# ---------------------------------------------------------------------------- backup / restore
+BACKUPS="${CCENV_BACKUP_DIR:-$ROOT/backups}"
+IMAGE=claude-env
+KEYFILE="${CCENV_BACKUP_KEY:-${XDG_CONFIG_HOME:-$HOME/.config}/ccenv/backup.key}"
+
+human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || echo "${1}B"; }
+
+cmd_build() {
+  docker build -t "$IMAGE" --build-arg USER_UID="$(id -u)" --build-arg USER_GID="$(id -g)" "$@" "$ROOT/image"
+}
+ensure_image() {
+  docker image inspect "$IMAGE" >/dev/null 2>&1 && docker run --rm --entrypoint sh "$IMAGE" -c 'command -v age && command -v gpg' >/dev/null 2>&1 \
+    || cmd_build
+}
+# Secrets go to a private temp dir that's mounted read-only into the engine: never argv, env, or the backup dir.
+SECRETS=""
+secrets_dir() { [ -n "$SECRETS" ] || { SECRETS=$(mktemp -d); chmod 700 "$SECRETS"; }; }
+cleanup() {
+  [ -n "$SECRETS" ] && rm -rf "$SECRETS"
+  if [ -n "${STAGE:-}" ] && [ -d "$STAGE" ]; then
+    docker run --rm -v "$ORGS:/orgs" --entrypoint rm "$IMAGE" -rf "/orgs/$(basename "$STAGE")" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+archive() {  # archive <org-dir-mount> <args...>: run the backup engine as root, no network
+  local mount="$1"; shift
+  local sec=(); [ -n "$SECRETS" ] && sec=(-v "$SECRETS:/secrets:ro")
+  docker run --rm -i --network none --entrypoint bash \
+    -e ORG="${ORG_NAME:-}" -e SRC_HOST="$(hostname)" -e ENC="${ENC:-none}" "${sec[@]}" \
+    -v "$ROOT/image/archive.sh:/archive.sh:ro" -v "$mount" "$IMAGE" /archive.sh "$@"
+}
+set_passphrase() {  # from CCENV_BACKUP_PASSPHRASE or a prompt; confirm + length check when encrypting
+  local a="${CCENV_BACKUP_PASSPHRASE:-}" b
+  if [ -z "$a" ]; then
+    [ -r /dev/tty ] || die "no passphrase: set CCENV_BACKUP_PASSPHRASE, or use a key (ccenv keygen)"
+    read -r -s -p "Backup passphrase: " a </dev/tty; echo >&2
+    if [ "${1:-}" = confirm ]; then
+      [ ${#a} -ge 12 ] || die "use at least 12 characters (or a key: ccenv keygen)"
+      read -r -s -p "Repeat passphrase: " b </dev/tty; echo >&2; [ "$a" = "$b" ] || die "passphrases differ"
+    fi
+  fi
+  [ -n "$a" ] || die "empty passphrase"
+  [ "${1:-}" = confirm ] && [ ${#a} -lt 12 ] && echo "warning: passphrase shorter than 12 characters" >&2
+  secrets_dir; (umask 077; printf '%s' "$a" > "$SECRETS/pass")
+}
+add_recipient() {  # age1... | ssh-ed25519/ssh-rsa public key | file containing those
+  secrets_dir
+  if [ -f "$1" ]; then grep -hE '^(age1|ssh-)' "$1" >> "$SECRETS/recipients" || die "no age/ssh public key in $1"
+  else case "$1" in age1*|ssh-*) echo "$1" >> "$SECRETS/recipients" ;; *) die "not a recipient: $1" ;; esac; fi
+}
+set_identity() {
+  [ -f "$1" ] || die "identity not found: $1"
+  secrets_dir; (umask 077; cat "$1" > "$SECRETS/identity")
+}
+
+cmd_keygen() {  # key-based backups: no passphrase prompts, good for cron
+  [ -e "$KEYFILE" ] && die "$KEYFILE already exists (public key: $(grep -o 'age1[0-9a-z]*' "$KEYFILE"))"
+  ensure_image; mkdir -p "$(dirname "$KEYFILE")"; chmod 700 "$(dirname "$KEYFILE")"
+  (umask 077; docker run --rm --network none --entrypoint age-keygen "$IMAGE" 2>/dev/null > "$KEYFILE")
+  echo "Created $KEYFILE"
+  echo "Public key: $(grep -o 'age1[0-9a-z]*' "$KEYFILE")"
+  echo
+  echo "Backups now encrypt to this key automatically (no prompts)."
+  echo "IMPORTANT: store a copy of $KEYFILE somewhere safe (e.g. your password manager)."
+  echo "Without it, key-encrypted backups cannot be restored. Copy it to a new machine before 'ccenv restore'."
+}
+
+cmd_backup() {
+  local orgs=() out="" plan=0 mode="" r keep=0
+  local recips=()
+  while [ $# -gt 0 ]; do case "$1" in
+    --all) for d in "$ORGS"/*/; do [ -f "$d/org.env" ] && ! berth_owned "$(basename "$d")" && orgs+=("$(basename "$d")"); done; shift ;;
+    -o|--output) out="$2"; shift 2 ;;
+    --encrypt) shift ;;                         # default; kept for compatibility
+    --passphrase) mode=gpg; shift ;;
+    --recipient|-r) recips+=("$2"); mode=age; shift 2 ;;
+    --no-encrypt) mode=none; shift ;;
+    --plan|--dry-run) plan=1; shift ;;
+    --keep) keep="${2:-}"; [[ "$keep" =~ ^[1-9][0-9]*$ ]] || die "--keep needs a number >= 1"; shift 2 ;;
+    -*) die "unknown flag $1" ;;
+    *) orgs+=("$1"); shift ;;
+  esac; done
+  [ ${#orgs[@]} -ge 1 ] || die "usage: ccenv backup <org>...|--all [--plan] [-o file|dir|-] [--passphrase | -r <key> | --no-encrypt]"
+  [ ${#orgs[@]} -eq 1 ] || [ -z "$out" ] || [ -d "$out" ] || die "-o must be a directory when backing up several orgs"
+  ensure_image
+
+  if [ $plan = 0 ]; then
+    # Encryption is on by default. Order: explicit flag > CCENV_BACKUP_RECIPIENTS > CCENV_BACKUP_PASSPHRASE > key file > prompt.
+    if [ -z "$mode" ]; then
+      if [ -n "${CCENV_BACKUP_RECIPIENTS:-}" ]; then mode=age; for r in ${CCENV_BACKUP_RECIPIENTS//,/ }; do recips+=("$r"); done
+      elif [ -n "${CCENV_BACKUP_PASSPHRASE:-}" ]; then mode=gpg
+      elif [ -f "$KEYFILE" ]; then mode=age; recips+=("$(grep -o 'age1[0-9a-z]*' "$KEYFILE")")
+      else mode=gpg; fi
+    fi
+    case "$mode" in
+      gpg) set_passphrase confirm ;;
+      age) for r in "${recips[@]}"; do add_recipient "$r"; done ;;
+      none) echo "WARNING: --no-encrypt: the backup will contain the Claude token, git/ssh keys and passwords in plain form." >&2 ;;
+    esac
+  fi
+  local sfx=".tar.zst"; case "$mode" in gpg) sfx+=".gpg" ;; age) sfx+=".age" ;; esac
+
+  local org f
+  for org in "${orgs[@]}"; do
+    need_org "$org"
+    if [ $plan = 1 ]; then echo "== $org"; ORG_NAME=$org archive "$ORGS/$org:/src:ro" plan; echo; continue; fi
+    if [ "$out" = "-" ]; then ORG_NAME=$org ENC=$mode archive "$ORGS/$org:/src:ro" create; continue; fi
+    if [ -z "$out" ] || [ -d "$out" ]; then
+      mkdir -p "${out:-$BACKUPS}"; chmod 700 "${out:-$BACKUPS}" 2>/dev/null || true
+      f="${out:-$BACKUPS}/$org-$(date +%Y%m%d-%H%M%S)$sfx"
+    else f="$out"; fi
+    echo "== $org" >&2
+    ORG_NAME=$org archive "$ORGS/$org:/src:ro" plan | sed -n '1,3p' >&2
+    ( umask 077; ORG_NAME=$org ENC=$mode archive "$ORGS/$org:/src:ro" create > "$f" ) || { rm -f "$f"; die "backup of $org failed"; }
+    echo "Wrote $f ($(human "$(stat -c %s "$f")"), $(case $mode in gpg) echo "passphrase-encrypted";; age) echo "key-encrypted";; none) echo "NOT encrypted";; esac))" >&2
+    if [ "$keep" -gt 0 ] && [ -z "$out" -o -d "$out" ]; then prune_backups "${out:-$BACKUPS}" "$org" "$keep"; fi
+  done
+}
+
+prune_backups() {  # prune_backups <dir> <org> <keep>: delete all but the newest <keep> backups of <org>
+  local dir="$1" org="$2" keep="$3" old
+  # <org>-YYYYmmdd-HHMMSS.tar.zst*  (the digit after the dash keeps "acme" from matching "acme-test")
+  old=$(find "$dir" -maxdepth 1 -type f -regextype posix-extended \
+          -regex ".*/$org-[0-9]{8}-[0-9]{6}\.tar\.zst(\.gpg|\.age)?" -printf '%f\n' | sort -r | tail -n +$((keep + 1)))
+  [ -n "$old" ] || return 0
+  echo "$old" | while read -r f; do rm -f "$dir/$f"; echo "Pruned $f (keeping newest $keep)" >&2; done
+}
+
+cmd_schedule() {  # nightly `backup --all` via a systemd user timer (Linux) or cron (fallback)
+  local at="03:00" keep=14 out="" action="on"
+  while [ $# -gt 0 ]; do case "$1" in
+    --at) at="$2"; shift 2 ;; --keep) keep="$2"; shift 2 ;; -o|--output) out="$2"; shift 2 ;;
+    --off|off) action=off; shift ;; status) action=status; shift ;; run|now) action=run; shift ;;
+    *) die "usage: ccenv schedule [--at HH:MM] [--keep N] [-o dir] | status | run | off" ;;
+  esac; done
+  [[ "$at" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] || die "--at must be HH:MM (24h)"
+  [[ "$keep" =~ ^[1-9][0-9]*$ ]] || die "--keep needs a number >= 1"
+  local unit="$HOME/.config/systemd/user" name=ccenv-backup
+  local use_systemd=0; systemctl --user show-environment >/dev/null 2>&1 && use_systemd=1
+
+  case "$action" in
+    status)
+      if [ $use_systemd = 1 ] && [ -f "$unit/$name.timer" ]; then
+        systemctl --user list-timers "$name.timer" --no-pager | head -2
+        echo; journalctl --user -u "$name.service" -n 15 --no-pager -o cat 2>/dev/null | grep -E "==|Wrote|Pruned|failed|ccenv:" || echo "(no runs yet)"
+      elif command -v crontab >/dev/null && crontab -l 2>/dev/null | grep -q "# $name"; then
+        crontab -l | grep "# $name"; echo "log: $BACKUPS/cron.log"
+      else echo "No backup schedule. Set one with: ccenv schedule"; fi
+      return ;;
+    run)
+      [ $use_systemd = 1 ] && [ -f "$unit/$name.timer" ] || die "no systemd schedule to run (ccenv backup --all runs it by hand)"
+      systemctl --user start "$name.service" && echo "Ran. See: ccenv schedule status"; return ;;
+    off)
+      if [ $use_systemd = 1 ] && [ -f "$unit/$name.timer" ]; then
+        systemctl --user disable --now "$name.timer" >/dev/null 2>&1 || true
+        rm -f "$unit/$name.timer" "$unit/$name.service"; systemctl --user daemon-reload
+      fi
+      if command -v crontab >/dev/null; then crontab -l 2>/dev/null | grep -v "# $name" | crontab - || true; fi
+      echo "Backup schedule removed."; return ;;
+  esac
+
+  # Unattended runs can't answer a passphrase prompt, and a passphrase must not sit in a unit file.
+  [ -f "$KEYFILE" ] || [ -n "${CCENV_BACKUP_RECIPIENTS:-}" ] || die "scheduled backups need a key: run 'ccenv keygen' first"
+  local cmd=("$ROOT/ccenv" backup --all --keep "$keep"); [ -n "$out" ] && cmd+=(-o "$out")
+  [ -n "${CCENV_BACKUP_RECIPIENTS:-}" ] && cmd=(env "CCENV_BACKUP_RECIPIENTS=$CCENV_BACKUP_RECIPIENTS" "${cmd[@]}")
+
+  if [ $use_systemd = 1 ]; then
+    mkdir -p "$unit"
+    cat > "$unit/$name.service" <<EOF
+[Unit]
+Description=ccenv: encrypted backup of all Claude org containers
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=${cmd[*]}
+Nice=10
+IOSchedulingClass=idle
+EOF
+    cat > "$unit/$name.timer" <<EOF
+[Unit]
+Description=ccenv: nightly backup at $at
+
+[Timer]
+OnCalendar=*-*-* $at:00
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target
+EOF
+    systemctl --user daemon-reload
+    systemctl --user enable --now "$name.timer" >/dev/null
+    echo "Scheduled (systemd user timer): daily at $at, keeping the newest $keep backups per org${out:+ in $out}."
+    echo "Missed runs (machine off) catch up at next boot. Logs: ccenv schedule status"
+    if [ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)" != yes ]; then
+      echo "Note: runs only while you're logged in. To run even when logged out: sudo loginctl enable-linger $USER"
+    fi
+  elif command -v crontab >/dev/null; then
+    local h="${at%%:*}" m="${at##*:}"
+    ( crontab -l 2>/dev/null | grep -v "# $name"
+      echo "${m#0} ${h#0} * * * ${cmd[*]} >> $BACKUPS/cron.log 2>&1  # $name" ) | crontab -
+    echo "Scheduled (cron): daily at $at, keeping the newest $keep backups per org. Log: $BACKUPS/cron.log"
+  else
+    die "neither systemd user services nor crontab are available on this host"
+  fi
+}
+
+cmd_restore() {
+  local src="" as="" force=0 start=1 rehydrate=1 ident=""
+  while [ $# -gt 0 ]; do case "$1" in
+    --as) as="$2"; shift 2 ;;
+    --identity|-i) ident="$2"; shift 2 ;;
+    --force) force=1; shift ;;
+    --no-start) start=0; shift ;;
+    --no-rehydrate) rehydrate=0; shift ;;
+    -) src="-"; shift ;;
+    -*) die "unknown flag $1" ;;
+    *) src="$1"; shift ;;
+  esac; done
+  [ -n "$src" ] || die "usage: ccenv restore <file|-> [--as name] [--identity key] [--force] [--no-start] [--no-rehydrate]"
+  [ "$src" = "-" ] || [ -f "$src" ] || die "no such file: $src"
+  ensure_image
+
+  # Supply whatever this backup needs. For files we can look at the header; for stdin, pass what's configured.
+  local kind="unknown"
+  if [ "$src" != "-" ]; then
+    case "$(od -An -tx1 -N1 "$src" | tr -d ' ')" in 28) kind=zstd ;; 8c|c3) kind=gpg ;; 61) kind=age ;; esac
+  fi
+  if [ "$kind" = gpg ] || { [ "$kind" = unknown ] && [ -n "${CCENV_BACKUP_PASSPHRASE:-}" ]; }; then set_passphrase; fi
+  if [ -n "$ident" ]; then set_identity "$ident"
+  elif [ -f "$KEYFILE" ] && [ "$kind" != zstd ] && [ "$kind" != gpg ]; then set_identity "$KEYFILE"
+  elif [ "$kind" = age ]; then die "key-encrypted backup: pass --identity <key> (default $KEYFILE not found)"; fi
+
+  # Decrypt + extract in one stream into a staging dir: plaintext never lands on disk as an archive,
+  # and a wrong key or tampered file leaves nothing behind.
+  STAGE=$(mktemp -d -p "$ORGS" .restore-XXXXXX)
+  if [ "$src" = "-" ]; then archive "$STAGE:/dst" extract "$(id -u)" "$(id -g)"
+  else archive "$STAGE:/dst" extract "$(id -u)" "$(id -g)" < "$src"; fi \
+    || die "restore failed (wrong passphrase/key, or the backup is corrupted/tampered). Nothing was changed."
+  [ -f "$STAGE/.ccenv-manifest.json" ] || die "not a ccenv backup (no manifest)"
+
+  local manifest name
+  manifest=$(cat "$STAGE/.ccenv-manifest.json")
+  name="${as:-$(echo "$manifest" | jq -r .org)}"
+  [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "invalid org name '$name'"
+  echo "Restoring '$(echo "$manifest" | jq -r .org)' from $(echo "$manifest" | jq -r .source_host) ($(echo "$manifest" | jq -r .created), $(cat "$STAGE/.ccenv-format")) as '$name'"
+
+  local d="$ORGS/$name"
+  if [ -e "$d" ]; then
+    [ $force = 1 ] || die "$name already exists (use --force to replace it, or --as <other-name>)"
+    if running "$name"; then compose "$name" down >/dev/null 2>&1 || true; fi
+    mkdir -p "$BACKUPS/.replaced"; mv "$d" "$BACKUPS/.replaced/$name-$(date +%Y%m%d-%H%M%S)"
+    echo "Existing $name moved to $BACKUPS/.replaced/"
+  fi
+  rm -f "$STAGE/.ccenv-format"
+  mv "$STAGE" "$d"; STAGE=""; chmod 700 "$d"
+
+  # Make it fit this host: free ports, and Tailscale only if this host has it.
+  local k p o used
+  for k in SSH_PORT TTYD_PORT; do
+    p=$(envval "$name" "$k"); used=0
+    for o in "$ORGS"/*/org.env; do
+      [ "$o" = "$d/org.env" ] && continue
+      grep -qx "$k=$p" "$o" 2>/dev/null && used=1
+    done
+    if [ $used = 1 ]; then
+      setval "$name" "$k" 0; setval "$name" "$k" "$(next_port "$k" "$([ $k = SSH_PORT ] && echo 2201 || echo 7701)")"
+      echo "$k was taken here; now $(envval "$name" "$k")"
+    fi
+  done
+  if [ "$(envval "$name" BIND_ADDR)" = tailscale ] && ! tailscale ip -4 >/dev/null 2>&1; then
+    setval "$name" BIND_ADDR 127.0.0.1; echo "Tailscale not up on this host: bound to 127.0.0.1 (set BIND_ADDR=tailscale later)"
+  fi
+
+  echo "Restored to $d"
+  [ $start = 1 ] || { echo "Start with: ccenv up $name"; return; }
+  compose "$name" up -d --force-recreate >/dev/null
+  sleep 5
+  [ $rehydrate = 1 ] && cmd_rehydrate "$name"
+  cmd_ls
+}
+
+cmd_rehydrate() {  # reinstall what backups skip: mise toolchains + project dependencies
+  need_org "${1:-}"; need_up "$1"
+  echo "== Rehydrating $1: repos, toolchains and dependencies (this can take a while)"
+  cmd_repo sync "$1"
+  docker exec -i -u node -w /workspace claude-"$1" bash -s <<'SH'
+run() { echo "  -> ($PWD) $*"; "$@" >/tmp/rehydrate.log 2>&1 || { echo "     failed, see: $(tail -3 /tmp/rehydrate.log | tr '\n' ' ')"; }; }
+echo "-- mise toolchains"
+mise install 2>&1 | tail -1
+echo "-- project dependencies"
+find /workspace -maxdepth 6 \( -name node_modules -o -name .git -o -name .venv -o -name target -o -name vendor \) -prune -o \
+  -type f \( -name package-lock.json -o -name pnpm-lock.yaml -o -name yarn.lock -o -name bun.lock -o -name uv.lock \
+  -o -name requirements.txt -o -name Gemfile.lock -o -name go.sum -o -name Cargo.lock \) -print | sort | \
+while read -r f; do
+  cd "$(dirname "$f")" || continue
+  case "$(basename "$f")" in
+    package-lock.json) [ -d node_modules ] || run npm ci ;;
+    pnpm-lock.yaml)    [ -d node_modules ] || run corepack pnpm install --frozen-lockfile ;;
+    yarn.lock)         [ -d node_modules ] || run corepack yarn install ;;
+    bun.lock)          [ -d node_modules ] || run mise exec bun -- bun install ;;
+    uv.lock)           [ -d .venv ] || run uv sync ;;
+    requirements.txt)  [ -f pyproject.toml ] || [ -d .venv ] || { run uv venv -q && run uv pip install -q -r requirements.txt; } ;;
+    Gemfile.lock)      command -v bundle >/dev/null && run bundle install ;;
+    go.sum)            run go mod download ;;
+    Cargo.lock)        run cargo fetch ;;
+  esac
+done
+echo "-- done"
+SH
+}
+
+cmd_migrate() {  # migrate <org> <[user@]host> [--as name] [--remote-dir dir]
+  local org="${1:-}" host="${2:-}" as="" rdir="claude-envs"; shift 2 || true
+  while [ $# -gt 0 ]; do case "$1" in
+    --as) as="$2"; shift 2 ;; --remote-dir) rdir="$2"; shift 2 ;; *) die "unknown flag $1" ;; esac; done
+  need_org "$org"; [ -n "$host" ] || die "usage: ccenv migrate <org> <[user@]host> [--as name] [--remote-dir dir]"
+  ssh "$host" 'docker info >/dev/null 2>&1' || die "$host: docker not reachable over ssh (is it installed, and is the user in the docker group?)"
+  local rc
+  rc=$(ssh "$host" 'command -v ccenv || { [ -x ~/.local/bin/ccenv ] && echo ~/.local/bin/ccenv; }' || true)
+  if [ -z "$rc" ]; then
+    echo "== Installing claude-envs on $host:~/$rdir (scaffolding only, no org data)"
+    rsync -a --exclude 'orgs/*/' --exclude backups/ "$ROOT/" "$host:$rdir/"
+    ssh "$host" "~/$rdir/ccenv install" >/dev/null
+    rc="~/$rdir/ccenv"
+  fi
+  echo "== Streaming $org to $host (skipping regenerable data)"
+  ORG_NAME=$org archive "$ORGS/$org:/src:ro" plan | sed -n '2,3p'
+  ORG_NAME=$org archive "$ORGS/$org:/src:ro" create | ssh "$host" "$rc restore - ${as:+--as $as}"
+  echo
+  echo "Migrated. '$org' is still running here too. Once the copy on $host looks right, stop this one:"
+  echo "  ccenv down $org     (both would share the same Remote Control login and git identity)"
+}
+
+# ---------------------------------------------------------------------------- repos (allowlist)
+# orgs/<org>/config/repos.txt is the source of truth: "<dir> <clone-url> [branch]" per line.
+# Inside the container it's read-only; git-ssh-guard, the Claude hook and the workspace sweep all enforce it.
+repos_file() { echo "$ORGS/$1/config/repos.txt"; }
+repo_lib() { REPOS_FILE="$(repos_file "$1")"; . "$ROOT/image/repo-policy.sh"; }
+repo_url() {  # owner/repo | host/owner/repo | any git URL -> ssh clone URL (https is rewritten to ssh in the container anyway)
+  local c
+  if [[ "$1" =~ ^[a-z0-9-]+(\.[a-z0-9-]+)+/[^/:]+/[^/:]+$ ]]; then c="$1"   # already canonical (host/owner/repo)
+  else c=$(repo_canon "$1"); fi
+  echo "git@${c%%/*}:${c#*/}.git"
+}
+adopt_url() {  # registry url for an existing folder: its origin, or "local" for a repo with no remote
+  local u
+  if u=$(git -C "$1" remote get-url origin 2>/dev/null); then repo_url "$u"
+  elif git -C "$1" rev-parse --git-dir >/dev/null 2>&1; then echo local
+  else return 1; fi
+}
+ensure_repos_file() {
+  local f; f=$(repos_file "$1"); [ -f "$f" ] && return
+  cat > "$f" <<EOF
+# Repos allowed in the '$1' container. Managed with: ccenv repo add|rm|adopt $1 ...
+# <dir under /workspace>  <clone url>  [branch]
+EOF
+}
+repo_dirty() {  # "<branch> <n-changed>" for a cloned repo, via the container so it matches what Claude sees
+  docker exec -u node -w "/workspace/$2" claude-"$1" sh -c \
+    'printf "%s %s" "$(git branch --show-current 2>/dev/null || echo ?)" "$(git status --porcelain 2>/dev/null | wc -l)"' 2>/dev/null || echo "? ?"
+}
+
+cmd_repo() {
+  local sub="${1:-}" org="${2:-}"; shift 2 2>/dev/null || true
+  case "$sub" in add|new|create|publish|ls|list|rm|remove|adopt|sync|audit|policy) ;; *)
+    die "usage: ccenv repo add|new|publish|ls|rm|adopt|sync|audit|policy <org> ..." ;; esac
+  need_org "$org"; ensure_repos_file "$org"; repo_lib "$org"
+  local f; f=$(repos_file "$org")
+  case "$sub" in
+    add)
+      local spec="" dir="" branch="" clone=1
+      while [ $# -gt 0 ]; do case "$1" in
+        --dir) dir="$2"; shift 2 ;; --branch|-b) branch="$2"; shift 2 ;; --no-clone) clone=0; shift ;;
+        -*) die "unknown flag $1" ;; *) spec="$1"; shift ;; esac; done
+      [ -n "$spec" ] || die "usage: ccenv repo add <org> <owner/repo|git-url> [--dir name] [--branch b] [--no-clone]"
+      local canon url; canon=$(repo_canon "$spec"); url=$(repo_url "$spec")
+      [[ "$canon" =~ ^[a-z0-9.-]+/[a-z0-9._-]+/[a-z0-9._/-]+$ ]] || die "can't parse repo '$spec'"
+      [ -n "$dir" ] || dir=$(basename "$canon")
+      [[ "$dir" =~ ^[A-Za-z0-9._-]+$ ]] && [ "$dir" != .claude ] || die "invalid dir name '$dir'"
+      local existing; existing=$(repo_entries | awk -v d="$dir" '$1==d {print $2}')
+      if [ -n "$existing" ] && [ "$existing" != "$canon" ]; then die "/workspace/$dir is already registered for $existing"; fi
+      if [ -z "$existing" ]; then
+        printf '%s %s%s\n' "$dir" "$url" "${branch:+ $branch}" >> "$f"; echo "Registered $canon as /workspace/$dir"
+      else echo "$canon is already registered as /workspace/$dir"; fi
+      [ $clone = 1 ] || return 0
+      if ! running "$org"; then echo "(container stopped; it will be cloned by: ccenv repo sync $org)"; return 0; fi
+      if docker exec claude-"$org" test -e "/workspace/$dir"; then echo "/workspace/$dir already present"; return 0; fi
+      if ! docker exec -u node -w /workspace claude-"$org" git clone ${branch:+--branch "$branch"} "$url" "$dir"; then
+        [ -n "$existing" ] || { local tmp; tmp=$(mktemp); grep -v "^$dir " "$f" > "$tmp"; cat "$tmp" > "$f"; rm -f "$tmp"; }
+        die "clone failed; registration rolled back. Does this org's key have access? (ccenv info $org)"
+      fi
+      echo "Cloned into /workspace/$dir" ;;
+    new|create)  # brand-new repo: create it on GitHub (from the host) or locally, then register + set it up
+      local spec="" dir="" vis="--private" desc="" tpl="" readme=0 gi="" lic="" localonly=0
+      while [ $# -gt 0 ]; do case "$1" in
+        --private|--public|--internal) vis="$1"; shift ;;
+        -d|--description) desc="$2"; shift 2 ;;
+        --template|-p) tpl="$2"; shift 2 ;;
+        --readme|--add-readme) readme=1; shift ;;
+        --gitignore|-g) gi="$2"; shift 2 ;;
+        --license|-l) lic="$2"; shift 2 ;;
+        --dir) dir="$2"; shift 2 ;;
+        --local) localonly=1; shift ;;
+        -*) die "unknown flag $1" ;; *) spec="$1"; shift ;;
+      esac; done
+      [ -n "$spec" ] || die "usage: ccenv repo new <org> <owner/repo> [--private|--public|--internal] [-d desc] [--template o/r] [--readme] [--gitignore Node] [--license mit] [--dir d]
+       ccenv repo new <org> <name> --local        (no GitHub repo yet; publish later with: ccenv repo publish)"
+
+      if [ $localonly = 1 ]; then
+        [ -n "$dir" ] || dir="${spec##*/}"
+        [[ "$dir" =~ ^[A-Za-z0-9._-]+$ ]] && [ "$dir" != .claude ] || die "invalid dir name '$dir'"
+        repo_allowed_dir "$dir" && die "/workspace/$dir is already registered"
+        need_up "$org"
+        docker exec claude-"$org" test -e "/workspace/$dir" && die "/workspace/$dir already exists (register it with: ccenv repo adopt $org $dir)"
+        printf '%s local\n' "$dir" >> "$f"
+        docker exec -u node -w /workspace claude-"$org" git init -q -b main "$dir"
+        echo "Created local repo /workspace/$dir (no remote). Publish it later with: ccenv repo publish $org $dir <owner/repo>"
+        return 0
+      fi
+
+      local canon
+      if [[ "$spec" =~ ^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+/[^/:]+/[^/:]+$ ]]; then canon=$(echo "$spec" | tr '[:upper:]' '[:lower:]')
+      else canon=$(repo_canon "$spec"); fi
+      [[ "$canon" =~ ^github\.com/[a-z0-9_.-]+/[a-z0-9_.-]+$ ]] \
+        || die "repo new creates GitHub repos: use <owner/repo> (got '$spec'). For a repo with no remote use --local."
+      repo_allowed_canon "$canon" && die "$canon is already registered"
+      [ -n "$dir" ] || dir=$(basename "$canon")
+      repo_allowed_dir "$dir" && die "/workspace/$dir is already registered"
+      local args=("${canon#github.com/}" "$vis")
+      [ -n "$desc" ] && args+=(--description "$desc")
+      [ -n "$tpl" ] && args+=(--template "$tpl")
+      [ $readme = 1 ] && args+=(--add-readme)
+      [ -n "$gi" ] && args+=(--gitignore "$gi")
+      [ -n "$lic" ] && args+=(--license "$lic")
+      # Created from the host's gh (outside the container), so the container's lock is never loosened.
+      # Falls back to the org container's own gh login (ccenv gh-login) when the host has no gh.
+      if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
+        gh repo create "${args[@]}" >/dev/null || die "GitHub refused to create ${canon#github.com/} (name taken, or no permission in that org?)"
+      else
+        need_up "$org"
+        docker exec -u node claude-"$org" gh repo create "${args[@]}" >/dev/null \
+          || die "couldn't create ${canon#github.com/}: no host gh, and the container's gh failed (ccenv gh-login $org?)"
+      fi
+      echo "Created https://$canon (${vis#--})"
+      [ -n "$tpl" ] && sleep 3   # template repos are populated asynchronously
+      cmd_repo add "$org" "${canon#github.com/}" --dir "$dir" ;;
+    publish)  # push a --local repo to a new GitHub repo, then switch its registration to that remote
+      local dir="${1:-}" spec="${2:-}" vis="--private"; shift 2 2>/dev/null || true
+      while [ $# -gt 0 ]; do case "$1" in --private|--public|--internal) vis="$1"; shift ;; *) die "unknown flag $1" ;; esac; done
+      [ -n "$dir" ] && [ -n "$spec" ] || die "usage: ccenv repo publish <org> <dir> <owner/repo> [--private|--public|--internal]"
+      [ "$(repo_entries | awk -v d="$dir" '$1==d {print $3}')" = local ] || die "/workspace/$dir is not a local-only repo"
+      command -v gh >/dev/null && gh auth status >/dev/null 2>&1 || die "publish needs gh signed in on the host"
+      local src="$ORGS/$org/workspace/$dir" canon; canon=$(repo_canon "$spec")
+      git -C "$src" rev-parse -q --verify HEAD >/dev/null || die "/workspace/$dir has no commits yet; commit something first"
+      gh repo create "${canon#github.com/}" "$vis" --source "$src" --remote origin --push >/dev/null \
+        || die "publishing failed (name taken, or no permission?)"
+      git -C "$src" remote set-url origin "$(repo_url "$canon")"
+      local tmp; tmp=$(mktemp); awk -v d="$dir" -v u="$(repo_url "$canon")" '$1==d {$2=u} {print}' "$f" > "$tmp"; cat "$tmp" > "$f"; rm -f "$tmp"
+      echo "Published /workspace/$dir to https://$canon (${vis#--}); it now pushes/pulls from there." ;;
+    ls|list)
+      printf '%-22s %-40s %-18s %s\n' DIR REPO BRANCH STATUS
+      local d c u b st
+      while read -r d c u b; do
+        if running "$org" && docker exec claude-"$org" test -d "/workspace/$d/.git"; then
+          read -r cur n <<<"$(repo_dirty "$org" "$d")"; st="cloned"; [ "$n" != 0 ] && st="cloned, $n changed"
+          b="$cur"
+        elif [ -d "$ORGS/$org/workspace/$d/.git" ]; then st="cloned (container down)"
+        else st="MISSING (ccenv repo sync $org)"; fi
+        [ "$b" = "-" ] && b=""
+        [ "$u" = local ] && c="(local only, not published)"
+        printf '%-22s %-40s %-18s %s\n' "$d" "$c" "${b:-default}" "$st"
+      done < <(repo_entries)
+      [ -n "$(repo_entries)" ] || echo "(no repos registered; add one: ccenv repo add $org <owner/repo>)"
+      cmd_repo audit "$org" --quiet ;;
+    rm|remove)
+      local dir="${1:-}" del="${2:-}"; [ -n "$dir" ] || die "usage: ccenv repo rm <org> <dir> [--delete]"
+      repo_allowed_dir "$dir" || die "/workspace/$dir is not registered"
+      local tmp; tmp=$(mktemp); awk -v d="$dir" '$1!=d' "$f" > "$tmp"; cat "$tmp" > "$f"; rm -f "$tmp"
+      echo "Unregistered /workspace/$dir"
+      if [ "$del" = "--delete" ] && running "$org"; then
+        docker exec -u node claude-"$org" rm -rf "/workspace/$dir"; echo "Deleted /workspace/$dir"
+      elif running "$org"; then
+        echo "Its folder will be moved to orgs/$org/quarantine/ by the workspace sweep (within 30s)."
+      fi ;;
+    adopt)  # register folders that are already there (or restore them from quarantine)
+      [ $# -ge 1 ] || die "usage: ccenv repo adopt <org> <dir>...   (or --all for everything unregistered)"
+      local names=() n src q url
+      if [ "$1" = --all ]; then
+        for n in "$ORGS/$org/workspace"/* "$ORGS/$org/workspace"/.[!.]*; do [ -e "$n" ] || continue
+          n=$(basename "$n"); [ "$n" = .claude ] || repo_allowed_dir "$n" || names+=("$n"); done
+      else names=("$@"); fi
+      for n in "${names[@]}"; do
+        src="$ORGS/$org/workspace/$n"
+        if [ ! -e "$src" ]; then
+          q=$(ls -d "$ORGS/$org/quarantine/$n".* 2>/dev/null | sort | tail -1)
+          [ -n "$q" ] || { echo "skip $n: not in workspace or quarantine"; continue; }
+          url=$(adopt_url "$q") || { echo "skip $n: not a git repo"; continue; }
+          printf '%s %s\n' "$n" "$url" >> "$f"; repo_lib "$org"
+          mv "$q" "$src"; echo "Restored $n from quarantine and registered it ($url)"; continue
+        fi
+        url=$(adopt_url "$src") || { echo "skip $n: not a git repo"; continue; }
+        repo_allowed_dir "$n" && { echo "$n already registered"; continue; }
+        printf '%s %s\n' "$n" "$url" >> "$f"; repo_lib "$org"
+        echo "Registered $n -> $([ "$url" = local ] && echo "local only" || repo_canon "$url")"
+      done ;;
+    sync)   # clone anything registered but missing (e.g. after restore or on a new machine)
+      need_up "$org"; local d c u b any=0
+      while read -r d c u b; do
+        docker exec claude-"$org" test -e "/workspace/$d" && continue
+        if [ "$u" = local ]; then echo "SKIP $d: local-only repo is missing (restore it from a backup)"; continue; fi
+        any=1; [ "$b" = "-" ] && b=""
+        docker exec -u node -w /workspace claude-"$org" git clone ${b:+--branch "$b"} "$u" "$d" && echo "Cloned $d" || echo "FAILED $d"
+      done < <(repo_entries)
+      [ $any = 1 ] || echo "All registered repos are present." ;;
+    audit)
+      local quiet=0; [ "${1:-}" = --quiet ] && quiet=1
+      local n bad=()
+      for n in "$ORGS/$org/workspace"/* "$ORGS/$org/workspace"/.[!.]*; do [ -e "$n" ] || continue
+        n=$(basename "$n"); [ "$n" = .claude ] || repo_allowed_dir "$n" || bad+=("$n"); done
+      local qn; qn=$(ls "$ORGS/$org/quarantine" 2>/dev/null | wc -l)
+      if [ ${#bad[@]} -gt 0 ]; then
+        echo; echo "Not allowed in /workspace (policy: $(envval "$org" REPO_POLICY | sed 's/^$/enforce/')): ${bad[*]}"
+        echo "  keep one -> ccenv repo adopt $org <dir>    (enforce mode quarantines them within 30s)"
+      elif [ $quiet = 0 ]; then echo "Workspace clean: only registered repos."; fi
+      if [ "$qn" -gt 0 ]; then
+        echo; echo "Quarantined ($ORGS/$org/quarantine):"; ls -1 "$ORGS/$org/quarantine" | sed 's/^/  /'
+        echo "  bring a repo back -> ccenv repo adopt $org <name>"
+      fi ;;
+    policy)
+      local m="${1:-}"
+      if [ -z "$m" ]; then echo "REPO_POLICY=$(envval "$org" REPO_POLICY | sed 's/^$/enforce/')"; return 0; fi
+      case "$m" in enforce|warn|off) ;; *) die "policy must be enforce|warn|off" ;; esac
+      setval "$org" REPO_POLICY "$m"; echo "REPO_POLICY=$m"
+      running "$org" && { compose "$org" up -d --force-recreate >/dev/null 2>&1; echo "Restarted claude-$org to apply it."; } ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------- install
+cmd_completion() {
+  cat <<'COMP'
+_ccenv() {
+  local cur=${COMP_WORDS[COMP_CWORD]} cmd=${COMP_WORDS[1]:-} root orgs
+  root=$(dirname "$(readlink -f "$(command -v ccenv)")")
+  orgs=$(cd "$root/orgs" 2>/dev/null && ls -d */ 2>/dev/null | tr -d /)
+  case $COMP_CWORD in
+    1) COMPREPLY=($(compgen -W "init auth token login logout gh-login whoami up down restart build ls info attach shell claude run clone remote password fw repo logs backup restore rehydrate migrate keygen schedule install completion help" -- "$cur")) ;;
+    2) case $cmd in build|ls|install|completion|help|keygen) ;;
+         repo) COMPREPLY=($(compgen -W "add new publish ls rm adopt sync audit policy" -- "$cur")) ;;
+         schedule) COMPREPLY=($(compgen -W "status run off --at --keep -o" -- "$cur")) ;; restore) COMPREPLY=($(compgen -f -- "$cur")) ;;
+         backup) COMPREPLY=($(compgen -W "$orgs --all" -- "$cur")) ;; *) COMPREPLY=($(compgen -W "$orgs" -- "$cur")) ;; esac ;;
+    3) case $cmd in
+         fw)       COMPREPLY=($(compgen -W "show allow deny on off edit reload presets test" -- "$cur")) ;;
+         remote)   COMPREPLY=($(compgen -W "status logs restart" -- "$cur")) ;;
+         password) COMPREPLY=($(compgen -W "show rotate" -- "$cur")) ;;
+       esac ;;
+    *) if [ "$cmd" = fw ] && [ "${COMP_WORDS[3]}" = allow ]; then
+         COMPREPLY=($(compgen -W "@mise @python @node @go @rust @ruby @docker @gitlab @bitbucket @aws @gcp @azure @debian" -- "$cur"))
+       fi ;;
+  esac
+}
+complete -F _ccenv ccenv
+COMP
+}
+cmd_install() {  # link ccenv onto PATH + bash completion (re-run after moving the folder)
+  local bin="${1:-$HOME/.local/bin}" comp="${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions"
+  mkdir -p "$bin" "$comp"
+  ln -sfn "$ROOT/ccenv" "$bin/ccenv"
+  cmd_completion > "$comp/ccenv"
+  echo "Linked $bin/ccenv -> $ROOT/ccenv"
+  echo "Completion installed: $comp/ccenv (new shells pick it up)"
+  case ":$PATH:" in *":$bin:"*) ;; *) echo "NOTE: $bin is not on PATH. Add: export PATH=\"$bin:\$PATH\"";; esac
+}
+
+# ---------------------------------------------------------------------------- info
+cmd_info() {
+  need_org "${1:-}"; local org="$1" h sp tp url=""
+  h=$(host_addr "$org"); sp=$(envval "$org" SSH_PORT); tp=$(envval "$org" TTYD_PORT)
+  if running "$org"; then url=$(rc_url "$org"); fi
+  cat <<EOF
+== $org ==  (container claude-$org, $(running "$org" && echo running || echo stopped))
+
+claude.ai / Claude app  ${url:-not set up yet; run: ccenv login $org}
+Terminal on this host   ccenv attach $org
+SSH (any device)        ssh -t -p $sp node@$h tmux new -A -s main
+Browser terminal        http://$h:$tp   (password: ccenv password $org)
+VS Code / Cursor        Remote-SSH to host "claude-$org" (ssh config below)
+Headless                ccenv run $org "your prompt"
+
+~/.ssh/config:
+Host claude-$org
+  HostName $h
+  Port $sp
+  User node
+
+Git public key:  $(cat "$ORGS/$org/ssh/id_ed25519.pub")
+EOF
+}
+
+cmd_ls() {
+  printf '%-14s %-6s %-6s %-6s %-8s %s\n' ORG STATE SSH TTYD TOKEN REMOTE
+  for d in "$ORGS"/*/; do
+    [ -f "$d/org.env" ] || continue
+    local o r="-" s="down"; o=$(basename "$d")
+    if running "$o"; then
+      s="up"
+      if [ "$(envval "$o" REMOTE_CONTROL)" = 0 ]; then r="off"
+      elif ! rc_logged_in "$o"; then r="login-needed"; elif rc_running "$o"; then r="on"
+      elif rc_blocked "$o"; then r="blocked-by-org"; else r="restarting"; fi
+    fi
+    printf '%-14s %-6s %-6s %-6s %-8s %s\n' "$o" "$s" "$(envval "$o" SSH_PORT)" "$(envval "$o" TTYD_PORT)" \
+      "$([ -n "$(envval "$o" CLAUDE_CODE_OAUTH_TOKEN)$(envval "$o" ANTHROPIC_API_KEY)" ] && echo set || echo MISSING)" "$r"
+  done
+}
+
+usage() {
+  cat <<'EOF'
+ccenv: one Claude Code container per organization
+
+Setup
+  install [bin-dir]                 put ccenv on PATH (default ~/.local/bin) + bash completion
+  init <org> [--name N --email E]   scaffold orgs/<org> (git key, ports, password, firewall)
+  auth <org>                        sign an org in: token + Remote Control login, in its container
+  token <org> [--paste] [--no-restart]   just the 1-year token (runs claude setup-token in the container)
+  login <org>                       just the full login that enables claude.ai/code (Remote Control)
+  whoami [org...]                   which Claude account each org is signed in with
+  logout <org> [--all]              remove the Remote Control login (--all: the token too)
+  gh-login <org> [--force]          sign the gh CLI in inside the container (PRs, issues, API)
+  up | down | restart <org>         start / stop / recreate the container
+  build [--no-cache]                rebuild the shared image (updates Claude Code)
+
+Use
+  ls                                all orgs and their state
+  info <org>                        every way to connect
+  attach <org>                      attach to the shared tmux session
+  shell <org>                       bash inside the container
+  claude <org> [args...]            interactive claude in /workspace
+  run <org> "<prompt>" [args...]    headless claude -p
+  clone <org> <owner/repo|url>      shortcut for: repo add
+
+Repos (only registered repos are allowed in the container; git + Claude + workspace enforce it)
+  repo add <org> <owner/repo|url> [--dir d] [--branch b] [--no-clone]   register + clone
+  repo new <org> <owner/repo> [--private|--public|--internal] [-d desc] [--template o/r]
+           [--readme] [--gitignore Node] [--license mit] [--dir d]    create on GitHub + register + clone
+  repo new <org> <name> --local     new repo with no remote yet (git init)
+  repo publish <org> <dir> <owner/repo> [--private|--public]         push a --local repo to a new GitHub repo
+  repo ls <org>                     registered repos, their branch/changes, anything unregistered
+  repo rm <org> <dir> [--delete]    unregister (folder is quarantined unless --delete)
+  repo adopt <org> <dir>...|--all   register existing folders (or bring one back from quarantine)
+  repo sync <org>                   clone registered repos that are missing
+  repo audit <org>                  unregistered folders + quarantine contents
+  repo policy <org> [enforce|warn|off]
+  remote <org> [status|logs|restart]
+  password <org> [show|rotate]      browser-terminal password
+
+Backup / move (skips regenerable data: toolchains, node_modules, .venv, target/, caches)
+  backup <org>...|--all [--plan] [--keep N] [-o file|dir|-]   always encrypted, authenticated:
+         [--passphrase | -r <age1..|ssh-key|file> | --no-encrypt]
+                                    uses ~/.config/ccenv/backup.key if present, else asks a passphrase
+  keygen                            create a backup key (unattended/cron backups, no passphrase)
+  schedule [--at HH:MM] [--keep N] [-o dir] | status | run | off
+                                    nightly backup --all (systemd timer, or cron); default 03:00, keep 14
+  restore <file|-> [--as name] [-i key] [--force] [--no-start] [--no-rehydrate]
+  rehydrate <org>                   reinstall mise toolchains + project deps
+  migrate <org> <[user@]host> [--as name]   stream an org to another machine over ssh
+
+Firewall (changes apply live, no restart)
+  fw <org>                          show allowlist and live status
+  fw <org> allow <entry>...         domain, URL, IP/CIDR or @preset (e.g. @python)
+  fw <org> deny <entry>...
+  fw <org> on | off | edit | reload | presets
+  fw <org> test [host-or-url...]
+EOF
+}
+
+sub="${1:-help}"; shift || true
+case "$sub" in
+  init)     cmd_init "$@" ;;
+  install)  cmd_install "${1:-}" ;;
+  completion) cmd_completion ;;
+  token)    cmd_token "$@" ;;
+  auth)     cmd_auth "${1:-}" ;;
+  logout)   cmd_logout "${1:-}" "${2:-}" ;;
+  gh-login) cmd_gh_login "${1:-}" "${2:-}" ;;
+  whoami)   cmd_whoami "$@" ;;
+  login)    cmd_login "${1:-}" ;;
+  password) cmd_password "${1:-}" "${2:-show}" ;;
+  up)       need_org "${1:-}"; compose "$1" up -d --build --force-recreate; sleep 3; docker logs claude-"$1" 2>&1 | tail -5 ;;
+  down)     need_org "${1:-}"; compose "$1" down ;;
+  restart)  need_org "${1:-}"; compose "$1" up -d --force-recreate ;;
+  build)    cmd_build "$@" ;;
+  backup)   cmd_backup "$@" ;;
+  keygen)   cmd_keygen ;;
+  schedule) cmd_schedule "$@" ;;
+  restore)  cmd_restore "$@" ;;
+  rehydrate) cmd_rehydrate "${1:-}" ;;
+  migrate)  cmd_migrate "$@" ;;
+  ls)       cmd_ls ;;
+  info)     cmd_info "${1:-}" ;;
+  attach)   need_org "${1:-}"; need_up "$1"; docker exec -it -u node claude-"$1" tmux new-session -A -s main -c /workspace ;;
+  shell)    need_org "${1:-}"; need_up "$1"; docker exec -it -u node -w /workspace claude-"$1" bash -l ;;
+  claude)   need_org "${1:-}"; o=$1; shift; need_up "$o"; docker exec -it -u node -w /workspace claude-"$o" claude "$@" ;;
+  run)      need_org "${1:-}"; o=$1; shift; need_up "$o"; [ $# -ge 1 ] || die "missing prompt"
+            p=$1; shift; docker exec -i -u node -w /workspace claude-"$o" claude -p "$p" "$@" ;;
+  clone)    o="${1:-}"; shift || true; cmd_repo add "$o" "$@" ;;
+  repo)     cmd_repo "$@" ;;
+  remote)   cmd_remote "${1:-}" "${2:-status}" ;;
+  fw)       cmd_fw "$@" ;;
+  logs)     need_org "${1:-}"; compose "$1" logs -f ;;
+  help|-h|--help) usage ;;
+  *) usage; exit 1 ;;
+esac

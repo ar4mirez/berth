@@ -1,0 +1,9 @@
+[tools]
+go = "1.27"
+golangci-lint = "latest"
+goreleaser = "latest"
+
+[env]
+GOPROXY = "https://proxy.golang.org"
+GOTOOLCHAIN = "local"
+GOFLAGS = "-mod=readonly"

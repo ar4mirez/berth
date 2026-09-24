@@ -1,0 +1,35 @@
+# Generic template: one compose project per org, driven by orgs/<org>/org.env.
+# Use `./ccenv up <org>` rather than calling compose directly.
+name: claude-${ORG:?ORG not set}
+
+services:
+  claude:
+    image: claude-env:${IMAGE_TAG:-latest}
+    build:
+      context: ./image
+      args:
+        USER_UID: ${HOST_UID:-1000}
+        USER_GID: ${HOST_GID:-1000}
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-latest}
+    container_name: claude-${ORG}
+    hostname: ${ORG}
+    restart: unless-stopped
+    init: false            # tini is the image entrypoint
+    cap_add: [NET_ADMIN, NET_RAW]   # for the egress firewall only
+    env_file: ${ORG_DIR}/org.env
+    environment:
+      ORG: ${ORG}
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${SSH_PORT}:2222"
+      - "${BIND_ADDR:-127.0.0.1}:${TTYD_PORT}:7681"
+    volumes:
+      - ${ORG_DIR}/workspace:/workspace
+      - ${ORG_DIR}/claude:/home/node/.claude
+      - ${ORG_DIR}/mise:/home/node/.mise        # toolchains installed with mise persist
+      - ${ORG_DIR}/home-config:/home/node/.config   # ~/.config (gh login, other CLI config) persists
+      - ${ORG_DIR}/ssh:/opt/claude-secrets/ssh:ro   # git key: root-only; used via git-ssh-guard
+      - ${ORG_DIR}/sshd:/etc/ssh/keys
+      - ${ORG_DIR}/config:/config:ro     # authorized_keys, firewall.txt, repos.txt, secrets/ (live-editable)
+      - ${ORG_DIR}/quarantine:/quarantine   # anything in /workspace that isn't a registered repo
+    mem_limit: ${MEM_LIMIT:-8g}
+    cpus: ${CPUS:-4}

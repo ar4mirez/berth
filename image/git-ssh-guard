@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# git's ssh transport for every org container: `core.sshCommand = sudo -n /usr/local/bin/git-ssh-guard`.
+# Runs as root (the org's git key is root-only), and only connects for repos in /config/repos.txt.
+# Arguments are parsed strictly and the ssh command line is rebuilt here, so callers can't smuggle in
+# options such as ProxyCommand.
+set -euo pipefail
+. /usr/local/lib/claude-env/repo-policy.sh
+
+KEY=/opt/claude-secrets/ssh/id_ed25519
+ORG=$(cat /etc/claude-env/org 2>/dev/null || echo "<org>")
+deny() { echo "repo-guard: $*" >&2; exit 128; }
+
+port="" ipv=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) [ "${2:-}" = "SendEnv=GIT_PROTOCOL" ] || deny "ssh option not allowed: -o ${2:-}"; shift 2 ;;
+    -p) [[ "${2:-}" =~ ^[0-9]{1,5}$ ]] || deny "bad port"; port="$2"; shift 2 ;;
+    -4|-6) ipv="$1"; shift ;;
+    -*) deny "ssh option not allowed: $1" ;;
+    *) break ;;
+  esac
+done
+[ $# -ge 2 ] || deny "usage: git-ssh-guard [opts] <host> <git command>"
+target="$1"; shift; cmd="$*"
+
+[[ "$target" =~ ^(git@)?([A-Za-z0-9.-]+)$ ]] || deny "bad host: $target"
+host="${BASH_REMATCH[2]}"
+[[ "$cmd" =~ ^git-(upload-pack|receive-pack|upload-archive)\ \'?/?([A-Za-z0-9._~/-]+)\'?$ ]] \
+  || deny "only git fetch/push is allowed over this connection"
+path="${BASH_REMATCH[2]}"
+[[ "$path" != *..* ]] || deny "bad repo path"
+
+canon=$(repo_canon "$path" "$host")
+if ! repo_allowed_canon "$canon"; then
+  deny "$canon is not in the allowed repo list for '$ORG'.
+  Only repos set up with ccenv may be used here. Ask the user to run on the host:
+    ccenv repo add $ORG ${canon#*/}"
+fi
+
+[ -r "$KEY" ] || deny "no git key for '$ORG' (orgs/$ORG/ssh/id_ed25519)"
+args=(-F /dev/null -i "$KEY" -o IdentitiesOnly=yes -o BatchMode=yes
+      -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/opt/claude-secrets/known_hosts
+      -o SendEnv=GIT_PROTOCOL)
+[ -n "$port" ] && args+=(-p "$port")
+[ -n "$ipv" ] && args+=("$ipv")
+exec ssh "${args[@]}" "git@$host" "$cmd"
