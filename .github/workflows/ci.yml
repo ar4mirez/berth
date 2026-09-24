@@ -25,6 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: jdx/mise-action@v4
+      - name: go.mod is tidy
+        run: go mod tidy -diff
       - name: build
         run: go build ./...
       - name: vet
