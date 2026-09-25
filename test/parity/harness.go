@@ -64,6 +64,8 @@ type Scenario struct {
 	Rules []Rule
 	// Env is extra environment for both tools (KEY=VALUE).
 	Env []string
+	// Mask are regexps replaced by <MASKED> in stdout and stderr: output that is random by design.
+	Mask []string
 	// Random names files whose content is random by design (e.g. a generated password): both sides
 	// must match the regexp, instead of each other.
 	Random map[string]string
@@ -253,7 +255,13 @@ func (e *Env) Run(ctx context.Context, base string, tool Tool, s Scenario) (Resu
 	}
 
 	n := normalizer(tool, run, e.FakeBin)
-	res := Result{Stdout: n(stdout.String()), Stderr: n(stderr.String()), Exit: exit}
+	mask := func(x string) string {
+		for _, m := range s.Mask {
+			x = regexp.MustCompile(m).ReplaceAllString(x, "<MASKED>")
+		}
+		return x
+	}
+	res := Result{Stdout: mask(n(stdout.String())), Stderr: mask(n(stderr.String())), Exit: exit}
 	if res.Calls, err = readCalls(logFile, n); err != nil {
 		return Result{}, err
 	}
@@ -318,6 +326,8 @@ var (
 	// A command hint ("run: ccenv login acme"): each tool names itself. Not "ccenv-backup",
 	// ".ccenv-manifest.json" or "managed by ccenv;", which are wire names or plain words.
 	toolHint = regexp.MustCompile(`\b(ccenv|berth) ([a-z])`)
+	// env set's reserved-key message names the tool that manages those keys.
+	toolManaged = regexp.MustCompile(`is managed by (ccenv|berth); edit`)
 )
 
 // normalizer maps what legitimately differs between runs and tools to placeholders.
@@ -330,6 +340,7 @@ func normalizer(tool Tool, run, fakeBin string) func(string) string {
 		s = mktempName.ReplaceAllString(s, "<MKTEMP>")
 		s = restoreName.ReplaceAllString(s, ".restore-XXXXXX")
 		s = toolPrefix.ReplaceAllString(s, "<tool>: ")
+		s = toolManaged.ReplaceAllString(s, "is managed by <tool>; edit")
 		return toolHint.ReplaceAllString(s, "<tool> $2")
 	}
 }

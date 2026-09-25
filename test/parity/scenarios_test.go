@@ -132,7 +132,7 @@ var scenarios = []checked{
 		1, []string{"REPO_POLICY=warn"}},
 	{Scenario{Name: "env set from stdin", Args: []string{"env", "globex", "set", "OPENROUTER_API_KEY", "--no-restart"},
 		Stdin: "sk-or-FAKE\n", Files: twoOrgs, Rules: nothingRunning}, 0, []string{"set: OPENROUTER_API_KEY"}},
-	{Scenario{Name: "env set reserved", Args: []string{"env", "globex", "set", "SSH_PORT"}, Files: twoOrgs}, 1, []string{"managed by ccenv"}},
+	{Scenario{Name: "env set reserved", Args: []string{"env", "globex", "set", "SSH_PORT"}, Files: twoOrgs}, 1, []string{"managed by <tool>"}},
 	{Scenario{Name: "down", Args: []string{"down", "acme"}, Files: twoOrgs, Rules: acmeRunning}, 0, nil},
 	{Scenario{
 		Name: "init", Args: []string{"init", "t-new", "--name", "Test User", "--email", "test@example.com"},

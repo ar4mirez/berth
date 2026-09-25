@@ -53,7 +53,9 @@ func init() {
 // writing are the commands that act on an org and so need MANAGER=berth, with example args.
 var writing = [][]string{
 	{"down", "acme"}, {"restart", "acme"}, {"attach", "acme"}, {"shell", "acme"},
-	{"claude", "acme", "--resume"}, {"run", "acme", "hi"},
+	{"claude", "acme", "--resume"}, {"run", "acme", "hi"}, {"up", "acme"},
+	// Writing subcommands of reading commands check for themselves.
+	{"password", "acme", "rotate"}, {"env", "acme", "set", "X_KEY"}, {"env", "acme", "unset", "X_KEY"}, {"remote", "acme", "restart"},
 }
 
 // TestBerthRefusesLegacyOrgs: berth's writing commands refuse an org it doesn't own (no MANAGER,
@@ -95,7 +97,7 @@ func TestReadOnlyRefusesWritingCommands(t *testing.T) {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			t.Parallel()
 			r := run(t, ro, Scenario{Args: args, Files: twoOrgs, Rules: running("acme")})
-			if r.Exit != 1 || !strings.Contains(r.Stderr, "read-only mode (--read-only): refusing to run "+args[0]) || len(r.Calls) != 0 {
+			if r.Exit != 1 || !strings.Contains(r.Stderr, "read-only mode (--read-only): refusing to ") || len(r.Calls) != 0 {
 				t.Errorf("exit %d, stderr %q, calls %v", r.Exit, r.Stderr, r.Calls)
 			}
 		})
