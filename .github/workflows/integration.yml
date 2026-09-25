@@ -36,5 +36,5 @@ jobs:
         run: |
           go build -o "$RUNNER_TEMP/berth" ./cmd/berth
           "$RUNNER_TEMP/berth" --version
-      - name: integration tests (compose lifecycle, ssh host against sshd + dind)
-        run: go test -tags integration -count=1 -v ./test/integration/...
+      - name: integration tests (compose lifecycle, ssh host against sshd + dind, backup matrix)
+        run: BERTH_BIN="$RUNNER_TEMP/berth" go test -tags integration -count=1 -v ./test/integration/...

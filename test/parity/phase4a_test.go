@@ -112,17 +112,17 @@ func init() {
 // (PARITY.md).
 func TestBerthKeyFile(t *testing.T) {
 	keygen := []Rule{{Bin: "docker", Match: `--entrypoint age-keygen`, Stdout: backupKey}}
-	r := run(t, Berth(berthBin), Scenario{Args: []string{"keygen"}, Files: twoOrgs, Rules: keygen})
+	r := run(t, BerthUnowned(berthBin), Scenario{Args: []string{"keygen"}, Files: twoOrgs, Rules: keygen})
 	if r.Exit != 0 || !strings.Contains(r.Stdout, "Created <RUN>/home/.config/berth/backup.key\n") ||
 		!slices.Contains(r.Tree, "home/.config/berth/ 0700") {
 		t.Errorf("keygen: exit %d, stdout %q\n%s", r.Exit, r.Stdout, strings.Join(r.Tree, "\n"))
 	}
 	own := withFile(withKey, "home/.config/berth/backup.key", File{Content: "AGE-SECRET-KEY-1OWN\n# public key: age1berthown\n"})
-	r = run(t, Berth(berthBin), Scenario{Args: []string{"backup", "acme"}, Files: own, Rules: archiveRules()})
+	r = run(t, BerthUnowned(berthBin), Scenario{Args: []string{"backup", "acme"}, Files: own, Rules: archiveRules()})
 	if r.Exit != 0 || !slices.ContainsFunc(r.Calls, func(c string) bool { return strings.Contains(c, `{secret recipients: "0644 age1berthown\n"}`) }) {
 		t.Errorf("backup with berth's own key: exit %d, stderr %q, calls:\n%s", r.Exit, r.Stderr, strings.Join(r.Calls, "\n"))
 	}
-	r = run(t, Berth(berthBin), Scenario{Args: []string{"keygen"}, Env: []string{"BERTH_BACKUP_KEY=k/b.key", "CCENV_BACKUP_KEY=ignored"}, Files: withKey, Rules: keygen})
+	r = run(t, BerthUnowned(berthBin), Scenario{Args: []string{"keygen"}, Env: []string{"BERTH_BACKUP_KEY=k/b.key", "CCENV_BACKUP_KEY=ignored"}, Files: withKey, Rules: keygen})
 	if r.Exit != 0 || !strings.Contains(r.Stdout, "Created k/b.key\n") {
 		t.Errorf("keygen with BERTH_BACKUP_KEY: exit %d, stdout %q, stderr %q", r.Exit, r.Stdout, r.Stderr)
 	}

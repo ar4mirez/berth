@@ -81,9 +81,9 @@ func (r readOnlyFS) Create(name string, perm fs.FileMode) (io.WriteCloser, error
 	return r.FS.Create(name, perm)
 }
 
-func (r readOnlyFS) MkdirTemp() (string, error) {
+func (r readOnlyFS) MkdirTemp(dir, pattern string) (string, error) {
 	if err := r.st.Writable("create a temp dir"); err != nil {
 		return "", err
 	}
-	return r.FS.MkdirTemp()
+	return r.FS.MkdirTemp(dir, pattern)
 }

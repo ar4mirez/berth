@@ -152,6 +152,21 @@ func addCommands(root *cobra.Command) {
 			ValidArgsFunction: completeArgs(),
 			RunE:              func(cmd *cobra.Command, _ []string) error { return appFor(cmd).Keygen(cmd.Context()) },
 		}),
+		// restore and migrate parse their own arguments, as ccenv does.
+		writes(&cobra.Command{
+			Use:   "restore <file|-> [--as name] [--identity|-i key] [--force] [--no-start] [--no-rehydrate]",
+			Short: "restore an org from a backup (the restored org is berth's)", DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error { return appFor(cmd).Restore(cmd.Context(), args) },
+		}),
+		one("rehydrate <org>", "reinstall what backups skip: repos, mise toolchains, dependencies", func(a *app.App, c *cobra.Command, o string) error {
+			return a.Rehydrate(c.Context(), o)
+		}),
+		writes(&cobra.Command{
+			Use:   "migrate <org> <[user@]host> [--as name] [--remote-dir dir]",
+			Short: "stream an org to berth on another host over ssh", DisableFlagParsing: true,
+			ValidArgsFunction: completeArgs(orgArg),
+			RunE:              func(cmd *cobra.Command, args []string) error { return appFor(cmd).Migrate(cmd.Context(), args) },
+		}),
 		// schedule parses its own arguments, as ccenv does; status reads, the rest write.
 		reads(&cobra.Command{
 			Use:   "schedule [--at HH:MM] [--keep N] [-o dir] | status | run | off",

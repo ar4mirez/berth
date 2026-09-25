@@ -102,13 +102,17 @@ func (FS) Create(name string, perm fs.FileMode) (io.WriteCloser, error) {
 	return f, err
 }
 
-func (FS) MkdirTemp() (string, error) {
-	dir := os.Getenv("TMPDIR")
+func (FS) Open(name string) (io.ReadCloser, error) { return os.Open(name) } // #nosec G304 -- paths come from the state root or the operator
+
+func (FS) MkdirTemp(dir, pattern string) (string, error) {
+	if dir == "" {
+		dir = os.Getenv("TMPDIR")
+	}
 	if dir == "" {
 		dir = "/tmp"
 	}
 	for {
-		name, err := host.TempName()
+		name, err := host.TempName(pattern)
 		if err != nil {
 			return "", err
 		}

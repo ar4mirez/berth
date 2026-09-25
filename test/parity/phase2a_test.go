@@ -61,12 +61,13 @@ var writing = [][]string{
 	{"password", "acme", "rotate"}, {"env", "acme", "set", "X_KEY"}, {"env", "acme", "unset", "X_KEY"}, {"remote", "acme", "restart"},
 	{"repo", "add", "acme", "acme/widget"}, {"repo", "rm", "acme", "app"}, {"repo", "remove", "acme", "app", "--delete"},
 	{"repo", "new", "acme", "acme/widget"}, {"repo", "create", "acme", "x", "--local"}, {"repo", "publish", "acme", "notes", "acme/notes"},
-	{"repo", "adopt", "acme", "--all"}, {"repo", "sync", "acme"}, {"repo", "policy", "acme", "warn"}, {"clone", "acme", "acme/widget"},
+	{"repo", "adopt", "acme", "--all"}, {"repo", "sync", "acme"}, {"rehydrate", "acme"}, {"repo", "policy", "acme", "warn"}, {"clone", "acme", "acme/widget"},
 }
 
 // writesAnyOrg write, so --read-only refuses them, but act on either tool's orgs (a backup doesn't
 // change the org).
-var writesAnyOrg = [][]string{{"backup", "acme"}, {"backup", "--all"}, {"keygen"}, {"schedule"}, {"schedule", "run"}, {"schedule", "off"}, {"schedule", "status", "off"}}
+var writesAnyOrg = [][]string{{"backup", "acme"}, {"backup", "--all"}, {"keygen"}, {"schedule"}, {"schedule", "run"}, {"schedule", "off"}, {"schedule", "status", "off"},
+	{"restore", "-"}, {"migrate", "acme", "ops@new-host"}}
 
 // TestBerthRefusesLegacyOrgs: berth's writing commands refuse an org it doesn't own (no MANAGER,
 // or MANAGER=ccenv), before touching anything: no tool calls, no file changes.
