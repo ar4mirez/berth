@@ -58,3 +58,15 @@ jobs:
           ./dist/berth_linux_amd64_v1/berth --version
           ./dist/berth_linux_amd64_v1/berth >/dev/null
           if ./dist/berth_linux_amd64_v1/berth no-such-command >/dev/null; then exit 1; fi
+      # The binaries berth may be installed from (plan: from CI artifacts only, never a workspace
+      # build). Download: gh run download <run-id> -R ar4mirez/berth -n berth-<sha>. README has the steps.
+      - name: upload the snapshot archives
+        uses: actions/upload-artifact@v7
+        with:
+          # On pull requests github.sha is the temporary merge commit; name it after the head commit.
+          name: berth-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            dist/*.tar.gz
+            dist/checksums.txt
+          if-no-files-found: error
+          retention-days: 14
