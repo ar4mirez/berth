@@ -63,7 +63,8 @@ jobs:
       - name: upload the snapshot archives
         uses: actions/upload-artifact@v7
         with:
-          name: berth-${{ github.sha }}
+          # On pull requests github.sha is the temporary merge commit; name it after the head commit.
+          name: berth-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             dist/*.tar.gz
             dist/checksums.txt
