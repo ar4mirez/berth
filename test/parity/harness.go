@@ -133,8 +133,9 @@ func Berth(bin string) Tool {
 		Command: func(run string, args []string) []string {
 			return append([]string{bin, "--home", filepath.Join(run, "state")}, args...)
 		},
-		Env:     func(string) []string { return nil },
-		Replace: [][2]string{{bin, "<SELF>"}},
+		Env: func(string) []string { return nil },
+		// berth's compose.yml is in the state root, ccenv's in its checkout; at cutover they're the same.
+		Replace: [][2]string{{bin, "<SELF>"}, {"<RUN>/state/compose.yml", "<ROOT>/compose.yml"}},
 	}
 }
 

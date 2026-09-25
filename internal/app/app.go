@@ -31,6 +31,8 @@ type App struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Getenv func(string) string
+
+	umaskVal *fs.FileMode // cached by umask()
 }
 
 // New builds an App for st on h. h's FS is guarded, so writes fail under --read-only.

@@ -15,16 +15,22 @@ import (
 // ccenv sends to /dev/null is discarded, one it captures with $( ) is captured, and anything else
 // goes straight to berth's own stdout/stderr, as in the shell.
 
-// capture is `$(cmd)`: stdout (trailing newlines stripped); stderr goes to berth's stderr unless
-// quiet (`2>/dev/null`). err is non-nil if the command failed or exited non-zero.
-func (a *App) capture(ctx context.Context, quiet bool, args ...string) (string, error) {
+// captureRaw is capture without stripping trailing newlines, for output that's processed further.
+func (a *App) captureRaw(ctx context.Context, quiet bool, args ...string) (string, error) {
 	var out bytes.Buffer
 	stderr := a.Stderr
 	if quiet {
 		stderr = io.Discard
 	}
 	err := a.Host.Exec.Run(ctx, host.Cmd{Args: args, Stdout: &out, Stderr: stderr})
-	return strings.TrimRight(out.String(), "\n"), err
+	return out.String(), err
+}
+
+// capture is `$(cmd)`: stdout (trailing newlines stripped); stderr goes to berth's stderr unless
+// quiet (`2>/dev/null`). err is non-nil if the command failed or exited non-zero.
+func (a *App) capture(ctx context.Context, quiet bool, args ...string) (string, error) {
+	out, err := a.captureRaw(ctx, quiet, args...)
+	return strings.TrimRight(out, "\n"), err
 }
 
 // passthrough runs a command with berth's own stdout/stderr (stdout discarded if quiet).
