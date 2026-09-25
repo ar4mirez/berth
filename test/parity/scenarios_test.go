@@ -110,6 +110,10 @@ var scenarios = []checked{
 	{Scenario{Name: "info missing org", Args: []string{"info"}}, 1, []string{"<tool>: missing <org>"}},
 	{Scenario{Name: "ls", Args: []string{"ls"}, Files: twoOrgs, Rules: acmeRunning}, 0, []string{"acme", "globex", "on"}},
 	{Scenario{Name: "info running org", Args: []string{"info", "acme"}, Files: twoOrgs, Rules: acmeRunning}, 0, []string{"env_PARITY01", "100.64.0.7"}},
+	// Legacy quirk: `sp=$(envval "$org" SSH_PORT)` at function level, under set -e -o pipefail, ends
+	// the command with exit 1 and no message when org.env has no SSH_PORT.
+	{Scenario{Name: "info, no SSH_PORT", Args: []string{"info", "globex"}, Rules: nothingRunning,
+		Files: merge(twoOrgs, map[string]File{"state/orgs/globex/org.env": {Content: "BIND_ADDR=127.0.0.1\nTTYD_PORT=7702\n"}})}, 1, nil},
 	{Scenario{Name: "whoami, all down", Args: []string{"whoami"}, Files: twoOrgs, Rules: nothingRunning}, 0, []string{"(container down)"}},
 	{Scenario{Name: "password show", Args: []string{"password", "acme"}, Files: twoOrgs}, 0, []string{"pass: PARITYpassword"}},
 	{Scenario{Name: "fw show, running", Args: []string{"fw", "acme"}, Files: twoOrgs, Rules: acmeRunning}, 0, []string{"live: on"}},
