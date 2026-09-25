@@ -23,19 +23,31 @@ func arg(args []string, n int) string {
 	return ""
 }
 
+// rest is the arguments from the nth on (nil if there are none).
+func rest(args []string, n int) []string {
+	if n < len(args) {
+		return args[n:]
+	}
+	return nil
+}
+
 func addCommands(root *cobra.Command) {
+	// repo and clone parse their own arguments, as ccenv does: the same messages, and flags only
+	// where ccenv takes them (audit's --quiet and rm's --delete right after the org).
 	repo := reads(&cobra.Command{
-		Use: "repo <ls|audit> <org>", Short: "registered repos and anything unregistered in /workspace", Args: cobra.ArbitraryArgs,
-		ValidArgsFunction: completeArgs([]string{"ls", "audit"}, orgArg),
+		Use: "repo <add|ls|rm|adopt|sync|audit|policy> <org> ...", Short: "the repos allowed in an org's /workspace", DisableFlagParsing: true,
+		ValidArgsFunction: completeArgs(repoSubsShown, orgArg, nil),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var rest []string
-			if quiet, _ := cmd.Flags().GetBool("quiet"); quiet {
-				rest = []string{"--quiet"}
-			}
-			return appFor(cmd).Repo(cmd.Context(), arg(args, 0), arg(args, 1), rest)
+			return appFor(cmd).Repo(cmd.Context(), arg(args, 0), arg(args, 1), rest(args, 2))
 		},
 	})
-	repo.Flags().Bool("quiet", false, "repo audit: say nothing when the workspace is clean")
+	clone := writes(&cobra.Command{
+		Use: "clone <org> <owner/repo|url> [--dir d] [--branch b] [--no-clone]", Short: "register a repo and clone it (repo add)", DisableFlagParsing: true,
+		ValidArgsFunction: completeArgs(orgArg),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return appFor(cmd).Repo(cmd.Context(), "add", arg(args, 0), rest(args, 1))
+		},
+	})
 	org1 := completeArgs(orgArg)
 	one := func(use, short string, run func(*app.App, *cobra.Command, string) error) *cobra.Command {
 		return writes(&cobra.Command{
@@ -125,6 +137,7 @@ func addCommands(root *cobra.Command) {
 	)
 	root.AddCommand(
 		repo,
+		clone,
 		completionCmd(root),
 		reads(&cobra.Command{
 			Use: "ls", Short: "all orgs and their state", Args: cobra.ArbitraryArgs,

@@ -29,7 +29,8 @@ func TestCompletionFromStateRoot(t *testing.T) {
 		{[]string{"fw", ""}, "acme globex"},
 		{[]string{"fw", "acme", ""}, "show allow deny on off edit reload presets test"},
 		{[]string{"fw", "acme", "allow", "@go", ""}, "@mise @python @node @go @rust @ruby @docker @gitlab @bitbucket @aws @gcp @azure @debian"},
-		{[]string{"repo", ""}, "ls audit"},
+		{[]string{"repo", ""}, "add ls rm adopt sync audit policy"},
+		{[]string{"clone", ""}, "acme globex"},
 		{[]string{"repo", "ls", ""}, "acme globex"},
 		{[]string{"ls", ""}, ""},
 	}
