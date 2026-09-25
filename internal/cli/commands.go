@@ -59,6 +59,31 @@ func addCommands(root *cobra.Command) {
 		})
 	}
 	root.AddCommand(
+		// init and env parse their own arguments, as ccenv does: the same messages, and env's
+		// --no-restart only as the 4th argument.
+		writes(&cobra.Command{
+			Use: "init <org> [--name N --email E]", Short: "scaffold a new org (berth's own: MANAGER=berth)", DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error { return appFor(cmd).Init(cmd.Context(), args) },
+		}),
+		reads(&cobra.Command{
+			Use: "env <org> [ls | set KEY | unset KEY] [--no-restart]", Short: "custom env vars for the container", DisableFlagParsing: true,
+			ValidArgsFunction: completeArgs(orgArg, []string{"ls", "set", "unset"}),
+			RunE:              func(cmd *cobra.Command, args []string) error { return appFor(cmd).Env(cmd.Context(), args) },
+		}),
+		reads(&cobra.Command{
+			Use: "password <org> [show|rotate]", Short: "browser-terminal password", Args: cobra.ArbitraryArgs,
+			ValidArgsFunction: completeArgs(orgArg, []string{"show", "rotate"}),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return appFor(cmd).Password(cmd.Context(), arg(args, 0), arg(args, 1))
+			},
+		}),
+		reads(&cobra.Command{
+			Use: "remote <org> [status|logs|restart]", Short: "the Remote Control service", Args: cobra.ArbitraryArgs,
+			ValidArgsFunction: completeArgs(orgArg, []string{"status", "logs", "restart"}),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return appFor(cmd).Remote(cmd.Context(), arg(args, 0), arg(args, 1))
+			},
+		}),
 		one("up <org>", "build if needed and (re)create the container", func(a *app.App, c *cobra.Command, o string) error { return a.Up(c.Context(), o) }),
 		writes(&cobra.Command{
 			Use: "build [docker-build-args...]", Short: "rebuild berth's image (updates Claude Code)", DisableFlagParsing: true,
