@@ -99,6 +99,9 @@ type ExitError struct {
 	Code int
 }
 
+// ExitCode lets the CLI end berth with the same code, silently: the process printed its own errors.
+func (e *ExitError) ExitCode() int { return e.Code }
+
 func (e *ExitError) Error() string {
 	name := "command"
 	if len(e.Args) > 0 {

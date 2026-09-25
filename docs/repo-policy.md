@@ -119,8 +119,9 @@ These are intentional (the earlier versions disagreed with each other):
 - **Lowercasing:** shell's `tr '[:upper:]' '[:lower:]'` depended on the locale, and JS's
   `toLowerCase` applied Unicode case mapping. Now ASCII only, and non-ASCII input is rejected.
 - **Unparseable input:** earlier versions always produced *something*, such as
-  `github.com/ssh://host`. Now there is no canonical form. In JS, an unparseable registered URL used
-  to add `''` to the allowed set, so any unparseable remote URL was allowed. That is fixed.
+  `github.com/ssh://host`. Now there is no canonical form. Because "no form" is `''`, the JS guard
+  also leaves `''` out of its allowed set; otherwise an unparseable registered URL would let every
+  unparseable remote URL through. (The earlier code never produced `''`, so it didn't have this problem.)
 - **Bare `host/owner/repo`:** it used to become `github.com/host/owner/repo`. Now a dotted first
   segment is the host (see above). ccenv's `repo_url` already special-cased this.
 - **repos.txt lines:** the shell reader dropped a last line with no trailing newline (so the

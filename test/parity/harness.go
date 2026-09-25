@@ -62,6 +62,8 @@ type Scenario struct {
 	Stdin string
 	Files map[string]File
 	Rules []Rule
+	// Env is extra environment for both tools (KEY=VALUE).
+	Env []string
 	// Random names files whose content is random by design (e.g. a generated password): both sides
 	// must match the regexp, instead of each other.
 	Random map[string]string
@@ -176,6 +178,7 @@ func (e *Env) Run(ctx context.Context, base string, tool Tool, s Scenario) (Resu
 		"GIT_CONFIG_GLOBAL=" + filepath.Join(run, "home", ".gitconfig"), "GIT_CONFIG_NOSYSTEM=1",
 		"PARITY_RULES=" + rulesFile, "PARITY_LOG=" + logFile,
 	}, tool.Env(run)...)
+	cmd.Env = append(cmd.Env, s.Env...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = strings.NewReader(s.Stdin), &stdout, &stderr
 	err = cmd.Run()
@@ -248,6 +251,9 @@ var (
 	mktempName  = regexp.MustCompile(`/tmp/tmp\.[A-Za-z0-9]{10}`)
 	restoreName = regexp.MustCompile(`\.restore-[A-Za-z0-9]{6}`)
 	toolPrefix  = regexp.MustCompile(`(?m)^(ccenv|berth): `)
+	// A command hint ("run: ccenv login acme"): each tool names itself. Not "ccenv-backup",
+	// ".ccenv-manifest.json" or "managed by ccenv;", which are wire names or plain words.
+	toolHint = regexp.MustCompile(`\b(ccenv|berth) ([a-z])`)
 )
 
 // normalizer maps what legitimately differs between runs and tools to placeholders.
@@ -259,7 +265,8 @@ func normalizer(tool Tool, run, fakeBin string) func(string) string {
 		}
 		s = mktempName.ReplaceAllString(s, "<MKTEMP>")
 		s = restoreName.ReplaceAllString(s, ".restore-XXXXXX")
-		return toolPrefix.ReplaceAllString(s, "<tool>: ")
+		s = toolPrefix.ReplaceAllString(s, "<tool>: ")
+		return toolHint.ReplaceAllString(s, "<tool> $2")
 	}
 }
 
