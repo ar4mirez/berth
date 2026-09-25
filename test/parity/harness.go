@@ -78,6 +78,10 @@ type Tool struct {
 	Env func(run string) []string
 	// Replace maps tool-specific absolute paths to placeholders, longest first.
 	Replace [][2]string
+	// Prepare adjusts the fixture for this tool after it is written (optional).
+	Prepare func(run string) error
+	// Content adjusts a file's content before it is compared (optional); rel is relative to the run dir.
+	Content func(rel, content string) string
 }
 
 // Result is what a run did, normalized.
@@ -126,8 +130,38 @@ func Legacy(repoRoot string) Tool {
 	}
 }
 
-// Berth is a built berth binary, pointed at the run's state root.
+// managerLine is what makes a fixture org berth's own (see Berth).
+const managerLine = "MANAGER=berth\n"
+
+// Berth is a built berth binary, pointed at the run's state root. Its writing commands only act on
+// orgs with MANAGER=berth, and legacy refuses exactly those, so the berth side's fixture gets
+// MANAGER=berth as the first line of every org.env, and that line is dropped again before comparing.
+// First, not last: it survives in-place rewrites and files without a final newline.
 func Berth(bin string) Tool {
+	t := BerthUnowned(bin)
+	t.Prepare = func(run string) error {
+		return filepath.WalkDir(filepath.Join(run, "state"), func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.Name() != "org.env" || !d.Type().IsRegular() {
+				return err
+			}
+			b, err := os.ReadFile(p)
+			if err != nil {
+				return err
+			}
+			return os.WriteFile(p, append([]byte(managerLine), b...), 0o600) // keeps the fixture's mode
+		})
+	}
+	t.Content = func(rel, c string) string {
+		if filepath.Base(rel) == "org.env" {
+			return strings.TrimPrefix(c, managerLine)
+		}
+		return c
+	}
+	return t
+}
+
+// BerthUnowned is berth on the fixture as written: legacy-owned orgs (no MANAGER line).
+func BerthUnowned(bin string) Tool {
 	return Tool{
 		Name: "berth",
 		Command: func(run string, args []string) []string {
@@ -156,6 +190,11 @@ func (e *Env) Run(ctx context.Context, base string, tool Tool, s Scenario) (Resu
 	}
 	if err := writeFixture(run, s.Files); err != nil {
 		return Result{}, err
+	}
+	if tool.Prepare != nil {
+		if err := tool.Prepare(run); err != nil {
+			return Result{}, err
+		}
 	}
 	rules, err := json.Marshal(s.Rules)
 	if err != nil {
@@ -199,7 +238,7 @@ func (e *Env) Run(ctx context.Context, base string, tool Tool, s Scenario) (Resu
 	if res.Calls, err = readCalls(logFile, n); err != nil {
 		return Result{}, err
 	}
-	if res.Tree, err = snapshot(run, s.Random, n); err != nil {
+	if res.Tree, err = snapshot(run, s.Random, n, tool.Content); err != nil {
 		return Result{}, err
 	}
 	return res, nil
@@ -313,7 +352,7 @@ func readCalls(logFile string, n func(string) string) ([]string, error) {
 
 // snapshot lists every entry under run: path, type, mode, and content (or its hash, if large or
 // binary). Files in random must match their regexp instead of being compared.
-func snapshot(run string, random map[string]string, n func(string) string) ([]string, error) {
+func snapshot(run string, random map[string]string, n func(string) string, content func(rel, c string) string) ([]string, error) {
 	var out []string
 	err := filepath.WalkDir(run, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -341,6 +380,9 @@ func snapshot(run string, random map[string]string, n func(string) string) ([]st
 			b, err := os.ReadFile(p)
 			if err != nil {
 				return err
+			}
+			if content != nil {
+				b = []byte(content(rel, string(b)))
 			}
 			out = append(out, fmt.Sprintf("%s %s %s", rel, mode, describe(rel, b, random, n)))
 		}
