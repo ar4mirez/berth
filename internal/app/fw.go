@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ar4mirez/berth/internal/contract"
 	"github.com/ar4mirez/berth/internal/host"
 )
 
@@ -77,7 +78,7 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 		}
 		if a.running(ctx, o) {
 			// echo "live: $(docker exec … cat /run/firewall.status 2>/dev/null || echo unknown)"
-			live, err := a.captureRaw(ctx, true, "docker", "exec", "claude-"+o, "cat", "/run/firewall.status")
+			live, err := a.captureRaw(ctx, true, "docker", "exec", "claude-"+o, "cat", contract.FirewallStatus)
 			if err != nil {
 				live += "unknown\n"
 			}
@@ -176,9 +177,9 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 		return nil
 	case "presets":
 		if a.running(ctx, o) {
-			return a.passthrough(ctx, false, "docker", "exec", "claude-"+o, "init-firewall.sh", "presets")
+			return a.passthrough(ctx, false, "docker", "exec", "claude-"+o, contract.FirewallScript, "presets")
 		}
-		return a.passthrough(ctx, false, "docker", "run", "--rm", "--entrypoint", "init-firewall.sh", "claude-env", "presets")
+		return a.passthrough(ctx, false, "docker", "run", "--rm", "--entrypoint", contract.FirewallScript, "claude-env", "presets")
 	}
 	return fmt.Errorf("usage: %s fw <org> [show|allow|deny|on|off|edit|reload|presets|test]", Tool)
 }
@@ -186,7 +187,7 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 // fwApply is fw_apply: apply the list live if the container runs, else say when it will.
 func (a *App) fwApply(ctx context.Context, o string) error {
 	if a.running(ctx, o) {
-		return a.passthrough(ctx, false, "docker", "exec", "claude-"+o, "init-firewall.sh", "apply")
+		return a.passthrough(ctx, false, "docker", "exec", "claude-"+o, contract.FirewallScript, "apply")
 	}
 	fmt.Fprintf(a.Stdout, "(saved; applies on: %s up %s)\n", Tool, o)
 	return nil

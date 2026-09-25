@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ar4mirez/berth/internal/contract"
 	"github.com/ar4mirez/berth/internal/host"
 )
 
@@ -73,7 +74,7 @@ func (a *App) Attach(ctx context.Context, o string) error {
 	if err := a.interactive(ctx, o); err != nil {
 		return err
 	}
-	return a.execIn(ctx, true, []string{"-it", "-u", "node"}, o, "tmux", "new-session", "-A", "-s", "main", "-c", "/workspace")
+	return a.execIn(ctx, true, []string{"-it", "-u", "node"}, o, "tmux", "new-session", "-A", "-s", contract.TmuxSession, "-c", contract.Workspace)
 }
 
 // Shell is `ccenv shell <org>`: a login bash in /workspace.

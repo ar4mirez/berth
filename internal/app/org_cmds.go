@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/ar4mirez/berth/internal/contract"
 	"github.com/ar4mirez/berth/internal/host"
 )
 
@@ -112,7 +113,7 @@ func (a *App) Env(ctx context.Context, args []string) error {
 	}
 	f := a.Orgs.EnvPath(o)
 	restart := nth(args, 3) != "--no-restart" // ccenv only looks at the 4th argument
-	keys := a.env(o, "CCENV_ENV_KEYS")
+	keys := a.env(o, contract.EnvKeys)
 	data, _ := a.Host.FS.ReadFile(f)
 	hasLine := func(k string) bool {
 		for _, l := range fileLines(data) {
@@ -198,7 +199,7 @@ func (a *App) Env(ctx context.Context, args []string) error {
 		listed = rest
 		fmt.Fprintln(a.Stdout, "removed: "+key)
 	}
-	if err := a.Orgs.Set(o, "CCENV_ENV_KEYS", strings.Join(listed, " ")); err != nil {
+	if err := a.Orgs.Set(o, contract.EnvKeys, strings.Join(listed, " ")); err != nil {
 		return err
 	}
 	if restart && a.running(ctx, o) {
@@ -233,7 +234,7 @@ func (a *App) readValue(key string) (string, error) {
 
 // rcLog is rc_log: the last n non-blank lines of the Remote Control log, ANSI stripped.
 func (a *App) rcLog(ctx context.Context, o string, n int, stdout io.Writer) error {
-	script := fmt.Sprintf(`sed -e 's/\x1b\][^\x1b]*\x1b\\//g' -e 's/\x1b\[[0-9;]*[A-Za-z]//g' /home/node/.claude/remote-control.log 2>/dev/null | grep -av '^\s*$' | tail -%d`, n)
+	script := fmt.Sprintf(`sed -e 's/\x1b\][^\x1b]*\x1b\\//g' -e 's/\x1b\[[0-9;]*[A-Za-z]//g' `+contract.RemoteControlLog+` 2>/dev/null | grep -av '^\s*$' | tail -%d`, n)
 	return a.Host.Exec.Run(ctx, host.Cmd{Args: []string{"docker", "exec", "claude-" + o, "sh", "-c", script}, Stdout: stdout, Stderr: a.Stderr})
 }
 
@@ -269,7 +270,7 @@ func (a *App) Remote(ctx context.Context, o, sub string) error {
 			err := a.rcLog(ctx, o, 200, &log)
 			last := ""
 			for _, l := range fileLines([]byte(log.String())) {
-				if strings.Contains(l, "Capacity") {
+				if strings.Contains(l, contract.RemoteControlCapacity) {
 					last = l
 				}
 			}
