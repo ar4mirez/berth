@@ -2,6 +2,9 @@ package cli
 
 import (
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -14,7 +17,26 @@ func appFor(cmd *cobra.Command) *app.App {
 	a := app.New(stateFrom(cmd.Context()), local.New(), cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), os.Getenv)
 	a.OpenTTY = local.OpenTTY
 	a.Self, _ = os.Executable()
+	a.Invoked = invokedPath()
 	return a
+}
+
+// invokedPath is the path berth was run as, without resolving symlinks: os.Args[0] as given if it
+// has a slash (made absolute), else where PATH finds it. "" if that fails.
+func invokedPath() string {
+	p := os.Args[0]
+	if !strings.Contains(p, "/") {
+		found, err := exec.LookPath(p)
+		if err != nil {
+			return ""
+		}
+		p = found
+	}
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return ""
+	}
+	return abs
 }
 
 // arg is ccenv's "${n:-}": the nth positional argument, or "". Like ccenv, extra arguments are
@@ -164,6 +186,20 @@ func addCommands(root *cobra.Command) {
 			Short: "compare every read command under ccenv and berth --read-only on this state root (pre-cutover)", DisableFlagParsing: true,
 			ValidArgsFunction: completeOrgs,
 			RunE:              func(cmd *cobra.Command, args []string) error { return appFor(cmd).ParityCheck(cmd.Context(), args) },
+		}),
+		writes(&cobra.Command{
+			Use: "takeover <org>", Short: "cutover: make a ccenv org berth's (MANAGER=berth); restarts nothing", Args: cobra.ArbitraryArgs,
+			ValidArgsFunction: completeArgs(orgArg),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return appFor(cmd).Takeover(cmd.Context(), arg(args, 0))
+			},
+		}),
+		writes(&cobra.Command{
+			Use: "handback <org>", Short: "undo takeover: MANAGER=ccenv again; restarts nothing", Args: cobra.ArbitraryArgs,
+			ValidArgsFunction: completeArgs(orgArg),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return appFor(cmd).Handback(cmd.Context(), arg(args, 0))
+			},
 		}),
 		// restore and migrate parse their own arguments, as ccenv does.
 		writes(&cobra.Command{

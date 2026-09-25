@@ -105,7 +105,11 @@ func (a *App) Schedule(ctx context.Context, args []string) error {
 		return fmt.Errorf("scheduled backups need a key: run '%s keygen' first", Tool)
 	}
 	// The job names the state root explicitly, so it backs up the orgs this invocation sees.
-	cmd := []string{a.Self, "--home", a.State.Home.Path, "backup", "--all", "--keep", keep}
+	self := a.Invoked
+	if self == "" {
+		self = a.Self
+	}
+	cmd := []string{self, "--home", a.State.Home.Path, "backup", "--all", "--keep", keep}
 	if out != "" {
 		cmd = append(cmd, "-o", out)
 	}
