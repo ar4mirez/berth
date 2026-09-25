@@ -3,7 +3,7 @@
 This is the first part of phase 5 (cutover) in [`plan.md`](plan.md): put berth on the host next to ccenv and prove
 it matches, **without changing any live org**. Stage 1 only reads. Stage 2 is optional: it exercises the writing
 commands on a throwaway clone of one org. The cutover itself (setting `MANAGER=berth` on live orgs, swapping the
-backup schedule) is a separate step. It is not in this guide.
+backup schedule) is a separate step: [`cutover.md`](cutover.md).
 
 Paths below assume the legacy checkout is `~/Work/claude-envs` (the same default as `scripts/drift.sh`). Set
 `LEGACY` to yours if it's elsewhere. At the end there are [prompts](#prompts-for-claude-on-the-host) you can hand to
@@ -130,8 +130,9 @@ as long as `--home` is that same checkout, because ccenv then uses its own `orgs
 This exercises berth's writing commands on real data, on a clone named `t-<org>` in the same checkout. `restore`
 gives the clone free ports, and makes it berth's (`MANAGER=berth`), so ccenv won't touch it.
 
-> The clone has the same git key and gh login as the source org, so it can push to the same repos. Sign it out
-> (below), and don't push from it.
+> The clone has the same git key and gh login as the source org, so it can push to the same repos.
+> `logout --all` signs out Claude only, as ccenv's does, so step 2 also removes the clone's gh login. The git key
+> stays, so don't push from the clone.
 
 ```bash
 ORG=<small org>; T=t-$ORG; bk=$(mktemp -d)   # a private dir (0700) for the backup
@@ -144,12 +145,13 @@ berth --home "$LEGACY" backup "$ORG" -o "$bk"
 berth --home "$LEGACY" restore "$bk"/"$ORG"-*.tar.zst* --as "$T" --no-start
 berth --home "$LEGACY" logout "$T" --all
 sed -i 's/^REMOTE_CONTROL=.*/REMOTE_CONTROL=0/' "$LEGACY/orgs/$T/org.env"
+rm -rf "$LEGACY/orgs/$T/home-config/gh"                 # the clone's gh login (its ~/.config/gh)
 
 # 3. Lifecycle. `up` uses the image the backup built.
 berth --home "$LEGACY" up "$T"
 berth --home "$LEGACY" ls
 berth --home "$LEGACY" info "$T"
-berth --home "$LEGACY" shell "$T"                           # look around, then exit
+berth --home "$LEGACY" shell "$T"                           # needs a terminal (as ccenv's); look around, then exit
 berth --home "$LEGACY" fw "$T" allow example.com && berth --home "$LEGACY" fw "$T" test example.com
 berth --home "$LEGACY" fw "$T" deny example.com
 berth --home "$LEGACY" repo ls "$T"

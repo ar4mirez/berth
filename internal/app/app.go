@@ -32,8 +32,11 @@ type App struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Getenv func(string) string
-	// Self is the berth binary, for the scheduled backup job.
+	// Self is the berth binary itself (symlinks resolved): what install links to.
 	Self string
+	// Invoked is the path berth was run as, symlinks kept (~/.local/bin/berth): what the scheduled
+	// backup job runs, so it keeps working when an upgrade moves the link to a new binary.
+	Invoked string
 	// OpenTTY opens the operator's terminal for prompts ccenv reads from /dev/tty (nil: none).
 	OpenTTY func() (*os.File, error)
 
