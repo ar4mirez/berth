@@ -12,6 +12,8 @@ terminal, VS Code Remote-SSH, or Claude Remote Control (claude.ai/code).
 
 ## Trying berth (read-only)
 
+To install berth on the host next to ccenv and check it matches, follow [`docs/host-install.md`](docs/host-install.md).
+
 The commands berth has so far only read ([`PARITY.md`](PARITY.md) tracks them). You can point them at an existing
 ccenv checkout without changing anything there. Get a build that CI made: every `ci` run on `main` uploads the
 linux/darwin archives, kept for 14 days. Don't use a workspace build.
