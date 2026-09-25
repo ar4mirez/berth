@@ -76,6 +76,7 @@ func TestLegacyDeterministic(t *testing.T) {
 	legacy := Legacy(repoRoot)
 	for _, sc := range scenarios {
 		t.Run(sc.Name, func(t *testing.T) {
+			t.Parallel() // each run has its own dir and fake-tool log
 			a, b := run(t, legacy, sc.Scenario), run(t, legacy, sc.Scenario)
 			if d := Diff("first", a, "second", b); d != "" {
 				t.Fatalf("legacy is not deterministic under the harness:\n%s", d)

@@ -47,7 +47,8 @@ func addGlobalFlags(root *cobra.Command) {
 	readOnly := pf.Bool("read-only", false, "refuse any command that would change state")
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
-		if cmd == root || (cmd.Name() == "help" && cmd.Parent() == root) { // help / version / unknown command: nothing to resolve
+		// help, --version, an unknown command, and cobra's own __complete: nothing to resolve or guard.
+		if cmd == root || (cmd.Parent() == root && (cmd.Name() == "help" || strings.HasPrefix(cmd.Name(), "__complete"))) {
 			return nil
 		}
 		access := cmd.Annotations[accessKey]

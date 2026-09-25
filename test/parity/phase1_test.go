@@ -89,6 +89,7 @@ func TestParity(t *testing.T) {
 		}
 		n++
 		t.Run(sc.Name, func(t *testing.T) {
+			t.Parallel() // each run has its own dir and fake-tool log
 			if d := Diff("ccenv", run(t, legacy, sc.Scenario), "berth", run(t, berth, sc.Scenario)); d != "" {
 				t.Errorf("berth differs from legacy:\n%s", d)
 			}
@@ -133,6 +134,7 @@ func TestParityReadOnly(t *testing.T) {
 			continue
 		}
 		t.Run(sc.Name, func(t *testing.T) {
+			t.Parallel() // each run has its own dir and fake-tool log
 			l, b := run(t, legacy, sc.Scenario), run(t, berth, sc.Scenario)
 			if readOnlySkipsWrites[sc.Name] {
 				// Legacy creates files here; berth --read-only doesn't (by design). Compare the rest.
