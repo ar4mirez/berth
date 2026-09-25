@@ -14,20 +14,61 @@ const SECRET_DIRS = ['/opt/claude-secrets', '/config/secrets'];
 const mode = (process.env.REPO_POLICY || 'enforce').toLowerCase();
 const org = (() => { try { return fs.readFileSync('/etc/claude-env/org', 'utf8').trim(); } catch { return '<org>'; } })();
 
-function entries() {
+// Registered repos. canon is '' for a URL with no canonical form: the dir stays registered, but it
+// allows no repo. Fields are split on spaces and tabs only, and a trailing CR is ignored (as in
+// repo-policy.sh's repo_entries).
+function entries(file = REPOS) {
   let text = '';
-  try { text = fs.readFileSync(REPOS, 'utf8'); } catch { return []; }
-  return text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'))
-    .map(l => l.split(/\s+/)).filter(p => p.length >= 2)
+  try { text = fs.readFileSync(file, 'utf8'); } catch { return []; }
+  return text.split('\n').map(l => l.replace(/\r$/, '').replace(/^[ \t]+|[ \t]+$/g, '')).filter(l => l && !l.startsWith('#'))
+    .map(l => l.split(/[ \t]+/)).filter(p => p.length >= 2)
     .map(([dir, url]) => ({ dir, canon: url === 'local' ? `local/${dir}` : canon(url) }));
 }
 
-function canon(u, host = 'github.com') {  // same rules as repo-policy.sh
-  let p = u, h = host, m;
-  if ((m = /^git@([^:]+):(.+)$/.exec(u))) { h = m[1]; p = m[2]; }
-  else if ((m = /^(?:ssh|https?):\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/.exec(u))) { h = m[1]; p = m[2]; }
-  p = p.replace(/^\/+/, '').replace(/\/+$/, '').replace(/\.git$/, '');
-  return `${h}/${p}`.toLowerCase();
+// canon(ref, host) -> 'host/path', or '' if ref isn't an acceptable repo. The rules are in
+// docs/repo-policy.md, and testdata/canon.tsv pins them for this, repo-policy.sh and berth.
+const DEFAULT_PORT = new Map([['ssh', 22], ['git+ssh', 22], ['ssh+git', 22], ['https', 443], ['http', 80]]);
+const HOST_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;   // at least one dot
+const SEG_RE = /^[a-z0-9._~-]+$/;
+const lowerASCII = (s) => s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+
+function canon(ref, hostArg = '') {
+  if (typeof ref !== 'string' || !/^[!-~]+$/.test(ref) || !/^[!-~]*$/.test(hostArg)) return '';
+  const u = lowerASCII(ref);
+  let host = lowerASCII(hostArg), path;
+  const sep = u.indexOf('://');
+  if (sep >= 0) {                                               // URL
+    const def = DEFAULT_PORT.get(u.slice(0, sep));
+    if (def === undefined) return '';
+    const rest = u.slice(sep + 3), slash = rest.indexOf('/');
+    if (slash < 0) return '';
+    let auth = rest.slice(0, slash);
+    path = rest.slice(slash + 1);
+    auth = auth.slice(auth.lastIndexOf('@') + 1);
+    const colon = auth.lastIndexOf(':');
+    if (colon >= 0) {
+      const port = auth.slice(colon + 1);
+      auth = auth.slice(0, colon);
+      if (!/^[0-9]{1,5}$/.test(port) || Number(port) !== def) return '';
+    }
+    host = auth;
+    if (!host) return '';
+  } else if (u.includes(':') && !u.slice(0, u.indexOf(':')).includes('/')) {  // scp-like [user@]host:path
+    const auth = u.slice(0, u.indexOf(':'));
+    path = u.slice(u.indexOf(':') + 1);
+    host = auth.slice(auth.lastIndexOf('@') + 1);
+    if (!host) return '';
+  } else {                                                      // bare path
+    path = u;
+  }
+  const segs = path.split('/').filter(Boolean);
+  if (!host) host = segs.length >= 2 && segs[0].includes('.') ? segs.shift() : 'github.com';
+  if (segs.length === 0) return '';
+  let last = segs[segs.length - 1];
+  while (last.endsWith('.git') && last.length > 4) last = last.slice(0, -4);
+  segs[segs.length - 1] = last;
+  if (!segs.every((s) => SEG_RE.test(s) && s !== '.' && s !== '..') || !HOST_RE.test(host)) return '';
+  return `${host}/${segs.join('/')}`;
 }
 
 function decide(reason) {
@@ -61,7 +102,7 @@ function main(input) {
   const ti = ev.tool_input || {};
   const list = entries();
   const allowedDirs = new Set(list.map(e => e.dir));
-  const allowedCanon = new Set(list.map(e => e.canon));
+  const allowedCanon = new Set(list.map(e => e.canon).filter(Boolean));   // '' never allows anything
 
   checkPath(cwd, '/', allowedDirs);                                  // where the tool runs
   for (const k of ['file_path', 'path', 'notebook_path']) checkPath(ti[k], cwd, allowedDirs);
@@ -79,9 +120,11 @@ function main(input) {
   }
   const remote = /\bgit\b[^;&|\n]*\bremote\s+(?:add|set-url)\b([^;&|\n]*)/.exec(cmd);
   if (remote) {
-    const urls = remote[1].split(/\s+/).filter(t => /^(git@|ssh:\/\/|https?:\/\/)/.test(t));
+    // Anything URL-shaped (any scheme://, any user@host:) is checked; canon rejects what it can't place.
+    const urls = remote[1].split(/\s+/).filter(t => /^([\w.-]+@[^\s:/]+:|[a-z][a-z0-9+.-]*:\/\/)/i.test(t));
     const bad = urls.find(u => !allowedCanon.has(canon(u)));
-    if (bad || urls.length === 0) decide(`Remote ${bad || '(unrecognized URL)'} is not an allowed repo for this org. ${HOW(bad ? canon(bad).split('/').slice(1).join('/') : '<owner/repo>')}`);
+    const where = bad && canon(bad) ? canon(bad).split('/').slice(1).join('/') : '<owner/repo>';
+    if (bad || urls.length === 0) decide(`Remote ${bad || '(unrecognized URL)'} is not an allowed repo for this org. ${HOW(where)}`);
   }
   // Downloading an unregistered repo's code through the API/CDN instead of git.
   if (/\b(gh\s+api|curl|wget|http)\b/.test(cmd)) {
@@ -92,8 +135,9 @@ function main(input) {
       /github\.com\/([\w.-]+)\/([\w.-]+)\/(?:archive|raw|releases\/download|blob)\//g,
     ];
     for (const re of pats) for (const m of cmd.matchAll(re)) {
-      const c = canon(`${m[1]}/${m[2]}`);
-      if (!allowedCanon.has(c)) decide(`Downloading code from ${c.slice(c.indexOf('/') + 1)} (not an allowed repo) is blocked. ${HOW(c.slice(c.indexOf('/') + 1))}`);
+      const c = canon(`${m[1]}/${m[2]}`, 'github.com');   // explicit host: an owner with a dot is still an owner
+      const name = c ? c.slice(c.indexOf('/') + 1) : `${m[1]}/${m[2]}`;
+      if (!allowedCanon.has(c)) decide(`Downloading code from ${name} (not an allowed repo) is blocked. ${HOW(name)}`);
     }
   }
   for (const tok of cmd.split(/[\s;&|()<>`"'=]+/)) {                // paths mentioned in the command
@@ -104,12 +148,16 @@ function main(input) {
   }
 }
 
-let data = '';
-process.stdin.on('data', c => { data += c; });
-process.stdin.on('end', () => {
-  try { main(data); } catch (e) {
-    if (mode === 'off') process.exit(0);
-    decide(`repo-guard could not evaluate this action (${e.message}); blocked to be safe.`);  // fail closed
-  }
-  process.exit(0);
-});
+module.exports = { canon, entries };   // for berth's three-language canon test
+
+if (require.main === module) {
+  let data = '';
+  process.stdin.on('data', c => { data += c; });
+  process.stdin.on('end', () => {
+    try { main(data); } catch (e) {
+      if (mode === 'off') process.exit(0);
+      decide(`repo-guard could not evaluate this action (${e.message}); blocked to be safe.`);  // fail closed
+    }
+    process.exit(0);
+  });
+}
