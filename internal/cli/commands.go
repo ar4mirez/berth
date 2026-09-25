@@ -11,7 +11,9 @@ import (
 
 // appFor builds the App a command runs against: the resolved state, on the local host.
 func appFor(cmd *cobra.Command) *app.App {
-	return app.New(stateFrom(cmd.Context()), local.New(), cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), os.Getenv)
+	a := app.New(stateFrom(cmd.Context()), local.New(), cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), os.Getenv)
+	a.OpenTTY = local.OpenTTY
+	return a
 }
 
 // arg is ccenv's "${n:-}": the nth positional argument, or "". Like ccenv, extra arguments are
@@ -136,6 +138,19 @@ func addCommands(root *cobra.Command) {
 		}),
 	)
 	root.AddCommand(
+		// backup parses its own arguments, as ccenv does. It writes (backup files, and containers run)
+		// but never changes the org, so an org named explicitly can be either tool's.
+		writes(&cobra.Command{
+			Use:   "backup <org>...|--all [--plan] [-o file|dir|-] [--passphrase | -r <key> | --no-encrypt] [--keep N]",
+			Short: "encrypted backup of orgs (age key, recipients, or a gpg passphrase)", DisableFlagParsing: true,
+			ValidArgsFunction: completeBackup,
+			RunE:              func(cmd *cobra.Command, args []string) error { return appFor(cmd).Backup(cmd.Context(), args) },
+		}),
+		writes(&cobra.Command{
+			Use: "keygen", Short: "create the age key backups encrypt to (no prompts; good for cron)", Args: cobra.ArbitraryArgs,
+			ValidArgsFunction: completeArgs(),
+			RunE:              func(cmd *cobra.Command, _ []string) error { return appFor(cmd).Keygen(cmd.Context()) },
+		}),
 		repo,
 		clone,
 		completionCmd(root),

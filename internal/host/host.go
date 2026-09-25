@@ -60,6 +60,14 @@ type FS interface {
 	// Rename replaces newpath if it exists (POSIX rename semantics).
 	Rename(oldpath, newpath string) error
 	Remove(name string) error
+	// RemoveAll removes name and everything under it; a missing name is not an error.
+	RemoveAll(name string) error
+	// Create is a shell `> name`: an existing file is truncated and keeps its mode, a new one is
+	// created with exactly perm. The data streams in through the returned writer.
+	Create(name string, perm fs.FileMode) (io.WriteCloser, error)
+	// MkdirTemp is `mktemp -d`: a new directory, mode 0700, named tmp.XXXXXXXXXX (10 random
+	// letters and digits) in the host's temp dir ($TMPDIR, else /tmp).
+	MkdirTemp() (string, error)
 	// Lock takes an exclusive advisory lock on name (created if missing), waiting until it is
 	// free or ctx is done. The lock is released by Unlock, or when the process or connection dies.
 	Lock(ctx context.Context, name string) (Unlocker, error)

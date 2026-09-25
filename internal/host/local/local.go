@@ -5,6 +5,7 @@ package local
 import (
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"net"
 	"os"
@@ -90,7 +91,33 @@ func (FS) ReadDir(name string) ([]fs.DirEntry, error)                   { return
 func (FS) MkdirAll(name string, perm fs.FileMode) error                 { return os.MkdirAll(name, perm) }
 func (FS) Rename(oldpath, newpath string) error                         { return os.Rename(oldpath, newpath) }
 func (FS) Remove(name string) error                                     { return os.Remove(name) }
+func (FS) RemoveAll(name string) error                                  { return os.RemoveAll(name) }
 func (FS) Lock(ctx context.Context, name string) (host.Unlocker, error) { return lock(ctx, name) }
+
+func (FS) Create(name string, perm fs.FileMode) (io.WriteCloser, error) {
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_TRUNC, 0) // #nosec G304 -- existing file: keep its mode
+	if errors.Is(err, fs.ErrNotExist) {
+		return create(name, perm)
+	}
+	return f, err
+}
+
+func (FS) MkdirTemp() (string, error) {
+	dir := os.Getenv("TMPDIR")
+	if dir == "" {
+		dir = "/tmp"
+	}
+	for {
+		name, err := host.TempName()
+		if err != nil {
+			return "", err
+		}
+		p := filepath.Join(dir, name)
+		if err := os.Mkdir(p, 0o700); !errors.Is(err, fs.ErrExist) { // #nosec G703 -- $TMPDIR, as mktemp honours it
+			return p, err
+		}
+	}
+}
 
 type flockUnlocker struct{ f *os.File }
 
@@ -180,3 +207,7 @@ func (Docker) DialEngine(ctx context.Context) (net.Conn, error) {
 	var d net.Dialer
 	return d.DialContext(ctx, "unix", sock)
 }
+
+// OpenTTY opens /dev/tty, the operator's terminal, for prompts that must not come from stdin
+// (stdin may carry data, as in `restore -`).
+func OpenTTY() (*os.File, error) { return os.OpenFile("/dev/tty", os.O_RDWR, 0) }

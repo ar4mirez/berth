@@ -351,6 +351,39 @@ func (f *sftpFS) Stat(name string) (fs.FileInfo, error)     { return f.c.Stat(na
 func (f *sftpFS) Rename(oldpath, newpath string) error      { return f.c.PosixRename(oldpath, newpath) }
 func (f *sftpFS) Remove(name string) error                  { return f.c.Remove(name) }
 
+func (f *sftpFS) RemoveAll(name string) error {
+	if _, err := f.c.Lstat(name); errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	return f.c.RemoveAll(name)
+}
+
+func (f *sftpFS) Create(name string, perm fs.FileMode) (io.WriteCloser, error) {
+	fh, err := f.c.OpenFile(name, os.O_WRONLY|os.O_TRUNC) // existing file: keeps its mode
+	if errors.Is(err, fs.ErrNotExist) {
+		return f.create(name, perm)
+	}
+	return fh, err
+}
+
+// MkdirTemp creates the directory in /tmp: the remote $TMPDIR isn't known over SFTP.
+func (f *sftpFS) MkdirTemp() (string, error) {
+	for {
+		name, err := host.TempName()
+		if err != nil {
+			return "", err
+		}
+		p := "/tmp/" + name
+		if _, err := f.c.Lstat(p); err == nil {
+			continue
+		}
+		if err := f.c.Mkdir(p); err != nil {
+			return "", err
+		}
+		return p, f.c.Chmod(p, 0o700)
+	}
+}
+
 func (f *sftpFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	infos, err := f.c.ReadDir(name)
 	if err != nil {
