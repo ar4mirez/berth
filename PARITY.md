@@ -35,6 +35,7 @@ intentional addition) · `(pN)` is the plan phase that ports it.
 | `--version` | – | – | – | – | berth-only: `berth <version> (commit, date)`. No `-v`, which is kept free for a future verbose flag |
 | `--home <dir>` | – | – | – | – | berth-only: state root; `--home` > `$BERTH_HOME` > `config.yaml` > `~/.local/share/berth` (empty on purpose) |
 | `--read-only` | – | – | – | – | berth-only: refuses every writing command, and every `host.FS` write |
+| `parity-check [--legacy PATH] [org...]` | `ok`/`DIFF` per check, with a line diff, then `N checks, M differ` (exit 1 if any differ) | – | runs `ccenv <cmd>` (with `CCENV_ORGS=<home>/orgs`) and `berth --read-only --home <home> <cmd>` for `ls`, `whoami`, and per org `info`, `whoami`, `repo ls`, `repo audit`, `repo policy`, `fw show`, `env ls`, `remote status` | a difference must show twice | berth-only (#30): the pre-cutover check, `TestBerthParityCheck`; see `docs/host-install.md` |
 
 ## Setup
 

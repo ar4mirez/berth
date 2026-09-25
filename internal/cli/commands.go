@@ -159,6 +159,12 @@ func addCommands(root *cobra.Command) {
 				return appFor(cmd).Install(cmd.Context(), args, func(name string) ([]byte, error) { return bashCompletion(root, name) })
 			},
 		}),
+		reads(&cobra.Command{
+			Use:   "parity-check [--legacy PATH] [org...]",
+			Short: "compare every read command under ccenv and berth --read-only on this state root (pre-cutover)", DisableFlagParsing: true,
+			ValidArgsFunction: completeOrgs,
+			RunE:              func(cmd *cobra.Command, args []string) error { return appFor(cmd).ParityCheck(cmd.Context(), args) },
+		}),
 		// restore and migrate parse their own arguments, as ccenv does.
 		writes(&cobra.Command{
 			Use:   "restore <file|-> [--as name] [--identity|-i key] [--force] [--no-start] [--no-rehydrate]",
