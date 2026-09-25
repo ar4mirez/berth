@@ -114,6 +114,9 @@ func hasScenario(name string) bool {
 	return false
 }
 
+// readCommands only read berth's state, so they must behave the same under --read-only.
+var readCommands = map[string]bool{"ls": true, "info": true, "whoami": true, "logs": true, "fw": true, "repo": true}
+
 // readOnlySkipsWrites are scenarios where legacy creates files as a side effect of a read (compose's
 // bind-mount dirs, fw's template), which berth skips under --read-only.
 var readOnlySkipsWrites = map[string]bool{
@@ -130,8 +133,8 @@ func TestParityReadOnly(t *testing.T) {
 		return append([]string{argv[0], "--read-only"}, argv[1:]...)
 	}
 	for _, sc := range scenarios {
-		if !ported[sc.Name] {
-			continue
+		if !ported[sc.Name] || len(sc.Args) == 0 || !readCommands[sc.Args[0]] {
+			continue // writing commands are refused under --read-only: TestReadOnlyRefusesWritingCommands
 		}
 		t.Run(sc.Name, func(t *testing.T) {
 			t.Parallel() // each run has its own dir and fake-tool log

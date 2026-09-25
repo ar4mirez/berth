@@ -29,6 +29,9 @@ func NewRoot() *cobra.Command {
 		Args:          cobra.ArbitraryArgs,
 		SilenceErrors: true,
 		SilenceUsage:  true,
+		// Parse the root's flags (--home, --read-only) before descending, so they take effect even for
+		// commands that don't parse flags themselves (claude, run).
+		TraverseChildren: true,
 		// Parity with ccenv: no arguments prints help (exit 0); an unknown command prints it and exits 1.
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := cmd.Help(); err != nil {
