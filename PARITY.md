@@ -86,13 +86,13 @@ init-firewall.sh apply`; otherwise `(saved; applies on: ccenv up <org>)`.
 | Item | stdout / stderr / exit | Files (modes) | Docker / host calls | Other side effects | Status |
 |---|---|---|---|---|---|
 | `fw <org> [show]` | the file path, the entries (`grep -vE '^\s*(#\|$)'`, indented two spaces), and `live: …` if running (`… \|\| echo unknown`) | the template (mode 0666 minus the umask) if missing | running: `docker exec … cat /run/firewall.status` | quirk, mirrored: a file with no entries ends `show` with exit 1 right after the path (grep selects nothing, pipefail + set -e) | **done** (#15): scenarios `fw show …`. Under `--read-only`, berth shows the template without writing it |
-| `fw <org> allow\|add <entry>...` | `allowed: X` / `already allowed: X`; usage error with no entries | appended with `>>` (inode and mode kept) | `fw_apply` | URLs are reduced to the host (`https://x:443/p` → `x`) | not started (p3); scenario `fw allow, stopped` |
-| `fw <org> deny\|remove\|rm <entry>...` | `removed: X` / `not in list: X` | rewritten (`cat tmp > f`) | `fw_apply` | exact match only, with no URL reduction (asymmetric with allow) | not started (p3); scenario `fw deny` |
-| `fw <org> on\|off` | – | every `mode on/off` line removed, `mode <x>` appended | `fw_apply` | – | not started (p3) |
-| `fw <org> edit` | – | edited by `$EDITOR` (default `vi`) | `fw_apply` | TTY | not started (p3) |
-| `fw <org> reload` | – | – | `fw_apply` | – | not started (p3) |
+| `fw <org> allow\|add <entry>...` | `allowed: X` / `already allowed: X`; usage error with no entries | appended with `>>` (inode and mode kept) | `fw_apply` | URLs are reduced to the host (`https://x:443/p` → `x`) | **done** (#22): scenarios `fw allow …`; needs `MANAGER=berth`. Appends raw, as `echo >> f` does: a file without a final newline gets the entry joined to its last line |
+| `fw <org> deny\|remove\|rm <entry>...` | `removed: X` / `not in list: X` | rewritten (`cat tmp > f`) | `fw_apply` | exact match only, with no URL reduction (asymmetric with allow) | **done** (#22): scenarios `fw deny …`; needs `MANAGER=berth`. Quirk, mirrored: removing the last remaining line exits 1 and leaves the file unchanged |
+| `fw <org> on\|off` | – | every `mode on/off` line removed, `mode <x>` appended | `fw_apply` | – | **done** (#22): scenarios `fw on …`, `fw off`; needs `MANAGER=berth` |
+| `fw <org> edit` | – | edited by `$EDITOR` (default `vi`) | `fw_apply` | TTY | **done** (#22): scenarios `fw edit …` (`$EDITOR`, default `vi`, with the terminal); needs `MANAGER=berth` |
+| `fw <org> reload` | – | – | `fw_apply` | – | **done** (#22): scenarios `fw reload …`; needs `MANAGER=berth` |
 | `fw <org> presets` | the preset list; ends with docker's exit code | the template if missing | running: `docker exec claude-<org> init-firewall.sh presets`; else `docker run --rm --entrypoint init-firewall.sh claude-env presets` | – | **done** (#15): scenarios `fw presets …`. The image is still `claude-env` until berth builds its own (p2) |
-| `fw <org> test [host\|url...]` | `ALLOWED  <url>` / `blocked  <url>`; default api.anthropic.com, github.com, example.com | – | `need_up`; `docker exec -u node … curl -s -o /dev/null --max-time 6 <url>` | – | not started (p3) |
+| `fw <org> test [host\|url...]` | `ALLOWED  <url>` / `blocked  <url>`; default api.anthropic.com, github.com, example.com | – | `need_up`; `docker exec -u node … curl -s -o /dev/null --max-time 6 <url>` | – | **done** (#22): scenarios `fw test …`. It only probes, so it counts as reading: it works on any org and under `--read-only` |
 
 ## Repos
 
@@ -160,6 +160,7 @@ one, berth either mirrors it or records a divergence here when the command is po
 6. `env … --no-restart` is only recognized as the 4th argument.
 7. **`remote <org> status` exits 1** after printing the URL when the Remote Control log has no `Capacity` line (`rc_log | grep -a Capacity | …` under pipefail and set -e).
 8. **`token <org> --paste` exits 1 without saving** when the pasted input doesn't end with a newline (`read` fails under set -e).
+9. **`fw <org> deny <entry>` exits 1 and changes nothing** when that entry is all that's left in the file (`grep -vxF` selects nothing under set -e).
 
 ## To port to the legacy checkout at cutover
 
