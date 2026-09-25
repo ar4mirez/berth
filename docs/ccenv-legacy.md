@@ -107,6 +107,19 @@ Known limit: someone running commands by hand in the container, not Claude, coul
 code with a signed-in `gh` token (`ccenv gh-login`) or a public tarball URL. The sweep then quarantines anything that lands in
 `/workspace`, but the files could be kept elsewhere, such as `/tmp`. For the strictest setup, skip `gh-login` in that org.
 
+## Environment variables (API keys)
+
+```bash
+ccenv env acme set OPENROUTER_API_KEY     # prompts for the value (hidden); or pipe it: ... | ccenv env acme set KEY
+ccenv env acme                            # names only, never values
+ccenv env acme unset OPENROUTER_API_KEY
+```
+
+Values are stored single-quoted in `orgs/<org>/org.env` (0600), so `$` and spaces are taken literally, and the container is
+recreated to apply them (`--no-restart` to defer). They reach every kind of session: Remote Control, `attach`/`claude`/`run`,
+the browser terminal and SSH. ccenv's own keys (tokens, ports, `GH_TOKEN`, ...) are refused, and values can't contain `'`.
+Like the other tokens in `org.env`, anyone with Docker access on the host can read them with `docker inspect`.
+
 ## Installing software (mise)
 
 Every container ships with [mise](https://mise.jdx.dev) plus the build dependencies it needs to compile tools like Ruby.

@@ -194,6 +194,44 @@ cmd_whoami() {  # which Claude account each org is actually using
   done
 }
 
+ENV_RESERVED=" ORG ORG_DIR HOST_UID HOST_GID MANAGER CCENV_ENV_KEYS CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY GH_TOKEN
+  GIT_USER_NAME GIT_USER_EMAIL BIND_ADDR SSH_PORT TTYD_PORT REMOTE_CONTROL REMOTE_CAPACITY REPO_POLICY MEM_LIMIT CPUS
+  SHARED_ACCOUNT IMAGE_TAG CLAUDE_CODE_VERSION CLAUDE_CONFIG_DIR DISABLE_AUTOUPDATER LANG PATH HOME USER SHELL "
+cmd_env() {  # env <org> [ls | set KEY [--no-restart] | unset KEY [--no-restart]]: custom env vars for the container
+  local org="${1:-}" sub="${2:-ls}" key="${3:-}" restart=1 val keys f
+  need_org "$org"; f="$ORGS/$org/org.env"
+  [ "${4:-}" = --no-restart ] && restart=0
+  keys=$(envval "$org" CCENV_ENV_KEYS || true)
+  case "$sub" in
+    ls|list)
+      [ -n "$keys" ] || { echo "(no custom variables; add one: ccenv env $org set KEY)"; return 0; }
+      for k in $keys; do grep -qE "^$k=" "$f" && echo "$k" || echo "$k  (listed but missing)"; done
+      return 0 ;;
+    set|unset|rm)
+      [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ ]] || die "usage: ccenv env $org $sub KEY   (KEY like OPENROUTER_API_KEY)"
+      local r; for r in $ENV_RESERVED; do [ "$r" != "$key" ] || die "$key is managed by ccenv; edit it in $f if you really mean to"; done ;;
+    *) die "usage: ccenv env <org> [ls | set KEY | unset KEY] [--no-restart]" ;;
+  esac
+  if [ "$sub" = set ]; then
+    if [ -t 0 ]; then read -rsp "Value for $key (hidden): " val; echo >&2
+    else IFS= read -r val || [ -n "$val" ] || true; fi
+    [ -n "$val" ] || die "empty value; nothing set"
+    [[ "$val" != *"'"* ]] || die "values containing a single quote (') aren't supported"
+    setval "$org" "$key" "'$val'"; unset val
+    [[ " $keys " == *" $key "* ]] || keys="${keys:+$keys }$key"
+    echo "set: $key"
+  else
+    grep -qE "^$key=" "$f" || [[ " $keys " == *" $key "* ]] || die "$key is not set for $org"
+    local tmp; tmp=$(mktemp); KEY="$key" awk '$0 !~ "^"ENVIRON["KEY"]"=" ' "$f" > "$tmp"; cat "$tmp" > "$f"; rm -f "$tmp"
+    keys=$(for k in $keys; do [ "$k" = "$key" ] || printf '%s ' "$k"; done); keys="${keys% }"
+    echo "removed: $key"
+  fi
+  setval "$org" CCENV_ENV_KEYS "$keys"
+  if [ $restart = 1 ] && running "$org"; then
+    compose "$org" up -d --force-recreate >/dev/null 2>&1 && echo "claude-$org recreated; the change is live (new sessions)"
+  else echo "applies on: ccenv restart $org"; fi
+}
+
 cmd_password() {
   need_org "$1"; local f="$ORGS/$1/config/secrets/ttyd_credential"
   case "${2:-show}" in
@@ -899,7 +937,7 @@ _ccenv() {
   root=$(dirname "$(readlink -f "$(command -v ccenv)")")
   orgs=$(cd "$root/orgs" 2>/dev/null && ls -d */ 2>/dev/null | tr -d /)
   case $COMP_CWORD in
-    1) COMPREPLY=($(compgen -W "init auth token login logout gh-login whoami up down restart build ls info attach shell claude run clone remote password fw repo logs backup restore rehydrate migrate keygen schedule install completion help" -- "$cur")) ;;
+    1) COMPREPLY=($(compgen -W "init auth token login logout gh-login whoami up down restart build ls info attach shell claude run clone remote password env fw repo logs backup restore rehydrate migrate keygen schedule install completion help" -- "$cur")) ;;
     2) case $cmd in build|ls|install|completion|help|keygen) ;;
          repo) COMPREPLY=($(compgen -W "add new publish ls rm adopt sync audit policy" -- "$cur")) ;;
          schedule) COMPREPLY=($(compgen -W "status run off --at --keep -o" -- "$cur")) ;; restore) COMPREPLY=($(compgen -f -- "$cur")) ;;
@@ -908,6 +946,7 @@ _ccenv() {
          fw)       COMPREPLY=($(compgen -W "show allow deny on off edit reload presets test" -- "$cur")) ;;
          remote)   COMPREPLY=($(compgen -W "status logs restart" -- "$cur")) ;;
          password) COMPREPLY=($(compgen -W "show rotate" -- "$cur")) ;;
+         env)      COMPREPLY=($(compgen -W "ls set unset" -- "$cur")) ;;
        esac ;;
     *) if [ "$cmd" = fw ] && [ "${COMP_WORDS[3]}" = allow ]; then
          COMPREPLY=($(compgen -W "@mise @python @node @go @rust @ruby @docker @gitlab @bitbucket @aws @gcp @azure @debian" -- "$cur"))
@@ -992,6 +1031,8 @@ Use
   claude <org> [args...]            interactive claude in /workspace
   run <org> "<prompt>" [args...]    headless claude -p
   clone <org> <owner/repo|url>      shortcut for: repo add
+  env <org> [ls]                    custom env vars for the container (names only)
+  env <org> set|unset KEY [--no-restart]   value read hidden (or from stdin); recreates the container
 
 Repos (only registered repos are allowed in the container; git + Claude + workspace enforce it)
   repo add <org> <owner/repo|url> [--dir d] [--branch b] [--no-clone]   register + clone
@@ -1040,6 +1081,7 @@ case "$sub" in
   whoami)   cmd_whoami "$@" ;;
   login)    cmd_login "${1:-}" ;;
   password) cmd_password "${1:-}" "${2:-show}" ;;
+  env)      cmd_env "$@" ;;
   up)       need_org "${1:-}"; compose "$1" up -d --build --force-recreate; sleep 3; docker logs claude-"$1" 2>&1 | tail -5 ;;
   down)     need_org "${1:-}"; compose "$1" down ;;
   restart)  need_org "${1:-}"; compose "$1" up -d --force-recreate ;;
