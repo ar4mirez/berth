@@ -138,6 +138,9 @@ func readsOnly(args []string) bool {
 		if len(args) > 1 {
 			sub = args[1] // repo <sub> <org>
 		}
+		if sub == "policy" && len(args) < 4 {
+			return true // repo policy <org> shows the policy
+		}
 	}
 	return !writingSubs[args[0]][sub]
 }

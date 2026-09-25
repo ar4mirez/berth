@@ -58,6 +58,8 @@ var writing = [][]string{
 	{"token", "acme", "--paste"}, {"auth", "acme"}, {"login", "acme"}, {"logout", "acme", "--all"}, {"gh-login", "acme"},
 	// Writing subcommands of reading commands check for themselves.
 	{"password", "acme", "rotate"}, {"env", "acme", "set", "X_KEY"}, {"env", "acme", "unset", "X_KEY"}, {"remote", "acme", "restart"},
+	{"repo", "add", "acme", "acme/widget"}, {"repo", "rm", "acme", "app"}, {"repo", "remove", "acme", "app", "--delete"},
+	{"repo", "adopt", "acme", "--all"}, {"repo", "sync", "acme"}, {"repo", "policy", "acme", "warn"}, {"clone", "acme", "acme/widget"},
 }
 
 // TestBerthRefusesLegacyOrgs: berth's writing commands refuse an org it doesn't own (no MANAGER,
