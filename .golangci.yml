@@ -45,8 +45,9 @@ linters:
         linters: [gosec, forbidigo]
       - path: ^internal/host/local/
         linters: [forbidigo]
+      # Test infrastructure: it launches the tools under test and writes fixtures with ccenv's modes.
       - path: ^test/
-        linters: [forbidigo]
+        linters: [forbidigo, gosec]
 
 formatters:
   enable:
