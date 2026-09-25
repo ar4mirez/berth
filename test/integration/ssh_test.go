@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strconv"
@@ -208,6 +209,37 @@ func TestSSHHost(t *testing.T) {
 		if err := h.FS.Remove("/root/berth-t/orgs"); err == nil {
 			t.Error("Remove of a non-empty directory must fail")
 		}
+		// Create streams like a shell `>`: new files get perm exactly, existing ones keep their mode.
+		bk := dir + "/backup.tar.zst"
+		w, err := h.FS.Create(bk, 0o600)
+		mustDo(t, err)
+		_, err = w.Write([]byte("archive"))
+		mustDo(t, err)
+		mustDo(t, w.Close())
+		if got := sh(t, "stat -c %a "+bk+"; cat "+bk); got != "600\narchive" {
+			t.Errorf("Create: %q, want mode 600 and the data", got)
+		}
+		mustDo(t, h.FS.Chmod(bk, 0o640))
+		w, err = h.FS.Create(bk, 0o600)
+		mustDo(t, err)
+		mustDo(t, w.Close())
+		if got := sh(t, "stat -c '%a %s' "+bk); got != "640 0" {
+			t.Errorf("Create over an existing file: %q, want it truncated with mode 640", got)
+		}
+		mustDo(t, h.FS.Remove(bk))
+
+		tmp, err := h.FS.MkdirTemp()
+		mustDo(t, err)
+		if !regexp.MustCompile(`^/tmp/tmp\.[A-Za-z0-9]{10}$`).MatchString(tmp) || sh(t, "stat -c %a "+tmp) != "700" {
+			t.Errorf("MkdirTemp: %s (mode %s), want /tmp/tmp.XXXXXXXXXX, 700", tmp, sh(t, "stat -c %a "+tmp))
+		}
+		mustDo(t, h.FS.WriteFile(tmp+"/pass", []byte("x"), 0o600))
+		mustDo(t, h.FS.RemoveAll(tmp))
+		mustDo(t, h.FS.RemoveAll(tmp)) // already gone: not an error
+		if got := sh(t, "test -e "+tmp+" && echo left || echo gone"); got != "gone" {
+			t.Errorf("RemoveAll: %s", got)
+		}
+
 		mustDo(t, h.FS.Remove(env))
 		mustDo(t, h.FS.Remove(dir))
 	})

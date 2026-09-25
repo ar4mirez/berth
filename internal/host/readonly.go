@@ -1,6 +1,7 @@
 package host
 
 import (
+	"io"
 	"io/fs"
 
 	"github.com/ar4mirez/berth/internal/config"
@@ -64,4 +65,25 @@ func (r readOnlyFS) Remove(name string) error {
 		return err
 	}
 	return r.FS.Remove(name)
+}
+
+func (r readOnlyFS) RemoveAll(name string) error {
+	if err := r.st.Writable("remove " + name); err != nil {
+		return err
+	}
+	return r.FS.RemoveAll(name)
+}
+
+func (r readOnlyFS) Create(name string, perm fs.FileMode) (io.WriteCloser, error) {
+	if err := r.st.Writable("write " + name); err != nil {
+		return nil, err
+	}
+	return r.FS.Create(name, perm)
+}
+
+func (r readOnlyFS) MkdirTemp() (string, error) {
+	if err := r.st.Writable("create a temp dir"); err != nil {
+		return "", err
+	}
+	return r.FS.MkdirTemp()
 }

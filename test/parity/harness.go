@@ -356,10 +356,11 @@ func readCalls(logFile string, n func(string) string) ([]string, error) {
 	var out []string
 	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
 		var c struct {
-			Bin   string            `json:"bin"`
-			Args  []string          `json:"args"`
-			Env   map[string]string `json:"env"`
-			Stdin *string           `json:"stdin"`
+			Bin     string            `json:"bin"`
+			Args    []string          `json:"args"`
+			Env     map[string]string `json:"env"`
+			Stdin   *string           `json:"stdin"`
+			Secrets map[string]string `json:"secrets"`
 		}
 		if err := json.Unmarshal([]byte(line), &c); err != nil {
 			return nil, fmt.Errorf("fake log: %w", err)
@@ -376,6 +377,14 @@ func readCalls(logFile string, n func(string) string) ([]string, error) {
 		sort.Strings(keys)
 		for _, k := range keys {
 			fmt.Fprintf(&b, "  [%s=%q]", k, c.Env[k])
+		}
+		names := make([]string, 0, len(c.Secrets))
+		for k := range c.Secrets {
+			names = append(names, k)
+		}
+		sort.Strings(names)
+		for _, k := range names {
+			fmt.Fprintf(&b, "  {secret %s: %q}", k, c.Secrets[k])
 		}
 		if c.Stdin != nil {
 			fmt.Fprintf(&b, "  <stdin %q>", *c.Stdin)

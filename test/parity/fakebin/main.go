@@ -41,6 +41,9 @@ type Call struct {
 	Args  []string          `json:"args"`
 	Env   map[string]string `json:"env,omitempty"`
 	Stdin *string           `json:"stdin,omitempty"`
+	// Secrets are the files in a dir docker mounts at /secrets (the backup engine's passphrase and
+	// recipients), which the tools delete before exiting.
+	Secrets map[string]string `json:"secrets,omitempty"`
 }
 
 // loggedEnv are the variables ccenv's and berth's compose() set, which matter to the comparison.
@@ -75,6 +78,13 @@ func run(bin string, args []string) (int, error) {
 			call.Env[k] = v
 		}
 	}
+	if bin == "docker" {
+		for _, a := range args {
+			if dir, ok := strings.CutSuffix(a, ":/secrets:ro"); ok {
+				call.Secrets = readSecrets(dir)
+			}
+		}
+	}
 	idx, rule, err := pick(rules, bin, strings.Join(args, " "))
 	if err != nil {
 		return 0, err
@@ -102,6 +112,21 @@ func run(bin string, args []string) (int, error) {
 		return rule.Exit, nil
 	}
 	return builtin(bin, args)
+}
+
+// readSecrets is every file in dir, by name, with its mode.
+func readSecrets(dir string) map[string]string {
+	out := map[string]string{}
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		b, _ := os.ReadFile(filepath.Join(dir, e.Name()))
+		mode := "?"
+		if fi, err := e.Info(); err == nil {
+			mode = fmt.Sprintf("%04o", fi.Mode().Perm())
+		}
+		out[e.Name()] = mode + " " + string(b)
+	}
+	return out
 }
 
 func loadRules() ([]Rule, error) {

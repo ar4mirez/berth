@@ -84,6 +84,14 @@ func completionCmd(root *cobra.Command) *cobra.Command {
 	})
 }
 
+// completeBackup: orgs and --all, as ccenv's completion.
+func completeBackup(cmd *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return append(completionOrgs(cmd), "--all"), cobra.ShellCompDirectiveNoFileComp
+}
+
 // completeFw: the org, then the subcommand, then (for allow) the presets, as ccenv's completion.
 func completeFw(cmd *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
 	switch {

@@ -1,6 +1,7 @@
 package parity
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -63,6 +64,10 @@ var writing = [][]string{
 	{"repo", "adopt", "acme", "--all"}, {"repo", "sync", "acme"}, {"repo", "policy", "acme", "warn"}, {"clone", "acme", "acme/widget"},
 }
 
+// writesAnyOrg write, so --read-only refuses them, but act on either tool's orgs (a backup doesn't
+// change the org).
+var writesAnyOrg = [][]string{{"backup", "acme"}, {"backup", "--all"}, {"keygen"}}
+
 // TestBerthRefusesLegacyOrgs: berth's writing commands refuse an org it doesn't own (no MANAGER,
 // or MANAGER=ccenv), before touching anything: no tool calls, no file changes.
 func TestBerthRefusesLegacyOrgs(t *testing.T) {
@@ -98,7 +103,7 @@ func TestReadOnlyRefusesWritingCommands(t *testing.T) {
 		argv := cmd(run, args)
 		return append([]string{argv[0], "--read-only"}, argv[1:]...)
 	}
-	for _, args := range writing {
+	for _, args := range append(slices.Clone(writing), writesAnyOrg...) {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			t.Parallel()
 			r := run(t, ro, Scenario{Args: args, Files: twoOrgs, Rules: running("acme")})

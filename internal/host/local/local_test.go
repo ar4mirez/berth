@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -262,4 +263,63 @@ func TestDockerHonoursDockerHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = c.Close()
+}
+
+func TestCreate(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f")
+	w, err := FS{}.Create(p, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("hello")); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if m := mode(t, p); m != 0o600 {
+		t.Errorf("new file mode %o, want 600", m)
+	}
+	// An existing file is truncated and keeps its inode and mode, like a shell `>`.
+	if err := os.Chmod(p, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	ino := inode(t, p)
+	w, err = FS{}.Create(p, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = w.Write([]byte("x"))
+	_ = w.Close()
+	if b, _ := os.ReadFile(p); string(b) != "x" || mode(t, p) != 0o640 || inode(t, p) != ino {
+		t.Errorf("rewrite: content %q mode %o, same inode %v", b, mode(t, p), inode(t, p) == ino)
+	}
+}
+
+func TestMkdirTemp(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	p, err := FS{}.MkdirTemp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Dir(p) != tmp || !regexp.MustCompile(`^tmp\.[A-Za-z0-9]{10}$`).MatchString(filepath.Base(p)) {
+		t.Errorf("MkdirTemp = %s, want %s/tmp.XXXXXXXXXX", p, tmp)
+	}
+	if m := mode(t, p); m != 0o700 {
+		t.Errorf("mode %o, want 700", m)
+	}
+	if err := os.WriteFile(filepath.Join(p, "pass"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := (FS{}).RemoveAll(p); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("RemoveAll left %s", p)
+	}
+	if err := (FS{}).RemoveAll(p); err != nil {
+		t.Errorf("RemoveAll of a missing dir: %v", err)
+	}
 }

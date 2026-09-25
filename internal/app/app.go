@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"path"
 	"regexp"
 	"sort"
@@ -31,6 +32,8 @@ type App struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Getenv func(string) string
+	// OpenTTY opens the operator's terminal for prompts ccenv reads from /dev/tty (nil: none).
+	OpenTTY func() (*os.File, error)
 
 	umaskVal *fs.FileMode // cached by umask()
 }
