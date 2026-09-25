@@ -19,16 +19,13 @@ var repoSubs = map[string]bool{"add": true, "new": true, "create": true, "publis
 	"rm": true, "remove": true, "adopt": true, "sync": true, "audit": true, "policy": true}
 
 // repoWrites are the repo subcommands that change the org (policy too, when given a mode).
-var repoWrites = map[string]bool{"add": true, "rm": true, "remove": true, "adopt": true, "sync": true}
+var repoWrites = map[string]bool{"add": true, "new": true, "create": true, "publish": true, "rm": true, "remove": true, "adopt": true, "sync": true}
 
 // Repo is `ccenv repo <sub> <org> ...`. The writing subcommands need MANAGER=berth and are refused
 // under --read-only; ls|list, audit and `policy` without a mode read.
 func (a *App) Repo(ctx context.Context, sub, o string, rest []string) error {
 	if !repoSubs[sub] {
 		return fmt.Errorf("usage: %s repo add|new|publish|ls|rm|adopt|sync|audit|policy <org> ...", Tool) //nolint:staticcheck // ccenv's exact usage text
-	}
-	if sub == "new" || sub == "create" || sub == "publish" {
-		return fmt.Errorf("repo %s is not in berth yet (phase 3); use ccenv for now", sub)
 	}
 	if repoWrites[sub] || (sub == "policy" && nth(rest, 0) != "") {
 		if err := a.writable(o, "change "+o+"'s repos"); err != nil {
@@ -45,6 +42,10 @@ func (a *App) Repo(ctx context.Context, sub, o string, rest []string) error {
 	switch sub {
 	case "add":
 		return a.repoAdd(ctx, o, f, entries, rest)
+	case "new", "create":
+		return a.repoNew(ctx, o, f, entries, rest)
+	case "publish":
+		return a.repoPublish(ctx, o, f, entries, rest)
 	case "rm", "remove":
 		return a.repoRm(ctx, o, f, entries, rest)
 	case "adopt":
@@ -122,9 +123,9 @@ func (a *App) repoAdd(ctx context.Context, o, f string, entries []repopolicy.Ent
 				return fmt.Errorf("%s needs a value", x)
 			}
 			if x == "--dir" {
-				dir = args[i+1]
+				dir = nth(args, i+1)
 			} else {
-				branch = args[i+1]
+				branch = nth(args, i+1)
 			}
 			i += 2
 		case x == "--no-clone":
@@ -221,6 +222,215 @@ func (a *App) cloneIn(ctx context.Context, o, branch, url, dir string) error {
 		argv = append(argv, "--branch", branch)
 	}
 	return a.passthrough(ctx, false, append(argv, url, dir)...)
+}
+
+var (
+	// newCanonical is repo new's test for a spec already in host/owner/repo form (any case).
+	newCanonical = regexp.MustCompile(`^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+/[^/:]+/[^/:]+$`)
+	githubCanon  = regexp.MustCompile(`^github\.com/[a-z0-9_.-]+/[a-z0-9_.-]+$`)
+)
+
+// repoNew is `ccenv repo new|create <org> <owner/repo> [--private|--public|--internal] [-d desc]
+// [--template o/r] [--readme] [--gitignore g] [--license l] [--dir d]`, or `<name> --local`: a
+// brand-new repo, created on GitHub (with the host's gh, else the container's) or locally, then
+// registered.
+func (a *App) repoNew(ctx context.Context, o, f string, entries []repopolicy.Entry, args []string) error {
+	var spec, dir, desc, tpl, gi, lic string
+	vis, readme, localOnly := "--private", false, false
+	values := map[string]*string{"-d": &desc, "--description": &desc, "--template": &tpl, "-p": &tpl,
+		"--gitignore": &gi, "-g": &gi, "--license": &lic, "-l": &lic, "--dir": &dir}
+	for i := 0; i < len(args); {
+		x := args[i]
+		switch v, ok := values[x]; {
+		case ok:
+			// desc="$2"; shift 2: under set -u a missing value ends the command (PARITY.md).
+			if i+1 >= len(args) {
+				return fmt.Errorf("%s needs a value", x)
+			}
+			*v = args[i+1]
+			i += 2
+			continue
+		case x == "--private" || x == "--public" || x == "--internal":
+			vis = x
+		case x == "--readme" || x == "--add-readme":
+			readme = true
+		case x == "--local":
+			localOnly = true
+		case strings.HasPrefix(x, "-"):
+			return fmt.Errorf("unknown flag %s", x)
+		default:
+			spec = x
+		}
+		i++
+	}
+	if spec == "" {
+		return fmt.Errorf("usage: %[1]s repo new <org> <owner/repo> [--private|--public|--internal] [-d desc] [--template o/r] [--readme] [--gitignore Node] [--license mit] [--dir d]\n"+
+			"       %[1]s repo new <org> <name> --local        (no GitHub repo yet; publish later with: %[1]s repo publish)", Tool)
+	}
+
+	if localOnly {
+		if dir == "" {
+			dir = spec[strings.LastIndex(spec, "/")+1:] // ${spec##*/}
+		}
+		if !dirName.MatchString(dir) || dir == ".claude" {
+			return fmt.Errorf("invalid dir name '%s'", dir)
+		}
+		if allowedDir(entries, dir) {
+			return fmt.Errorf("/workspace/%s is already registered", dir)
+		}
+		if err := a.needUp(ctx, o); err != nil {
+			return err
+		}
+		if a.passthrough(ctx, false, "docker", "exec", "claude-"+o, "test", "-e", "/workspace/"+dir) == nil {
+			return fmt.Errorf("/workspace/%s already exists (register it with: %s repo adopt %s %s)", dir, Tool, o, dir)
+		}
+		if err := a.appendLine(f, dir+" local"); err != nil {
+			return err
+		}
+		if err := a.passthrough(ctx, false, "docker", "exec", "-u", "node", "-w", "/workspace", "claude-"+o, "git", "init", "-q", "-b", "main", dir); err != nil {
+			return err
+		}
+		fmt.Fprintf(a.Stdout, "Created local repo /workspace/%s (no remote). Publish it later with: %s repo publish %s %s <owner/repo>\n", dir, Tool, o, dir)
+		return nil
+	}
+
+	canon := repopolicy.Canon(spec, "")
+	if newCanonical.MatchString(spec) {
+		canon = strings.Map(func(r rune) rune { // tr '[:upper:]' '[:lower:]' (LC_ALL=C: ASCII only)
+			if r >= 'A' && r <= 'Z' {
+				return r + 'a' - 'A'
+			}
+			return r
+		}, spec)
+	}
+	if !githubCanon.MatchString(canon) {
+		return fmt.Errorf("repo new creates GitHub repos: use <owner/repo> (got '%s'). For a repo with no remote use --local.", spec) //nolint:staticcheck // ccenv's exact text
+	}
+	if repopolicy.Allowed(entries, canon) {
+		return fmt.Errorf("%s is already registered", canon)
+	}
+	if dir == "" {
+		dir = path.Base(canon)
+	}
+	if allowedDir(entries, dir) {
+		return fmt.Errorf("/workspace/%s is already registered", dir)
+	}
+	name := strings.TrimPrefix(canon, "github.com/")
+	ghArgs := []string{"repo", "create", name, vis}
+	if desc != "" {
+		ghArgs = append(ghArgs, "--description", desc)
+	}
+	if tpl != "" {
+		ghArgs = append(ghArgs, "--template", tpl)
+	}
+	if readme {
+		ghArgs = append(ghArgs, "--add-readme")
+	}
+	if gi != "" {
+		ghArgs = append(ghArgs, "--gitignore", gi)
+	}
+	if lic != "" {
+		ghArgs = append(ghArgs, "--license", lic)
+	}
+	// Created with the host's gh (outside the container), so the container's lock is never
+	// loosened; the container's own gh login (gh-login) is the fallback.
+	if a.hostGh(ctx) {
+		if a.passthrough(ctx, true, append([]string{"gh"}, ghArgs...)...) != nil {
+			return fmt.Errorf("GitHub refused to create %s (name taken, or no permission in that org?)", name)
+		}
+	} else {
+		if err := a.needUp(ctx, o); err != nil {
+			return err
+		}
+		if a.passthrough(ctx, true, append([]string{"docker", "exec", "-u", "node", "claude-" + o, "gh"}, ghArgs...)...) != nil {
+			return fmt.Errorf("couldn't create %s: no host gh, and the container's gh failed (%s gh-login %s?)", name, Tool, o)
+		}
+	}
+	fmt.Fprintf(a.Stdout, "Created https://%s (%s)\n", canon, strings.TrimPrefix(vis, "--"))
+	if tpl != "" {
+		// Template repos are populated asynchronously.
+		if err := a.passthrough(ctx, false, "sleep", "3"); err != nil {
+			return err
+		}
+	}
+	// cmd_repo add "$org" owner/repo --dir "$dir", which re-reads repos.txt.
+	entries, err := a.repoEntries(ctx, o)
+	if err != nil {
+		return err
+	}
+	return a.repoAdd(ctx, o, f, entries, []string{name, "--dir", dir})
+}
+
+// hostGh is `command -v gh >/dev/null && gh auth status >/dev/null 2>&1`: gh on the host and
+// signed in.
+func (a *App) hostGh(ctx context.Context) bool {
+	return a.Host.Exec.Run(ctx, host.Cmd{Args: []string{"gh", "auth", "status"}, Stdout: io.Discard, Stderr: io.Discard}) == nil
+}
+
+// repoPublish is `ccenv repo publish <org> <dir> <owner/repo> [--private|--public|--internal]`:
+// push a --local repo to a new GitHub repo, then register that remote.
+func (a *App) repoPublish(ctx context.Context, o, f string, entries []repopolicy.Entry, args []string) error {
+	dir, spec, vis := nth(args, 0), nth(args, 1), "--private"
+	// shift 2 2>/dev/null || true: with fewer than two arguments nothing is shifted, so the flag
+	// loop sees the dir itself.
+	flags := args
+	if len(args) >= 2 {
+		flags = args[2:]
+	}
+	for _, x := range flags {
+		if x != "--private" && x != "--public" && x != "--internal" {
+			return fmt.Errorf("unknown flag %s", x)
+		}
+		vis = x
+	}
+	if dir == "" || spec == "" {
+		return fmt.Errorf("usage: %s repo publish <org> <dir> <owner/repo> [--private|--public|--internal]", Tool)
+	}
+	// [ "$(repo_entries | awk -v d="$dir" '$1==d {print $3}')" = local ]: every match's URL.
+	var urls []string
+	for _, e := range entries {
+		if e.Dir == dir {
+			urls = append(urls, e.URL)
+		}
+	}
+	if strings.Join(urls, "\n") != "local" {
+		return fmt.Errorf("/workspace/%s is not a local-only repo", dir)
+	}
+	if !a.hostGh(ctx) {
+		return errors.New("publish needs gh signed in on the host")
+	}
+	src := path.Join(a.Orgs.Dir, o, "workspace", dir)
+	canon := repopolicy.Canon(spec, "")
+	if a.passthrough(ctx, true, "git", "-C", src, "rev-parse", "-q", "--verify", "HEAD") != nil {
+		return fmt.Errorf("/workspace/%s has no commits yet; commit something first", dir)
+	}
+	name := strings.TrimPrefix(canon, "github.com/")
+	if a.passthrough(ctx, true, "gh", "repo", "create", name, vis, "--source", src, "--remote", "origin", "--push") != nil {
+		return errors.New("publishing failed (name taken, or no permission?)")
+	}
+	url := repoURL(canon)
+	if err := a.passthrough(ctx, false, "git", "-C", src, "remote", "set-url", "origin", url); err != nil {
+		return err
+	}
+	// awk -v d="$dir" -v u="$url" '$1==d {$2=u} {print}': a matching line is rebuilt from its
+	// fields, joined by single spaces; the others are printed as they are.
+	b, _ := a.Host.FS.ReadFile(f)
+	var out []byte
+	for _, l := range fileLines(b) {
+		if fs := strings.FieldsFunc(l, func(r rune) bool { return r == ' ' || r == '\t' }); len(fs) > 0 && fs[0] == dir {
+			if len(fs) < 2 {
+				fs = append(fs, "")
+			}
+			fs[1] = url
+			l = strings.Join(fs, " ")
+		}
+		out = append(out, l+"\n"...)
+	}
+	if err := a.Host.FS.WriteFile(f, out, 0o644); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.Stdout, "Published /workspace/%s to https://%s (%s); it now pushes/pulls from there.\n", dir, canon, strings.TrimPrefix(vis, "--"))
+	return nil
 }
 
 // repoRm is `ccenv repo rm <org> <dir> [--delete]` (--delete only as the 2nd argument).

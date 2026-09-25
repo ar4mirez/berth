@@ -45,9 +45,8 @@ func completeArgs(positions ...[]string) cobra.CompletionFunc {
 
 var orgArg = []string{"org"}
 
-// repoSubsShown are the repo subcommands completion offers: ccenv's list, less those not in berth
-// yet.
-var repoSubsShown = []string{"add", "ls", "rm", "adopt", "sync", "audit", "policy"}
+// repoSubsShown are the repo subcommands completion offers, as ccenv's.
+var repoSubsShown = []string{"add", "new", "publish", "ls", "rm", "adopt", "sync", "audit", "policy"}
 
 // completeOrgs suggests every org not already on the line (whoami [org...]).
 func completeOrgs(cmd *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {

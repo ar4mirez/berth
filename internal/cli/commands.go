@@ -35,7 +35,7 @@ func addCommands(root *cobra.Command) {
 	// repo and clone parse their own arguments, as ccenv does: the same messages, and flags only
 	// where ccenv takes them (audit's --quiet and rm's --delete right after the org).
 	repo := reads(&cobra.Command{
-		Use: "repo <add|ls|rm|adopt|sync|audit|policy> <org> ...", Short: "the repos allowed in an org's /workspace", DisableFlagParsing: true,
+		Use: "repo <add|new|publish|ls|rm|adopt|sync|audit|policy> <org> ...", Short: "the repos allowed in an org's /workspace", DisableFlagParsing: true,
 		ValidArgsFunction: completeArgs(repoSubsShown, orgArg, nil),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return appFor(cmd).Repo(cmd.Context(), arg(args, 0), arg(args, 1), rest(args, 2))

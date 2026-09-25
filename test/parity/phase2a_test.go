@@ -59,6 +59,7 @@ var writing = [][]string{
 	// Writing subcommands of reading commands check for themselves.
 	{"password", "acme", "rotate"}, {"env", "acme", "set", "X_KEY"}, {"env", "acme", "unset", "X_KEY"}, {"remote", "acme", "restart"},
 	{"repo", "add", "acme", "acme/widget"}, {"repo", "rm", "acme", "app"}, {"repo", "remove", "acme", "app", "--delete"},
+	{"repo", "new", "acme", "acme/widget"}, {"repo", "create", "acme", "x", "--local"}, {"repo", "publish", "acme", "notes", "acme/notes"},
 	{"repo", "adopt", "acme", "--all"}, {"repo", "sync", "acme"}, {"repo", "policy", "acme", "warn"}, {"clone", "acme", "acme/widget"},
 }
 
