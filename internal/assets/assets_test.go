@@ -153,3 +153,63 @@ func TestOverrideAndTagStability(t *testing.T) {
 		t.Error("missing override dir accepted")
 	}
 }
+
+// TestStateRootCheckoutStaysClean: at cutover the state root is the legacy checkout, a git repo.
+// berth's <state>/berth must not show up in `git status`, including a berth/ written by an older
+// berth without the .gitignore (it's rewritten, and the image tag doesn't change).
+func TestStateRootCheckoutStaysClean(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	root := t.TempDir()
+	git := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return string(out)
+	}
+	git("init", "-q")
+	if err := os.WriteFile(filepath.Join(root, "ccenv"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git("add", "ccenv")
+	git("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "legacy")
+
+	fsys := local.FS{}
+	set, err := Materialize(fsys, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := git("status", "--porcelain", "--untracked-files=all"); st != "" {
+		t.Errorf("git status after Materialize: %q, want clean", st)
+	}
+
+	// An older berth's berth/: no .gitignore, and a stamp that no longer matches.
+	gi := filepath.Join(root, "berth", ".gitignore")
+	if err := os.Remove(gi); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "berth", stampFile), []byte("older\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if st := git("status", "--porcelain"); st != "?? berth/\n" {
+		t.Fatalf("the old layout should show up in git status, got %q", st)
+	}
+	again, err := Materialize(fsys, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, err := os.ReadFile(gi); err != nil || !strings.Contains(string(b), "\n*\n") {
+		t.Errorf(".gitignore not rewritten: %q, %v", b, err)
+	}
+	if st := git("status", "--porcelain", "--untracked-files=all"); st != "" {
+		t.Errorf("git status after the upgrade: %q, want clean", st)
+	}
+	if again.Tag != set.Tag {
+		t.Errorf("image tag changed: %s -> %s (the .gitignore must not force a rebuild)", set.Tag, again.Tag)
+	}
+}

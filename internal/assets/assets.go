@@ -62,9 +62,15 @@ func files() ([]file, error) {
 		out = append(out, file{p, mode, b})
 		return nil
 	})
+	out = append(out, file{".gitignore", 0o644, []byte(gitignore)})
 	sort.Slice(out, func(i, j int) bool { return out[i].path < out[j].path })
 	return out, err
 }
+
+// gitignore keeps <state>/berth out of git: at cutover the state root is the legacy checkout, a git
+// repo, and berth's generated files must not show up in it (nor need an edit to its .gitignore).
+// It's part of the stamp, not of the image tag.
+const gitignore = "# berth's generated files (its image build context and compose.yml); not part of this checkout.\n*\n"
 
 // hashOf is a stable content hash over (path, mode, content) of the files under prefix ("" = all).
 func hashOf(all []file, prefix string) string {
