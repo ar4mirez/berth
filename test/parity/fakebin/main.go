@@ -33,6 +33,9 @@ type Rule struct {
 	Once bool `json:"once"`
 	// Stdin: read stdin to EOF and record it in the log.
 	Stdin bool `json:"stdin"`
+	// Dst: files to write (path -> content; a path ending in / is a dir) into the dir docker mounts
+	// at /dst: what the restore engine would extract.
+	Dst map[string]string `json:"dst"`
 }
 
 // Call is one logged invocation.
@@ -107,6 +110,9 @@ func run(bin string, args []string) (int, error) {
 				return 0, err
 			}
 		}
+		if err := extract(rule.Dst, args); err != nil {
+			return 0, err
+		}
 		// <SCHEDULE> is the tool's backup schedule name (ccenv-backup, berth-backup).
 		sched := strings.NewReplacer("<SCHEDULE>", os.Getenv("PARITY_SCHEDULE"))
 		_, _ = io.WriteString(os.Stdout, sched.Replace(rule.Stdout))
@@ -114,6 +120,38 @@ func run(bin string, args []string) (int, error) {
 		return rule.Exit, nil
 	}
 	return builtin(bin, args)
+}
+
+// extract writes files into the dir mounted at /dst ("-v <dir>:/dst").
+func extract(files map[string]string, args []string) error {
+	if len(files) == 0 {
+		return nil
+	}
+	var dst string
+	for _, a := range args {
+		if d, ok := strings.CutSuffix(a, ":/dst"); ok {
+			dst = d
+		}
+	}
+	if dst == "" {
+		return fmt.Errorf("rule has dst files, but nothing is mounted at /dst")
+	}
+	for name, content := range files {
+		p := filepath.Join(dst, name)
+		if strings.HasSuffix(name, "/") {
+			if err := os.MkdirAll(p, 0o700); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			return err
+		}
+		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // readSecrets is every file in dir, by name, with its mode.

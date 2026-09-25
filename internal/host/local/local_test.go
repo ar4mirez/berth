@@ -300,7 +300,7 @@ func TestCreate(t *testing.T) {
 func TestMkdirTemp(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("TMPDIR", tmp)
-	p, err := FS{}.MkdirTemp()
+	p, err := FS{}.MkdirTemp("", "tmp.XXXXXXXXXX")
 	if err != nil {
 		t.Fatal(err)
 	}

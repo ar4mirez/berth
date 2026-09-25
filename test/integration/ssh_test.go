@@ -228,7 +228,7 @@ func TestSSHHost(t *testing.T) {
 		}
 		mustDo(t, h.FS.Remove(bk))
 
-		tmp, err := h.FS.MkdirTemp()
+		tmp, err := h.FS.MkdirTemp("", "tmp.XXXXXXXXXX")
 		mustDo(t, err)
 		if !regexp.MustCompile(`^/tmp/tmp\.[A-Za-z0-9]{10}$`).MatchString(tmp) || sh(t, "stat -c %a "+tmp) != "700" {
 			t.Errorf("MkdirTemp: %s (mode %s), want /tmp/tmp.XXXXXXXXXX, 700", tmp, sh(t, "stat -c %a "+tmp))

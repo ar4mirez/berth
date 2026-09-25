@@ -150,7 +150,7 @@ type secrets struct {
 
 func (s *secrets) path(name string) (string, error) {
 	if s.dir == "" {
-		d, err := s.a.Host.FS.MkdirTemp()
+		d, err := s.a.Host.FS.MkdirTemp("", "tmp.XXXXXXXXXX")
 		if err != nil {
 			return "", err
 		}

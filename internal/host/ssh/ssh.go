@@ -366,14 +366,19 @@ func (f *sftpFS) Create(name string, perm fs.FileMode) (io.WriteCloser, error) {
 	return fh, err
 }
 
-// MkdirTemp creates the directory in /tmp: the remote $TMPDIR isn't known over SFTP.
-func (f *sftpFS) MkdirTemp() (string, error) {
+func (f *sftpFS) Open(name string) (io.ReadCloser, error) { return f.c.Open(name) }
+
+// MkdirTemp uses /tmp when dir is "": the remote $TMPDIR isn't known over SFTP.
+func (f *sftpFS) MkdirTemp(dir, pattern string) (string, error) {
+	if dir == "" {
+		dir = "/tmp"
+	}
 	for {
-		name, err := host.TempName()
+		name, err := host.TempName(pattern)
 		if err != nil {
 			return "", err
 		}
-		p := "/tmp/" + name
+		p := path.Join(dir, name)
 		if _, err := f.c.Lstat(p); err == nil {
 			continue
 		}

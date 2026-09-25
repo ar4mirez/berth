@@ -45,6 +45,8 @@ type Rule struct {
 	Exit   int    `json:"exit"`
 	Once   bool   `json:"once"`
 	Stdin  bool   `json:"stdin"`
+	// Dst: files the fake engine extracts into the dir mounted at /dst (path -> content).
+	Dst map[string]string `json:"dst,omitempty"`
 }
 
 // File is one fixture entry, at a path relative to the run dir ("state/orgs/acme/org.env").
@@ -182,7 +184,11 @@ func Berth(bin string) Tool {
 	// a job that names the state root. Map those onto ccenv's; TestBerthScheduleNames checks the
 	// real values.
 	t.Replace = append(t.Replace, [2]string{"<SELF> --home <RUN>/state ", "<SELF> "}, [2]string{"berth-backup", "ccenv-backup"},
-		[2]string{"Description=berth: ", "Description=ccenv: "}, [2]string{"BERTH_BACKUP_RECIPIENTS=", "CCENV_BACKUP_RECIPIENTS="})
+		[2]string{"Description=berth: ", "Description=ccenv: "}, [2]string{"BERTH_BACKUP_RECIPIENTS=", "CCENV_BACKUP_RECIPIENTS="},
+		// berth's default backup key is its own (TestBerthKeyFile checks it).
+		[2]string{"<RUN>/home/.config/berth/backup.key", "<RUN>/home/.config/ccenv/backup.key"},
+		// migrate looks for berth on the target host where ccenv looks for ccenv.
+		[2]string{"command -v berth || { [ -x ~/.local/bin/berth ] && echo ~/.local/bin/berth; }", "command -v ccenv || { [ -x ~/.local/bin/ccenv ] && echo ~/.local/bin/ccenv; }"})
 	t.SkipTree = func(rel string) bool { return rel == "state/berth" || strings.HasPrefix(rel, "state/berth/") }
 	t.Calls = func(c string) string {
 		c = berthEnv.ReplaceAllString(c, "")
