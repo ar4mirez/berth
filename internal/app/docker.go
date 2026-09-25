@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/ar4mirez/berth/internal/contract"
 	"github.com/ar4mirez/berth/internal/host"
 )
 
@@ -59,7 +60,7 @@ func (a *App) running(ctx context.Context, o string) bool {
 
 // rcLoggedIn is `docker exec claude-$1 test -f /home/node/.claude/.credentials.json`.
 func (a *App) rcLoggedIn(ctx context.Context, o string) bool {
-	return a.passthrough(ctx, false, "docker", "exec", "claude-"+o, "test", "-f", "/home/node/.claude/.credentials.json") == nil
+	return a.passthrough(ctx, false, "docker", "exec", contract.Container(o), "test", "-f", contract.Credentials) == nil
 }
 
 // rcRunning is `docker exec claude-$1 pgrep -f "claude remote-control" >/dev/null`.
@@ -71,15 +72,15 @@ func (a *App) rcRunning(ctx context.Context, o string) bool {
 // by organization policy"`: true only if docker succeeds (pipefail) and a line matches.
 func (a *App) rcBlocked(ctx context.Context, o string) bool {
 	out, err := a.capture(ctx, false, "docker", "exec", "claude-"+o, "sh", "-c",
-		"tail -n 2 /home/node/.claude/remote-control.log 2>/dev/null")
-	return err == nil && strings.Contains(out, "blocked by organization policy")
+		"tail -n 2 "+contract.RemoteControlLog+" 2>/dev/null")
+	return err == nil && strings.Contains(out, contract.RemoteControlBlocked)
 }
 
 // rcURL is `docker exec … sh -c 'grep -ao "https://claude.ai/code?environment=[A-Za-z0-9_]*" … |
 // tail -1' || true`: whatever it printed, even if it failed.
 func (a *App) rcURL(ctx context.Context, o string) string {
 	out, _ := a.capture(ctx, false, "docker", "exec", "claude-"+o, "sh", "-c",
-		`grep -ao "https://claude.ai/code?environment=[A-Za-z0-9_]*" /home/node/.claude/remote-control.log 2>/dev/null | tail -1`)
+		`grep -ao "https://claude.ai/code?environment=[A-Za-z0-9_]*" `+contract.RemoteControlLog+` 2>/dev/null | tail -1`)
 	return out
 }
 
