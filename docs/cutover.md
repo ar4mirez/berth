@@ -19,7 +19,8 @@ Only one step stops anything, and it's separate, per org, and scheduled by you.
 | C. Take over an org | `MANAGER=berth` in its `org.env` | **no**: the container keeps running as it is |
 | C′. Backup schedule | adds `berth-backup` next to `ccenv-backup` | no |
 | D. Image switch, per org | `berth restart <org>`: the container moves to berth's image | **yes, about 10 seconds** |
-| E. Finish | removes `ccenv-backup`, writes berth's config, optional `ccenv` alias | no |
+| E. After the last takeover | removes `ccenv-backup`, writes berth's config | no |
+| F. Retire ccenv, after a while | the `ccenv` alias, removes the `claude-env` image and leftovers | no |
 
 **Phase D is the only downtime.** For about 10 seconds the container is recreated, and everything *running* inside
 it stops:
@@ -203,14 +204,110 @@ Last resort, if its files are damaged: restore it from `$f` with `berth --home "
 - The current org folder moves to `$LEGACY/backups/.replaced/`, so it's kept.
 - The restore point is from before the takeover, so anything written since then is only in that kept folder.
 
-## E. Finish, after the last org (no restarts)
+## E. After the last takeover (no restarts)
+
+Every org is berth's now, even if some still wait for their phase D. ccenv's schedule has nothing left to back up.
 
 ```bash
 "$LEGACY/ccenv" schedule off              # removes ccenv-backup; berth-backup already covers every org
 mkdir -p ~/.config/berth && printf 'home: %s\n' "$LEGACY" > ~/.config/berth/config.yaml   # plain `berth …` works now
 berth ls && berth schedule status
-berth install --alias ccenv               # optional: `ccenv …` runs berth (the images' CLAUDE.md still says ccenv)
 ```
 
-After the alias, the old script is still there as `$LEGACY/ccenv`, for a `handback`. Keep `$LEGACY` and its
-`backups/` exactly where they are: the orgs' bind mounts use those absolute paths.
+Keep `$LEGACY` and its `backups/` exactly where they are: the orgs' bind mounts use those absolute paths.
+
+**Undo:** remove `~/.config/berth/config.yaml`, and run ccenv's schedule again with the settings from phase A
+(`"$LEGACY/ccenv" schedule --at … --keep …`).
+
+## F. Retire ccenv, once berth has run every org for a while (no restarts)
+
+Do this after every org has had its phase D, and berth's nightly backup has run fine for a few days. This phase
+removes what ccenv leaves behind. It never touches `orgs/`, `backups/` or the checkout itself: those are berth's
+state now.
+
+**Check first.** Stop if any check fails.
+
+```bash
+grep -L '^MANAGER=berth$' "$LEGACY"/orgs/*/org.env                        # prints nothing: every org is berth's
+docker ps -a --filter name='^claude-' --format '{{.Names}} {{.Image}}'    # every container on berth/claude-env:…
+docker ps -a --filter ancestor=claude-env --format '{{.Names}}'            # prints nothing: no container uses claude-env
+ls -t "$LEGACY"/backups/ | head -20                                        # a recent backup for every org
+berth schedule status                                                      # berth-backup's runs: "Wrote …", no "failed"
+systemctl --user list-timers ccenv-backup.timer --no-pager 2>/dev/null; crontab -l 2>/dev/null | grep ccenv-backup   # both empty
+```
+
+**Retire:**
+
+```bash
+berth install --alias ccenv          # `ccenv …` now runs berth (the images' CLAUDE.md still tells you "ccenv fw …")
+ccenv --version                      # prints berth's version
+docker image rm claude-env:latest    # the legacy image; docker refuses if a container still uses it
+ls ~/.local/opt/berth/               # old berth versions: keep the current one and the one before, remove the rest
+rm -rf /tmp/berth-src                # the clone from phase B
+```
+
+The checkout's own `ccenv`, `image/` and `compose.yml` stay as they are. berth doesn't use them, but they're the
+record of the legacy tool, and they cost nothing.
+
+Once `claude-env` is removed, `handback` plus `ccenv restart` is no longer a quick undo: `ccenv build` would have to
+rebuild the image first. Restoring from a backup with berth always works.
+
+**Undo:**
+- `ln -sfn "$LEGACY/ccenv" ~/.local/bin/ccenv` makes `ccenv` the legacy script again (and `ccenv install` restores
+  its completion).
+- `"$LEGACY/ccenv" build` rebuilds `claude-env`.
+
+## Prompts for Claude on the host
+
+Two prompts for Claude Code running **on the host** (not inside an org's container). Each one works from this
+file on `main`, keeps to its rules, and stops to report instead of improvising.
+
+### Full migration (phases A to E)
+
+```text
+Migrate my orgs from ccenv to berth on this host, following
+https://github.com/ar4mirez/berth/blob/main/docs/cutover.md, phases A to E. LEGACY=~/Work/claude-envs.
+berth is already installed (docs/host-install.md, stage 1).
+
+Order: the orgs by size (du -s "$LEGACY"/orgs/*), smallest first, with ar4mirez always last. For each org, do phase C
+(steps 1–4). Right after the first org's takeover, do phase C′ once. Phases A and B run once, before any org.
+
+Rules, no exceptions:
+- Nothing may be lost. Every org gets its phase C step 1 backup and test restore before its takeover. If a backup
+  or test restore fails, stop.
+- Only phase D restarts containers. Before each org's phase D, ask me: name the org, and say that for about 10
+  seconds everything running in it stops (commands, tmux and Claude sessions, SSH), and that Remote Control
+  reconnects afterwards. Then wait for my explicit "yes" for that org. If I say no or later, or if you can't ask me
+  (a non-interactive run), skip that org's phase D, and list it as pending in the report.
+- Never run anything that restarts a container outside phase D. The runbook lists those commands
+  ("What restarts, and when"). Use only the commands in the runbook. Don't run ccenv's writing commands on any org.
+- Never delete or move anything under "$LEGACY"/orgs or "$LEGACY"/backups, except the t-verify-<org> clones, which
+  are removed exactly as phase C step 1 says.
+- After each step, run its verification. At the first failure or unexpected output, stop and report. Don't fix it,
+  and don't continue with other orgs. If a step's verification fails, run that step's undo, and report that too.
+- Phase E: only after every org's phase C succeeded. Don't do phase F.
+
+Report, per org: its size, the backup file and its test restore result, the phase C step 4 lines, and phase D
+(done, with the restart time, or pending). Also report once: phase A's checks and inventory (ccenv's schedule
+settings), phase B's drift before and after and the commit, phase C′'s schedule and its first run, and phase E.
+```
+
+### Retire ccenv (phase F)
+
+```text
+Retire ccenv on this host, following phase F of https://github.com/ar4mirez/berth/blob/main/docs/cutover.md.
+LEGACY=~/Work/claude-envs.
+
+Rules, no exceptions:
+- Run every check in phase F's "Check first" block first, and show me their output. If any check fails, stop and
+  report; don't retire anything.
+- Then run only the "Retire" commands in phase F, in order. Nothing else.
+- Never delete or move "$LEGACY", "$LEGACY"/orgs, "$LEGACY"/backups, or the checkout's own ccenv, image/ or
+  compose.yml. Never stop, restart or remove a container.
+- For old berth versions under ~/.local/opt/berth: list them, and keep the one ~/.local/bin/berth points to plus the
+  newest older one. Ask me before removing any others.
+- Stop at the first failure or unexpected output, and report it.
+
+Report: the check outputs, each retire command with its output, what ~/.local/bin/ccenv and ~/.local/bin/berth now
+point to, `berth ls`, and `berth schedule status`.
+```
