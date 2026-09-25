@@ -366,6 +366,18 @@ func (f *sftpFS) Create(name string, perm fs.FileMode) (io.WriteCloser, error) {
 	return fh, err
 }
 
+func (f *sftpFS) Symlink(target, link string) error {
+	if fi, err := f.c.Lstat(link); err == nil {
+		if fi.IsDir() {
+			return &fs.PathError{Op: "symlink", Path: link, Err: errors.New("is a directory")}
+		}
+		if err := f.c.Remove(link); err != nil {
+			return err
+		}
+	}
+	return f.c.Symlink(target, link)
+}
+
 func (f *sftpFS) Open(name string) (io.ReadCloser, error) { return f.c.Open(name) }
 
 // MkdirTemp uses /tmp when dir is "": the remote $TMPDIR isn't known over SFTP.

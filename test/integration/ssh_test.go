@@ -240,6 +240,14 @@ func TestSSHHost(t *testing.T) {
 			t.Errorf("RemoveAll: %s", got)
 		}
 
+		ln := dir + "/berth"
+		mustDo(t, h.FS.Symlink("/opt/one", ln))
+		mustDo(t, h.FS.Symlink("/opt/two", ln)) // replaced, as ln -sfn does
+		if got := sh(t, "readlink "+ln); got != "/opt/two" {
+			t.Errorf("Symlink: %q, want /opt/two", got)
+		}
+		mustDo(t, h.FS.Remove(ln))
+
 		mustDo(t, h.FS.Remove(env))
 		mustDo(t, h.FS.Remove(dir))
 	})

@@ -152,6 +152,13 @@ func addCommands(root *cobra.Command) {
 			ValidArgsFunction: completeArgs(),
 			RunE:              func(cmd *cobra.Command, _ []string) error { return appFor(cmd).Keygen(cmd.Context()) },
 		}),
+		writes(&cobra.Command{
+			Use:   "install [bin-dir] [--alias NAME]",
+			Short: "link berth onto PATH (default ~/.local/bin) with bash completion; --alias ccenv at cutover", DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return appFor(cmd).Install(cmd.Context(), args, func(name string) ([]byte, error) { return bashCompletion(root, name) })
+			},
+		}),
 		// restore and migrate parse their own arguments, as ccenv does.
 		writes(&cobra.Command{
 			Use:   "restore <file|-> [--as name] [--identity|-i key] [--force] [--no-start] [--no-rehydrate]",

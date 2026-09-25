@@ -71,6 +71,9 @@ type FS interface {
 	// with its trailing X's random (TempName), in dir, or with dir "" the host's temp dir ($TMPDIR,
 	// else /tmp).
 	MkdirTemp(dir, pattern string) (string, error)
+	// Symlink is `ln -sfn target link`: link points at target, replacing a file or symlink there
+	// (a real directory is an error).
+	Symlink(target, link string) error
 	// Open opens name for reading, to stream it (a backup fed to the restore engine).
 	Open(name string) (io.ReadCloser, error)
 	// Lock takes an exclusive advisory lock on name (created if missing), waiting until it is

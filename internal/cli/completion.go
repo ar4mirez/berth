@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"slices"
@@ -82,6 +83,19 @@ func completionCmd(root *cobra.Command) *cobra.Command {
 			return fmt.Errorf("unsupported shell %q (bash, zsh, fish or powershell)", args[0])
 		},
 	})
+}
+
+// bashCompletion is berth's bash completion script, registered for name too when it's an alias
+// (a link named ccenv, say).
+func bashCompletion(root *cobra.Command, name string) ([]byte, error) {
+	var b bytes.Buffer
+	if err := root.GenBashCompletionV2(&b, true); err != nil {
+		return nil, err
+	}
+	if name != root.Name() {
+		fmt.Fprintf(&b, "\n# %s is an alias of %s.\ncomplete -o default -F __start_%s %s\n", name, root.Name(), root.Name(), name)
+	}
+	return b.Bytes(), nil
 }
 
 // completeBackup: orgs and --all, as ccenv's completion.
