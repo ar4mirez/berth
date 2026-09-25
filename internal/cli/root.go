@@ -17,6 +17,9 @@ type ExitError struct{ Code int }
 
 func (e *ExitError) Error() string { return fmt.Sprintf("exit status %d", e.Code) }
 
+// ExitCode lets Execute end with Code and no message.
+func (e *ExitError) ExitCode() int { return e.Code }
+
 // NewRoot builds the command tree.
 func NewRoot() *cobra.Command {
 	root := &cobra.Command{
@@ -44,6 +47,7 @@ func NewRoot() *cobra.Command {
 	root.Flags().Bool("version", false, "print the berth version")
 	root.SetVersionTemplate("berth {{.Version}}\n")
 	addGlobalFlags(root)
+	addCommands(root)
 	return root
 }
 
@@ -62,9 +66,11 @@ func execute(root *cobra.Command, args []string, stdin io.Reader, stdout, stderr
 	if err == nil {
 		return 0
 	}
-	var ee *ExitError
-	if errors.As(err, &ee) {
-		return ee.Code
+	// An exit code without a message: *ExitError here, *app.Exit, or a passthrough command's own
+	// exit (*host.ExitError).
+	var ec interface{ ExitCode() int }
+	if errors.As(err, &ec) {
+		return ec.ExitCode()
 	}
 	_, _ = fmt.Fprintf(stderr, "berth: %v\n", err)
 	return 1

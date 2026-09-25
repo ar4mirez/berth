@@ -138,7 +138,7 @@ var scenarios = []checked{
 		Name: "init", Args: []string{"init", "t-new", "--name", "Test User", "--email", "test@example.com"},
 		Files: twoOrgs, Rules: nothingRunning,
 		Random: map[string]string{"state/orgs/t-new/config/secrets/ttyd_credential": `^node:[A-Za-z0-9]{32}$`},
-	}, 0, []string{"Created", "ccenv up t-new"}},
+	}, 0, []string{"Created", "<tool> up t-new"}},
 	{Scenario{Name: "init bad name", Args: []string{"init", "Bad_Name"}}, 1, []string{"lowercase"}},
 	{Scenario{Name: "schedule via systemd", Args: []string{"schedule", "--at", "02:30", "--keep", "7"}, Files: withKey},
 		0, []string{"daily at 02:30", "keeping the newest 7"}},
