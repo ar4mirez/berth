@@ -13,6 +13,7 @@ import (
 func appFor(cmd *cobra.Command) *app.App {
 	a := app.New(stateFrom(cmd.Context()), local.New(), cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), os.Getenv)
 	a.OpenTTY = local.OpenTTY
+	a.Self, _ = os.Executable()
 	return a
 }
 
@@ -150,6 +151,13 @@ func addCommands(root *cobra.Command) {
 			Use: "keygen", Short: "create the age key backups encrypt to (no prompts; good for cron)", Args: cobra.ArbitraryArgs,
 			ValidArgsFunction: completeArgs(),
 			RunE:              func(cmd *cobra.Command, _ []string) error { return appFor(cmd).Keygen(cmd.Context()) },
+		}),
+		// schedule parses its own arguments, as ccenv does; status reads, the rest write.
+		reads(&cobra.Command{
+			Use:   "schedule [--at HH:MM] [--keep N] [-o dir] | status | run | off",
+			Short: "nightly backup --all (systemd user timer berth-backup, or cron)", DisableFlagParsing: true,
+			ValidArgsFunction: completeArgs([]string{"status", "run", "off", "--at", "--keep", "-o"}),
+			RunE:              func(cmd *cobra.Command, args []string) error { return appFor(cmd).Schedule(cmd.Context(), args) },
 		}),
 		repo,
 		clone,

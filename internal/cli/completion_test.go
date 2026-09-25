@@ -31,6 +31,8 @@ func TestCompletionFromStateRoot(t *testing.T) {
 		{[]string{"fw", "acme", "allow", "@go", ""}, "@mise @python @node @go @rust @ruby @docker @gitlab @bitbucket @aws @gcp @azure @debian"},
 		{[]string{"repo", ""}, "add new publish ls rm adopt sync audit policy"},
 		{[]string{"clone", ""}, "acme globex"},
+		{[]string{"schedule", ""}, "status run off --at --keep -o"},
+		{[]string{"backup", ""}, "acme globex --all"},
 		{[]string{"repo", "ls", ""}, "acme globex"},
 		{[]string{"ls", ""}, ""},
 	}

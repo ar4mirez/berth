@@ -12,10 +12,12 @@ package host
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"net"
+	"os/exec"
 )
 
 // Host bundles the four capabilities. Close releases whatever the implementation holds
@@ -139,4 +141,14 @@ type Facter interface {
 	Facts(ctx context.Context) (Facts, error)
 	// PortsInUse lists TCP ports that are listening on the host or published by its containers.
 	PortsInUse(ctx context.Context) ([]int, error)
+}
+
+// IsNotFound reports whether err from Execer.Run means the program isn't installed: a start error
+// locally, exit 127 from the remote shell over SSH (ccenv's `command -v` checks).
+func IsNotFound(err error) bool {
+	if errors.Is(err, exec.ErrNotFound) {
+		return true
+	}
+	var ee *ExitError
+	return errors.As(err, &ee) && ee.Code == 127
 }

@@ -1,6 +1,7 @@
 package parity
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -115,7 +116,7 @@ func hasScenario(name string) bool {
 }
 
 // readCommands only read berth's state, so they must behave the same under --read-only.
-var readCommands = map[string]bool{"ls": true, "info": true, "whoami": true, "logs": true, "fw": true, "repo": true}
+var readCommands = map[string]bool{"ls": true, "info": true, "whoami": true, "logs": true, "fw": true, "repo": true, "schedule": true}
 
 // writingSubs are the subcommands of those commands that write (refused under --read-only).
 var writingSubs = map[string]map[string]bool{
@@ -134,6 +135,8 @@ func readsOnly(args []string) bool {
 		if len(args) > 2 {
 			sub = args[2] // fw <org> <sub>
 		}
+	case "schedule":
+		return slices.Contains(args, "status") && !slices.ContainsFunc(args, func(a string) bool { return a == "off" || a == "--off" || a == "run" || a == "now" })
 	case "repo":
 		if len(args) > 1 {
 			sub = args[1] // repo <sub> <org>

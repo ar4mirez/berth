@@ -32,6 +32,8 @@ type App struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Getenv func(string) string
+	// Self is the berth binary, for the scheduled backup job.
+	Self string
 	// OpenTTY opens the operator's terminal for prompts ccenv reads from /dev/tty (nil: none).
 	OpenTTY func() (*os.File, error)
 
