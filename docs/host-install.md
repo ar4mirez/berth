@@ -27,8 +27,14 @@ LEGACY=~/Work/claude-envs     # the ccenv checkout that runs the live orgs
 
 - `gh`, signed in (`gh auth status`). Artifact downloads need it, even for a public repo.
 - `docker` (already there for ccenv), plus `sha256sum` and `tar`.
-- About 15 MB of disk for berth. Stage 2 also builds berth's image (`berth/claude-env:<hash>`), which is as big as
-  `claude-env` and takes a few minutes the first time.
+- About 15 MB of disk for berth. In stage 2, the first command that needs berth's image builds it
+  (`berth/claude-env:<hash>`). That's `backup`, because the backup engine runs as root inside the image to read the
+  root-only sshd keys. The image is as big as `claude-env`, and with most layers cached from it the build takes
+  about a minute. It's the image the orgs run on after cutover, so keep it.
+- berth writes that image's build context and its `compose.yml` to `$LEGACY/berth/` (never to the checkout's own
+  `image/` or `compose.yml`). The folder holds a `.gitignore` of its own (`*`), so `git status` in the checkout
+  stays clean. berth 0.0.1-snapshot+8673113 and older didn't write that file: upgrade (stage 1, steps 1–2), and the
+  next berth command that writes adds it.
 
 ## Stage 1: install and check (read-only)
 
@@ -139,7 +145,7 @@ berth --home "$LEGACY" restore "$bk"/"$ORG"-*.tar.zst* --as "$T" --no-start
 berth --home "$LEGACY" logout "$T" --all
 sed -i 's/^REMOTE_CONTROL=.*/REMOTE_CONTROL=0/' "$LEGACY/orgs/$T/org.env"
 
-# 3. Lifecycle. The first `up` builds berth's image.
+# 3. Lifecycle. `up` uses the image the backup built.
 berth --home "$LEGACY" up "$T"
 berth --home "$LEGACY" ls
 berth --home "$LEGACY" info "$T"
@@ -203,10 +209,12 @@ Rules, no exceptions:
 - Never run a writing command (berth or ccenv) on any other org, never edit a live org's files, and never push from
   the clone.
 - If backup would prompt for a passphrase, stop and ask me.
+- Expected, not a reason to stop: the first backup builds berth/claude-env:<hash>, and berth creates
+  $LEGACY/berth/ (ignored by git through its own .gitignore). Check `git -C "$LEGACY" status --short` stays empty.
 - Stop at the first unexpected error or output, and report it; don't try to fix it.
 - Always run step 5 (cleanup) at the end, even if something failed, and confirm t-<org> is gone
   (`berth --read-only --home "$LEGACY" ls`).
 
 Report each step's command and output. Call out anything that differs from what the same ccenv command would do,
-and the time the first `up` took.
+and how long the backup's image build and the first `up` took.
 ```
