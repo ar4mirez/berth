@@ -65,11 +65,33 @@ func (a *App) claudeAccount(ctx context.Context, o string) string {
 	return strings.TrimRight(out.String(), "\n")
 }
 
-// authStatusLines evaluates ccenv's jq program over a stream of JSON values, like `jq -r` (1.6):
-// one line per value. A value that can't be indexed (a number, string, array, bool) is an error that
-// jq reports and moves past; the exit status is that of the last value. A parse error stops jq.
-// Numbers print as doubles (1.50 → 1.5).
+// authStatusLines evaluates whoami's jq program,
+// `if .loggedIn then "\(.email)  [\(.orgName)]" else "<loggedOut>" end`, like `jq -r` (1.6).
 func authStatusLines(input []byte, loggedOut string) ([]string, error) {
+	return jqEach(input, func(field func(string) any) (string, bool) {
+		if l := field("loggedIn"); l == nil || l == false {
+			return loggedOut, true
+		}
+		return jqString(field("email")) + "  [" + jqString(field("orgName")) + "]", true
+	})
+}
+
+// accountLines evaluates check_account's jq program,
+// `select(.loggedIn) | "\(.orgId) \(.email) [\(.orgName)]"`.
+func accountLines(input []byte) ([]string, error) {
+	return jqEach(input, func(field func(string) any) (string, bool) {
+		if l := field("loggedIn"); l == nil || l == false {
+			return "", false
+		}
+		return jqString(field("orgId")) + " " + jqString(field("email")) + " [" + jqString(field("orgName")) + "]", true
+	})
+}
+
+// jqEach runs a per-value jq program over a stream of JSON values, like `jq -r` (1.6): one output
+// line per value that emits one. A value that can't be indexed (a number, string, array, bool) is an
+// error that jq reports and moves past; the exit status is that of the last value. A parse error
+// stops jq. Numbers print as doubles (1.50 → 1.5).
+func jqEach(input []byte, program func(field func(string) any) (string, bool)) ([]string, error) {
 	dec := json.NewDecoder(bytes.NewReader(input))
 	var lines []string
 	var last error
@@ -83,27 +105,14 @@ func authStatusLines(input []byte, loggedOut string) ([]string, error) {
 			return lines, err
 		}
 		last = nil
-		field := func(name string) (any, error) {
-			switch m := v.(type) {
-			case map[string]any:
-				return m[name], nil
-			case nil:
-				return nil, nil
-			}
-			return nil, fmt.Errorf("cannot index %T with %q", v, name)
-		}
-		logged, err := field("loggedIn")
-		if err != nil {
-			last = err
+		m, isObject := v.(map[string]any)
+		if !isObject && v != nil {
+			last = fmt.Errorf("cannot index %T", v)
 			continue
 		}
-		if logged == nil || logged == false {
-			lines = append(lines, loggedOut)
-			continue
+		if line, emit := program(func(name string) any { return m[name] }); emit {
+			lines = append(lines, line)
 		}
-		email, _ := field("email")
-		orgName, _ := field("orgName")
-		lines = append(lines, jqString(email)+"  ["+jqString(orgName)+"]")
 	}
 }
 

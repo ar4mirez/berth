@@ -84,6 +84,29 @@ func addCommands(root *cobra.Command) {
 				return appFor(cmd).Remote(cmd.Context(), arg(args, 0), arg(args, 1))
 			},
 		}),
+		// The sign-in commands parse their arguments as ccenv does (--paste/--no-restart anywhere for
+		// token; --all/--force only as the second argument).
+		writes(&cobra.Command{
+			Use: "token <org> [--paste] [--no-restart]", Short: "the 1-year token (claude setup-token in the container)", DisableFlagParsing: true,
+			ValidArgsFunction: org1,
+			RunE:              func(cmd *cobra.Command, args []string) error { return appFor(cmd).Token(cmd.Context(), args) },
+		}),
+		one("auth <org>", "sign an org in: token, then the Remote Control login", func(a *app.App, c *cobra.Command, o string) error { return a.Auth(c.Context(), o) }),
+		one("login <org>", "the full login that enables claude.ai/code (Remote Control)", func(a *app.App, c *cobra.Command, o string) error { return a.Login(c.Context(), o) }),
+		writes(&cobra.Command{
+			Use: "logout <org> [--all]", Short: "remove the Remote Control login (--all: the token too)", DisableFlagParsing: true,
+			ValidArgsFunction: org1,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return appFor(cmd).Logout(cmd.Context(), arg(args, 0), arg(args, 1))
+			},
+		}),
+		writes(&cobra.Command{
+			Use: "gh-login <org> [--force]", Short: "sign the gh CLI in inside the container", DisableFlagParsing: true,
+			ValidArgsFunction: org1,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return appFor(cmd).GhLogin(cmd.Context(), arg(args, 0), arg(args, 1))
+			},
+		}),
 		one("up <org>", "build if needed and (re)create the container", func(a *app.App, c *cobra.Command, o string) error { return a.Up(c.Context(), o) }),
 		writes(&cobra.Command{
 			Use: "build [docker-build-args...]", Short: "rebuild berth's image (updates Claude Code)", DisableFlagParsing: true,
