@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -100,4 +101,55 @@ func (a *App) Run(ctx context.Context, o string, args []string) error {
 		return errors.New("missing prompt")
 	}
 	return a.execIn(ctx, false, []string{"-i", "-u", "node", "-w", "/workspace"}, o, append([]string{"claude", "-p", args[0]}, args[1:]...)...)
+}
+
+// Up is `ccenv up <org>`: build if needed and recreate, then `sleep 3` and the last 5 lines of
+// `docker logs claude-<org> 2>&1`. The command ends with docker logs' exit code (pipefail).
+func (a *App) Up(ctx context.Context, o string) error {
+	if err := a.needOwnedOrg(o); err != nil {
+		return err
+	}
+	if err := a.compose(ctx, o, "up", "-d", "--build", "--force-recreate"); err != nil {
+		return err
+	}
+	if err := a.passthrough(ctx, false, "sleep", "3"); err != nil {
+		return err
+	}
+	var logs bytes.Buffer
+	err := a.Host.Exec.Run(ctx, host.Cmd{Args: []string{"docker", "logs", "claude-" + o}, Stdout: &logs, Stderr: &logs})
+	_, _ = a.Stdout.Write(tail(logs.Bytes(), 5))
+	return err
+}
+
+// Build is `ccenv build [docker build args...]`: build berth's image, tagged berth/claude-env:<hash>
+// (ccenv tags claude-env), from berth's image dir. Arguments go to docker build.
+func (a *App) Build(ctx context.Context, args []string) error {
+	set, _, err := a.composeAssets()
+	if err != nil {
+		return err
+	}
+	uid, _ := a.capture(ctx, false, "id", "-u")
+	gid, _ := a.capture(ctx, false, "id", "-g")
+	argv := append([]string{"docker", "build", "-t", set.Tag, "--build-arg", "USER_UID=" + uid, "--build-arg", "USER_GID=" + gid}, args...)
+	return a.passthrough(ctx, false, append(argv, set.ImageDir)...)
+}
+
+// tail is `tail -n N`: the last n lines, keeping whether the input ended with a newline.
+func tail(b []byte, n int) []byte {
+	end := len(b)
+	if end > 0 && b[end-1] == '\n' {
+		end--
+	}
+	start := end
+	for i := 0; i < n; i++ {
+		j := bytes.LastIndexByte(b[:start], '\n')
+		if j < 0 {
+			return b
+		}
+		start = j
+		if i == n-1 {
+			return b[start+1:]
+		}
+	}
+	return b[start+1:]
 }

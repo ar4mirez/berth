@@ -82,6 +82,10 @@ type Tool struct {
 	Prepare func(run string) error
 	// Content adjusts a file's content before it is compared (optional); rel is relative to the run dir.
 	Content func(rel, content string) string
+	// SkipTree leaves paths out of the file tree (optional).
+	SkipTree func(rel string) bool
+	// Calls adjusts a normalized tool-call line before it is compared (optional).
+	Calls func(string) string
 }
 
 // Result is what a run did, normalized.
@@ -157,8 +161,24 @@ func Berth(bin string) Tool {
 		}
 		return c
 	}
+	// berth builds and runs its own image (plan, decision 5): berth/claude-env:<hash>, from its
+	// embedded copy in <state>/berth/, passed to compose as CLAUDE_ENV_IMAGE*/IMAGE_TAG. Map that onto
+	// ccenv's claude-env and <root>/image, and leave the copy out of the tree. TestBerthAssets checks
+	// the real values.
+	t.Replace = append(t.Replace, [2]string{"<RUN>/state/berth/compose.yml", "<ROOT>/compose.yml"},
+		[2]string{"<RUN>/state/berth/image", "<ROOT>/image"}, [2]string{"<RUN>/state/compose.yml", "<ROOT>/compose.yml"})
+	t.SkipTree = func(rel string) bool { return rel == "state/berth" || strings.HasPrefix(rel, "state/berth/") }
+	t.Calls = func(c string) string {
+		c = berthEnv.ReplaceAllString(c, "")
+		return berthTag.ReplaceAllString(c, `"claude-env"`)
+	}
 	return t
 }
+
+var (
+	berthEnv = regexp.MustCompile(`  \[(CLAUDE_ENV_IMAGE|IMAGE_TAG|CLAUDE_ENV_IMAGE_DIR)="[^"]*"\]`)
+	berthTag = regexp.MustCompile(`"berth/claude-env:[0-9a-f]{12}"`)
+)
 
 // BerthUnowned is berth on the fixture as written: legacy-owned orgs (no MANAGER line).
 func BerthUnowned(bin string) Tool {
@@ -167,9 +187,8 @@ func BerthUnowned(bin string) Tool {
 		Command: func(run string, args []string) []string {
 			return append([]string{bin, "--home", filepath.Join(run, "state")}, args...)
 		},
-		Env: func(string) []string { return nil },
-		// berth's compose.yml is in the state root, ccenv's in its checkout; at cutover they're the same.
-		Replace: [][2]string{{bin, "<SELF>"}, {"<RUN>/state/compose.yml", "<ROOT>/compose.yml"}},
+		Env:     func(string) []string { return nil },
+		Replace: [][2]string{{bin, "<SELF>"}},
 	}
 }
 
@@ -238,7 +257,12 @@ func (e *Env) Run(ctx context.Context, base string, tool Tool, s Scenario) (Resu
 	if res.Calls, err = readCalls(logFile, n); err != nil {
 		return Result{}, err
 	}
-	if res.Tree, err = snapshot(run, s.Random, n, tool.Content); err != nil {
+	if tool.Calls != nil {
+		for i, c := range res.Calls {
+			res.Calls[i] = tool.Calls(c)
+		}
+	}
+	if res.Tree, err = snapshot(run, s.Random, n, tool.Content, tool.SkipTree); err != nil {
 		return Result{}, err
 	}
 	return res, nil
@@ -352,7 +376,7 @@ func readCalls(logFile string, n func(string) string) ([]string, error) {
 
 // snapshot lists every entry under run: path, type, mode, and content (or its hash, if large or
 // binary). Files in random must match their regexp instead of being compared.
-func snapshot(run string, random map[string]string, n func(string) string, content func(rel, c string) string) ([]string, error) {
+func snapshot(run string, random map[string]string, n func(string) string, content func(rel, c string) string, skip func(string) bool) ([]string, error) {
 	var out []string
 	err := filepath.WalkDir(run, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -360,6 +384,12 @@ func snapshot(run string, random map[string]string, n func(string) string, conte
 		}
 		rel, _ := filepath.Rel(run, p)
 		if rel == "." {
+			return nil
+		}
+		if skip != nil && skip(rel) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		info, err := os.Lstat(p)

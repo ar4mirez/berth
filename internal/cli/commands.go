@@ -59,6 +59,11 @@ func addCommands(root *cobra.Command) {
 		})
 	}
 	root.AddCommand(
+		one("up <org>", "build if needed and (re)create the container", func(a *app.App, c *cobra.Command, o string) error { return a.Up(c.Context(), o) }),
+		writes(&cobra.Command{
+			Use: "build [docker-build-args...]", Short: "rebuild berth's image (updates Claude Code)", DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error { return appFor(cmd).Build(cmd.Context(), args) },
+		}),
 		one("down <org>", "stop the container", func(a *app.App, c *cobra.Command, o string) error { return a.Down(c.Context(), o) }),
 		one("restart <org>", "recreate the container", func(a *app.App, c *cobra.Command, o string) error { return a.Restart(c.Context(), o) }),
 		one("attach <org>", "attach to the shared tmux session", func(a *app.App, c *cobra.Command, o string) error { return a.Attach(c.Context(), o) }),
