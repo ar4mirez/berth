@@ -113,6 +113,12 @@ func hasScenario(name string) bool {
 	return false
 }
 
+// readOnlySkipsWrites are scenarios where legacy creates files as a side effect of a read (compose's
+// bind-mount dirs, fw's template), which berth skips under --read-only.
+var readOnlySkipsWrites = map[string]bool{
+	"logs": true, "logs, exit code passes through": true, "logs, tailscale down": true, "fw show, no file yet": true,
+}
+
 // TestParityReadOnly: the phase 1 commands only read, so `berth --read-only` must still match
 // legacy exactly. This is how berth is first used against the live orgs.
 func TestParityReadOnly(t *testing.T) {
@@ -127,7 +133,12 @@ func TestParityReadOnly(t *testing.T) {
 			continue
 		}
 		t.Run(sc.Name, func(t *testing.T) {
-			if d := Diff("ccenv", run(t, legacy, sc.Scenario), "berth --read-only", run(t, berth, sc.Scenario)); d != "" {
+			l, b := run(t, legacy, sc.Scenario), run(t, berth, sc.Scenario)
+			if readOnlySkipsWrites[sc.Name] {
+				// Legacy creates files here; berth --read-only doesn't (by design). Compare the rest.
+				l.Tree, b.Tree = nil, nil
+			}
+			if d := Diff("ccenv", l, "berth --read-only", b); d != "" {
 				t.Errorf("berth --read-only differs from legacy:\n%s", d)
 			}
 		})
