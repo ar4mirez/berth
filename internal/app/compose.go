@@ -8,12 +8,41 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ar4mirez/berth/internal/assets"
 	"github.com/ar4mirez/berth/internal/host"
 )
 
-// composeFile is berth's compose.yml: in the state root. ccenv's is in its checkout ($ROOT); at
-// cutover the state root is that checkout, so it's the same file.
-func (a *App) composeFile() string { return path.Join(a.State.Home.Path, "compose.yml") }
+// composeAssets picks the compose.yml (and image) berth runs with:
+//   - normally, its own embedded copy, written to <state>/berth/ first if needed (BERTH_IMAGE_DIR
+//     overrides the image dir);
+//   - under --read-only, where nothing may be written: that copy if it's already there, else the state
+//     root's compose.yml (a ccenv checkout's own), else the copy's path anyway (compose will say it's
+//     missing).
+//
+// berth reports whether the set is berth's own, which is when the CLAUDE_ENV_IMAGE* variables apply.
+func (a *App) composeAssets() (assets.Set, bool, error) {
+	root := a.State.Home.Path
+	if a.State.ReadOnly {
+		set, err := assets.Embedded(root)
+		if err != nil || assets.Materialized(a.Host.FS, root) {
+			return set, err == nil, err
+		}
+		if legacy := path.Join(root, "compose.yml"); a.isFile(legacy) {
+			return assets.Set{Compose: legacy}, false, nil
+		}
+		return set, true, nil
+	}
+	set, err := assets.Materialize(a.Host.FS, root)
+	if err != nil {
+		return assets.Set{}, false, err
+	}
+	if dir := a.Getenv("BERTH_IMAGE_DIR"); dir != "" {
+		if set, err = assets.Override(a.Host.FS, set, dir); err != nil {
+			return assets.Set{}, false, err
+		}
+	}
+	return set, true, nil
+}
 
 // compose is ccenv's compose(): create the bind-mount sources Docker would otherwise create
 // root-owned (home-config, quarantine: 0700), then run `docker compose -f <compose.yml> --env-file
@@ -37,14 +66,23 @@ func (a *App) compose(ctx context.Context, o string, args ...string) error {
 			}
 		}
 	}
+	set, own, err := a.composeAssets()
+	if err != nil {
+		return err
+	}
 	// Evaluated in ccenv's order: BIND_ADDR="$(resolve_bind)" first, then HOST_UID/HOST_GID.
 	bind := a.bindOrWarn(ctx, o)
 	uid, _ := a.capture(ctx, false, "id", "-u")
 	gid, _ := a.capture(ctx, false, "id", "-g")
-	argv := append([]string{"docker", "compose", "-f", a.composeFile(), "--env-file", a.Orgs.EnvPath(o)}, args...)
+	env := []string{"BIND_ADDR=" + bind, "ORG=" + o, "ORG_DIR=" + dir, "HOST_UID=" + uid, "HOST_GID=" + gid}
+	if own {
+		repo, tag, _ := strings.Cut(set.Tag, ":")
+		env = append(env, "CLAUDE_ENV_IMAGE="+repo, "IMAGE_TAG="+tag, "CLAUDE_ENV_IMAGE_DIR="+set.ImageDir)
+	}
+	argv := append([]string{"docker", "compose", "-f", set.Compose, "--env-file", a.Orgs.EnvPath(o)}, args...)
 	return a.Host.Exec.Run(ctx, host.Cmd{
 		Args:   argv,
-		Env:    []string{"BIND_ADDR=" + bind, "ORG=" + o, "ORG_DIR=" + dir, "HOST_UID=" + uid, "HOST_GID=" + gid},
+		Env:    env,
 		Stdin:  a.Stdin,
 		Stdout: a.Stdout,
 		Stderr: a.Stderr,

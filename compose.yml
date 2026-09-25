@@ -4,9 +4,10 @@ name: claude-${ORG:?ORG not set}
 
 services:
   claude:
-    image: claude-env:${IMAGE_TAG:-latest}
+    # berth sets CLAUDE_ENV_IMAGE=berth/claude-env and IMAGE_TAG=<content hash>; ccenv sets neither.
+    image: ${CLAUDE_ENV_IMAGE:-claude-env}:${IMAGE_TAG:-latest}
     build:
-      context: ./image
+      context: ${CLAUDE_ENV_IMAGE_DIR:-./image}
       args:
         USER_UID: ${HOST_UID:-1000}
         USER_GID: ${HOST_GID:-1000}

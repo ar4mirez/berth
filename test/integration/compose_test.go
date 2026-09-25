@@ -269,3 +269,32 @@ func TestComposeLifecycle(t *testing.T) {
 		}
 	})
 }
+
+// TestComposeImageVariables: compose.yml's image and build context are claude-env:latest and
+// ./image for ccenv (no variables set: unchanged behaviour), and berth's own tag and dir when berth
+// sets CLAUDE_ENV_IMAGE, IMAGE_TAG and CLAUDE_ENV_IMAGE_DIR.
+func TestComposeImageVariables(t *testing.T) {
+	requireDocker(t)
+	f := newFixture(t)
+	config := func(extra ...string) (image, context string) {
+		t.Helper()
+		cmd := exec.Command("docker", "compose", "-f", filepath.Join(f.root, "compose.yml"),
+			"--env-file", filepath.Join(f.orgDir, "org.env"), "config", "--format", "json")
+		cmd.Env = append(os.Environ(), append([]string{"BIND_ADDR=127.0.0.1", "ORG=" + org, "ORG_DIR=" + f.orgDir}, extra...)...)
+		var cfg struct {
+			Services map[string]struct {
+				Image string
+				Build struct{ Context string }
+			}
+		}
+		mustDo(t, json.Unmarshal([]byte(run(t, cmd)), &cfg))
+		return cfg.Services["claude"].Image, cfg.Services["claude"].Build.Context
+	}
+	if img, ctx := config(); img != "claude-env:latest" || ctx != filepath.Join(f.root, "image") {
+		t.Errorf("ccenv (no variables): image %q, context %q", img, ctx)
+	}
+	dir := t.TempDir()
+	if img, ctx := config("CLAUDE_ENV_IMAGE=berth/claude-env", "IMAGE_TAG=0123456789ab", "CLAUDE_ENV_IMAGE_DIR="+dir); img != "berth/claude-env:0123456789ab" || ctx != dir {
+		t.Errorf("berth: image %q, context %q", img, ctx)
+	}
+}

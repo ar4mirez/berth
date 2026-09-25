@@ -51,10 +51,10 @@ intentional addition) · `(pN)` is the plan phase that ports it.
 | `logout <org> [--all]` | `Logged out <org> …`; with `--all`, also `Token removed too.` and `Restarted claude-<org>.`; always exit 0 | stopped: `rm O/claude/.credentials.json`. `--all`: `setval CLAUDE_CODE_OAUTH_TOKEN ""` | running: `docker exec` logout, `pkill`. `--all` and running: `compose up -d --force-recreate` | – | not started (p2) |
 | `gh-login <org> [--force]` | `gh already signed in as X` (exit 0) unless `--force`; device-code instructions; dies if sign-in didn't complete | `O/home-config/gh` (through the container) | `docker exec -u node … gh api user -q .login`; `docker exec -it -e BROWSER=true … gh auth login --hostname github.com --git-protocol ssh --skip-ssh-key --web --scopes read:org,repo,workflow` | interactive | not started (p2) |
 | `whoami [org...]` | table `ORG TOKEN GITHUB (gh) REMOTE-CONTROL LOGIN (account)`; `(container down)` for stopped orgs. With no args, every org dir with an org.env; named orgs in the given order | – | running: `docker exec -u node … sh -c 'env -u CLAUDE_CODE_OAUTH_TOKEN claude auth status 2>/dev/null; true'` piped to jq on the host, and `docker exec -u node … sh -c 'gh api user -q .login 2>/dev/null; true'` | an unknown org dies mid-table (rows before it are printed); a docker failure appends `not logged in` (pipefail) | **done** (#15): scenarios `whoami …`. berth evaluates the jq program itself (jq 1.6 semantics), so it doesn't need jq on the host; like the other read commands it accepts berth-owned orgs |
-| `up <org>` | compose output; then the last 5 lines of `docker logs claude-<org>` | `O/home-config`, `O/quarantine` 0700 if missing | `compose up -d --build --force-recreate`; `sleep 3`; `docker logs claude-<org>` | – | not started (p2) |
+| `up <org>` | compose output; then the last 5 lines of `docker logs claude-<org> 2>&1`; ends with docker logs' exit code (a compose failure ends it earlier with compose's) | `O/home-config`, `O/quarantine` 0700 if missing | `compose up -d --build --force-recreate`; `sleep 3`; `docker logs claude-<org>` | – | **done** (#19): scenarios `up …`. berth needs `MANAGER=berth` and builds and runs its own image (see `build`) |
 | `down <org>` | compose output; ends with docker's exit code | as `compose` | `compose down` | with Tailscale down: prints the `resolve_bind` error, then runs compose anyway with `BIND_ADDR=` empty, exit 0 | **done** (#18): scenarios `down`, `down, …`. berth needs `MANAGER=berth` |
 | `restart <org>` | compose output; ends with docker's exit code | as `compose` | `compose up -d --force-recreate` | – | **done** (#18): scenarios `restart …`. berth needs `MANAGER=berth` |
-| `build [docker-build-args...]` (e.g. `--no-cache`) | docker build output | – | `docker build -t claude-env --build-arg USER_UID=$(id -u) --build-arg USER_GID=$(id -g) "$@" <root>/image` | – | not started (p2): planned divergence, berth tags `berth/claude-env:<hash>` and never touches `claude-env:latest` |
+| `build [docker-build-args...]` (e.g. `--no-cache`) | docker build output; docker's exit code | – | `docker build -t claude-env --build-arg USER_UID=$(id -u) --build-arg USER_GID=$(id -g) "$@" <root>/image` | – | **done, divergent by design** (#19): berth tags `berth/claude-env:<12-hex content hash>` and builds from its embedded `image/`, written to `<state>/berth/image` (0755 where git has it). `BERTH_IMAGE_DIR` overrides the dir (tag = hash of that dir). berth never tags `claude-env`. Arguments pass through (`DisableFlagParsing`) |
 
 ## Use
 
@@ -143,7 +143,7 @@ sources `image/repo-policy.sh`, whose rules are in `docs/repo-policy.md`.
 | `next_port` | max+1 over `"$ORGS"/*/org.env` (`cut -f2`, no `tail -1`) | done, with two divergences: no bash `integer expression expected` noise on stderr for a skipped file, and a leading-zero value is read as decimal (bash would read it as octal or fail) (#8) |
 | repo canonical form (`repo_canon`, `canon`) | `docs/repo-policy.md` | done: one table for bash, node and Go (#9). The fixes are in `image/`, so legacy (through the `legacy/image` symlink) and berth share them |
 | `resolve_bind` | `BIND_ADDR=tailscale` → `tailscale ip -4 2>/dev/null \| head -1`; empty → the error `BIND_ADDR=tailscale but tailscale is not up on this host`; unset → 127.0.0.1. Every caller runs it inside `$( )`, where bash turns `set -e` off, so the error is printed and the caller carries on with an empty address (compose, info) | done (#14): `app.resolveBind`/`bindOrWarn`, mirrored, checked by `info, tailscale down` |
-| compose invocation | `docker compose -f <root>/compose.yml --env-file O/org.env` with the env above; labels `com.docker.compose.project=claude-<org>` | not started (p2); the contract is pinned by `test/integration/compose_test.go` (#3) |
+| compose invocation | `docker compose -f <root>/compose.yml --env-file O/org.env` with the env above; labels `com.docker.compose.project=claude-<org>` | done (#15, #19): `app.compose`. berth's compose.yml is its embedded copy in `<state>/berth/`, and berth also sets `CLAUDE_ENV_IMAGE=berth/claude-env`, `IMAGE_TAG=<hash>` and `CLAUDE_ENV_IMAGE_DIR`. Under `--read-only` it uses that copy if it's already there, else the state root's `compose.yml` (a ccenv checkout's), without the image variables. `test/integration` checks that the variables resolve, and that without them compose.yml is unchanged for ccenv |
 | `MANAGER` guard | legacy refuses `MANAGER=berth` orgs (`need_org`, `backup --all`) | **done for berth's side** (#18): berth's writing commands refuse an org whose `MANAGER` isn't `berth` (missing means ccenv): `org 'acme' is managed by ccenv (MANAGER=…); use: ccenv ... acme`, before any call or write (`TestBerthRefusesLegacyOrgs`). Read commands accept either (see Intentional divergences). The harness gives the berth side's fixtures `MANAGER=berth` as the first line of each org.env and drops it before comparing |
 | in-container contracts | `/config` file formats, the env vars the entrypoint reads (including `CCENV_ENV_KEYS`), `/run/firewall.status`, the log strings the host greps for (`blocked by organization policy`, `Capacity`), tmux session `main` | not started (`internal/contract`) |
 
@@ -159,6 +159,17 @@ one, berth either mirrors it or records a divergence here when the command is po
 5. `fw <org> show` and `repo ls <org>` create `firewall.txt` and `repos.txt` when they're missing, so reads have side effects.
 6. `env … --no-restart` is only recognized as the 4th argument.
 
+## To port to the legacy checkout at cutover
+
+berth's `image/` and `compose.yml` changes reach the live orgs only when they are copied to the
+legacy checkout on the host. Per the plan, and by the owner's decision, that happens at cutover
+(phase 5), not before.
+
+| PR | Files | What |
+|---|---|---|
+| #9 | `image/repo-policy.sh`, `image/repo-guard.js`, the git guard | canonical repo form, and the reader fixes |
+| #19 | `compose.yml` | `image:` and `build.context` take `CLAUDE_ENV_IMAGE`/`CLAUDE_ENV_IMAGE_DIR`, with ccenv's old values as defaults |
+
 ## Intentional divergences
 
 | Where | Divergence | Why |
@@ -171,6 +182,7 @@ one, berth either mirrors it or records a divergence here when the command is po
 | org names | a name that isn't `[a-z0-9][a-z0-9-]*` is reported as unknown without touching the filesystem | ccenv would build a path from it (a name with a slash or dots); the message is the same |
 | flags | berth rejects unknown flags (`berth: unknown flag: --x`), and `-h`/`--help` after a command show its help | ccenv ignored or misread them as positional arguments |
 | org order | berth lists orgs in byte order; ccenv's glob follows the locale's collation | the same for `[a-z0-9-]` names in the C locale; under e.g. en_US, names differing only by `-` can sort differently |
+| image | berth builds and runs `berth/claude-env:<content hash>` from its embedded `image/` in `<state>/berth/`, and refuses a `<state>/berth` that isn't its own (no stamp) | plan, decisions 5 and 8: the tools never share or overwrite an image, and berth never writes into a legacy checkout's own `image/` or `compose.yml` |
 | exec commands | `attach`, `shell`, `claude` and `run` count as writing: they need `MANAGER=berth` and are refused under `--read-only` | they act as the org inside its container; `--read-only` must mean berth can't change a live org in any way |
 | docker reads | phase 1 reads go through the docker CLI with ccenv's argv, not the Engine API | identical calls for the harness; the Engine API client (`host.Engine`) stays available |
 | unported subcommands | `berth fw <org> allow` and `berth repo add <org> …` (and the other writing `fw`/`repo` subcommands) fail with `… is not in berth yet (phase 3); use ccenv for now`, before any side effect | until phase 3; ccenv would first write the template or `repos.txt` |

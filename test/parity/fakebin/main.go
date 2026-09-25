@@ -43,9 +43,9 @@ type Call struct {
 	Stdin *string           `json:"stdin,omitempty"`
 }
 
-// loggedEnv are the variables legacy sets for docker compose (ccenv's compose()) and that matter
-// to the parity comparison.
-var loggedEnv = []string{"ORG", "ORG_DIR", "BIND_ADDR", "HOST_UID", "HOST_GID"}
+// loggedEnv are the variables ccenv's and berth's compose() set, which matter to the comparison.
+var loggedEnv = []string{"ORG", "ORG_DIR", "BIND_ADDR", "HOST_UID", "HOST_GID",
+	"CLAUDE_ENV_IMAGE", "IMAGE_TAG", "CLAUDE_ENV_IMAGE_DIR"} // berth's image, for compose
 
 // fixedNow is the only time the fakes ever report.
 var fixedNow = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
