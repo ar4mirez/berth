@@ -81,6 +81,13 @@ func (r readOnlyFS) Create(name string, perm fs.FileMode) (io.WriteCloser, error
 	return r.FS.Create(name, perm)
 }
 
+func (r readOnlyFS) Symlink(target, link string) error {
+	if err := r.st.Writable("link " + link); err != nil {
+		return err
+	}
+	return r.FS.Symlink(target, link)
+}
+
 func (r readOnlyFS) MkdirTemp(dir, pattern string) (string, error) {
 	if err := r.st.Writable("create a temp dir"); err != nil {
 		return "", err

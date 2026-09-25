@@ -102,6 +102,18 @@ func (FS) Create(name string, perm fs.FileMode) (io.WriteCloser, error) {
 	return f, err
 }
 
+func (FS) Symlink(target, link string) error {
+	if fi, err := os.Lstat(link); err == nil {
+		if fi.IsDir() {
+			return &fs.PathError{Op: "symlink", Path: link, Err: syscall.EISDIR}
+		}
+		if err := os.Remove(link); err != nil {
+			return err
+		}
+	}
+	return os.Symlink(target, link)
+}
+
 func (FS) Open(name string) (io.ReadCloser, error) { return os.Open(name) } // #nosec G304 -- paths come from the state root or the operator
 
 func (FS) MkdirTemp(dir, pattern string) (string, error) {

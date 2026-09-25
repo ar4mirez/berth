@@ -323,3 +323,26 @@ func TestMkdirTemp(t *testing.T) {
 		t.Errorf("RemoveAll of a missing dir: %v", err)
 	}
 }
+
+func TestSymlink(t *testing.T) {
+	dir := t.TempDir()
+	link := filepath.Join(dir, "l")
+	for _, target := range []string{"/first", "/second"} { // the second replaces the first
+		if err := (FS{}).Symlink(target, link); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := os.Readlink(link); got != target {
+			t.Errorf("link -> %q, want %q", got, target)
+		}
+	}
+	f := filepath.Join(dir, "f")
+	if err := os.WriteFile(f, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := (FS{}).Symlink("/t", f); err != nil {
+		t.Errorf("replacing a file: %v", err)
+	}
+	if err := (FS{}).Symlink("/t", t.TempDir()); err == nil {
+		t.Error("replacing a directory must fail")
+	}
+}
