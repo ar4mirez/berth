@@ -66,7 +66,7 @@ var writing = [][]string{
 
 // writesAnyOrg write, so --read-only refuses them, but act on either tool's orgs (a backup doesn't
 // change the org).
-var writesAnyOrg = [][]string{{"backup", "acme"}, {"backup", "--all"}, {"keygen"}}
+var writesAnyOrg = [][]string{{"backup", "acme"}, {"backup", "--all"}, {"keygen"}, {"schedule"}, {"schedule", "run"}, {"schedule", "off"}, {"schedule", "status", "off"}}
 
 // TestBerthRefusesLegacyOrgs: berth's writing commands refuse an org it doesn't own (no MANAGER,
 // or MANAGER=ccenv), before touching anything: no tool calls, no file changes.

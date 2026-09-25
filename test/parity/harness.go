@@ -130,7 +130,8 @@ func Legacy(repoRoot string) Tool {
 		Name:    "ccenv",
 		Command: func(_ string, args []string) []string { return append([]string{filepath.Join(dir, "ccenv")}, args...) },
 		Env: func(run string) []string {
-			return []string{"CCENV_ORGS=" + filepath.Join(run, "state", "orgs"), "CCENV_BACKUP_DIR=" + filepath.Join(run, "state", "backups")}
+			return []string{"CCENV_ORGS=" + filepath.Join(run, "state", "orgs"), "CCENV_BACKUP_DIR=" + filepath.Join(run, "state", "backups"),
+				"PARITY_SCHEDULE=ccenv-backup"}
 		},
 		Replace: [][2]string{{filepath.Join(dir, "ccenv"), "<SELF>"}, {dir, "<ROOT>"}},
 	}
@@ -146,6 +147,14 @@ const managerLine = "MANAGER=berth\n"
 func Berth(bin string) Tool {
 	t := BerthUnowned(bin)
 	t.Prepare = func(run string) error {
+		// A fixture's ccenv-backup unit files are berth-backup ones on this side (mapped back when
+		// comparing).
+		units := filepath.Join(run, "home", ".config", "systemd", "user")
+		for _, ext := range []string{".timer", ".service"} {
+			if err := os.Rename(filepath.Join(units, "ccenv-backup"+ext), filepath.Join(units, "berth-backup"+ext)); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
 		return filepath.WalkDir(filepath.Join(run, "state"), func(p string, d fs.DirEntry, err error) error {
 			if err != nil || d.Name() != "org.env" || !d.Type().IsRegular() {
 				return err
@@ -169,6 +178,11 @@ func Berth(bin string) Tool {
 	// the real values.
 	t.Replace = append(t.Replace, [2]string{"<RUN>/state/berth/compose.yml", "<ROOT>/compose.yml"},
 		[2]string{"<RUN>/state/berth/image", "<ROOT>/image"}, [2]string{"<RUN>/state/compose.yml", "<ROOT>/compose.yml"})
+	// The backup schedule is berth's own (plan, decision 8): unit and crontab marker berth-backup, and
+	// a job that names the state root. Map those onto ccenv's; TestBerthScheduleNames checks the
+	// real values.
+	t.Replace = append(t.Replace, [2]string{"<SELF> --home <RUN>/state ", "<SELF> "}, [2]string{"berth-backup", "ccenv-backup"},
+		[2]string{"Description=berth: ", "Description=ccenv: "}, [2]string{"BERTH_BACKUP_RECIPIENTS=", "CCENV_BACKUP_RECIPIENTS="})
 	t.SkipTree = func(rel string) bool { return rel == "state/berth" || strings.HasPrefix(rel, "state/berth/") }
 	t.Calls = func(c string) string {
 		c = berthEnv.ReplaceAllString(c, "")
@@ -189,7 +203,7 @@ func BerthUnowned(bin string) Tool {
 		Command: func(run string, args []string) []string {
 			return append([]string{bin, "--home", filepath.Join(run, "state")}, args...)
 		},
-		Env:     func(string) []string { return nil },
+		Env:     func(string) []string { return []string{"PARITY_SCHEDULE=berth-backup"} },
 		Replace: [][2]string{{bin, "<SELF>"}},
 	}
 }
@@ -394,7 +408,7 @@ func readCalls(logFile string, n func(string) string) ([]string, error) {
 	return out, nil
 }
 
-// snapshot lists every entry under run: path, type, mode, and content (or its hash, if large or
+// snapshot lists every entry under run (paths normalized, sorted): path, type, mode, and content (or its hash, if large or
 // binary). Files in random must match their regexp instead of being compared.
 func snapshot(run string, random map[string]string, n func(string) string, content func(rel, c string) string, skip func(string) bool) ([]string, error) {
 	var out []string
@@ -423,9 +437,9 @@ func snapshot(run string, random map[string]string, n func(string) string, conte
 			if err != nil {
 				return err
 			}
-			out = append(out, fmt.Sprintf("%s -> %s", rel, n(target)))
+			out = append(out, fmt.Sprintf("%s -> %s", n(rel), n(target)))
 		case d.IsDir():
-			out = append(out, fmt.Sprintf("%s/ %s", rel, mode))
+			out = append(out, fmt.Sprintf("%s/ %s", n(rel), mode))
 		default:
 			b, err := os.ReadFile(p)
 			if err != nil {
@@ -434,10 +448,11 @@ func snapshot(run string, random map[string]string, n func(string) string, conte
 			if content != nil {
 				b = []byte(content(rel, string(b)))
 			}
-			out = append(out, fmt.Sprintf("%s %s %s", rel, mode, describe(rel, b, random, n)))
+			out = append(out, fmt.Sprintf("%s %s %s", n(rel), mode, describe(rel, b, random, n)))
 		}
 		return nil
 	})
+	sort.Strings(out) // paths are normalized, so sort again: a renamed file keeps its place
 	return out, err
 }
 

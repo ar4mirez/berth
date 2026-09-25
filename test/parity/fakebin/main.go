@@ -107,8 +107,10 @@ func run(bin string, args []string) (int, error) {
 				return 0, err
 			}
 		}
-		_, _ = io.WriteString(os.Stdout, rule.Stdout)
-		_, _ = io.WriteString(os.Stderr, rule.Stderr)
+		// <SCHEDULE> is the tool's backup schedule name (ccenv-backup, berth-backup).
+		sched := strings.NewReplacer("<SCHEDULE>", os.Getenv("PARITY_SCHEDULE"))
+		_, _ = io.WriteString(os.Stdout, sched.Replace(rule.Stdout))
+		_, _ = io.WriteString(os.Stderr, sched.Replace(rule.Stderr))
 		return rule.Exit, nil
 	}
 	return builtin(bin, args)
