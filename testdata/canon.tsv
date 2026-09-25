@@ -1,0 +1,131 @@
+# Canonical repo form: docs/repo-policy.md. internal/repopolicy/canon_test.go runs every row through
+# image/repo-policy.sh (bash), image/repo-guard.js (node) and internal/repopolicy (Go); all three
+# must give the expected column.
+#
+# Columns (tab-separated): input, host argument, expected.
+#   - in the host column means no host argument; in the expected column, "rejected" (no canonical form).
+#   A cell starting with " is a Go string literal ("a\tb", "café"), for characters a TSV can't hold.
+
+# --- bare paths, default host
+acme/app	-	github.com/acme/app
+Acme/App	-	github.com/acme/app
+acme/app.git	-	github.com/acme/app
+acme/app.GIT	-	github.com/acme/app
+acme/app.git.git	-	github.com/acme/app
+/acme/app/	-	github.com/acme/app
+//acme//app//	-	github.com/acme/app
+acme	-	github.com/acme
+acme/sub/app	-	github.com/acme/sub/app
+acme/.git	-	github.com/acme/.git
+acme/..git	-	-
+acme/../app	-	-
+acme/./app	-	-
+..	-	-
+/	-	-
+acme/~user	-	github.com/acme/~user
+acme/my_app-1.x	-	github.com/acme/my_app-1.x
+a.b	-	github.com/a.b
+# a dotted first segment is the host, so canonical forms are stable
+github.com/acme/app	-	github.com/acme/app
+GitLab.COM/Group/Repo.git	-	gitlab.com/group/repo
+gitlab.com/group/sub/repo	-	gitlab.com/group/sub/repo
+192.0.2.10/acme/app	-	192.0.2.10/acme/app
+github.com/acme	-	github.com/acme
+bad_host.example/acme/app	-	-
+
+# --- bare paths with a host argument (the git guard's upload-pack path)
+/acme/app.git	github.com	github.com/acme/app
+acme/app	GitHub.com	github.com/acme/app
+'acme/app'	github.com	-
+~user/repo	git.example	git.example/~user/repo
+my.group/repo	gitlab.com	gitlab.com/my.group/repo
+/acme/app	bad_host	-
+/acme/app	-github.com	-
+/acme/app	"bad host"	-
+/	github.com	-
+
+# --- scp-like
+git@github.com:acme/app.git	-	github.com/acme/app
+git@github.com:/acme/app.git	-	github.com/acme/app
+GIT@GITHUB.COM:ACME/APP.GIT	-	github.com/acme/app
+deploy@git.example:team/app	-	git.example/team/app
+github.com:acme/app	-	github.com/acme/app
+a@b@git.example:o/r	-	git.example/o/r
+git@github.com:acme/app	gitlab.com	github.com/acme/app
+git@github.com:22/acme/app	-	github.com/22/acme/app
+:acme/app	-	-
+git@:acme/app	-	-
+git@github.com:	-	-
+git@github.com:acme:app	-	-
+git@[::1]:acme/app	-	-
+ext::sh	-	-
+
+# --- URLs
+ssh://git@github.com/acme/app.git	-	github.com/acme/app
+ssh://git@github.com:22/acme/app.git/	-	github.com/acme/app
+ssh://github.com:022/acme/app	-	github.com/acme/app
+git+ssh://git@github.com/acme/app	-	github.com/acme/app
+ssh+git://git@github.com/acme/app	-	github.com/acme/app
+SSH://GitHub.com/Acme/App	-	github.com/acme/app
+https://github.com/acme/app	-	github.com/acme/app
+https://github.com/acme/app.git	-	github.com/acme/app
+https://github.com:443/acme/app	-	github.com/acme/app
+http://git.example:80/team/app	-	git.example/team/app
+https://user:tok@gitlab.com/group/sub/repo	-	gitlab.com/group/sub/repo
+https://a@b@github.com/acme/app	-	github.com/acme/app
+https://evil.example@github.com/acme/app	-	github.com/acme/app
+https://github.com/acme/app	gitlab.com	github.com/acme/app
+https://192.0.2.10/acme/app	-	192.0.2.10/acme/app
+# ports: only the scheme's default
+ssh://github.com:2222/acme/app	-	-
+ssh://github.com:443/acme/app	-	-
+https://github.com:8443/acme/app	-	-
+http://git.example:443/team/app	-	-
+ssh://github.com:/acme/app	-	-
+ssh://github.com:+22/acme/app	-	-
+ssh://github.com:000022/acme/app	-	-
+ssh://github.com:99999999999999999999022/acme/app	-	-
+# userinfo ends at the first /: an @ after it is in the path, which is invalid
+https://github.com/x@github.com/acme/app	-	-
+https://github.com/acme/app@v1	-	-
+# malformed or unsupported
+https://github.com	-	-
+https://github.com/	-	-
+https:///acme/app	-	-
+https://user@/acme/app	-	-
+https://github.com/acme/app?tab=readme	-	-
+https://github.com/acme/app#readme	-	-
+https://[::1]/acme/app	-	-
+https://github.com./acme/app	-	-
+https://-github.com/acme/app	-	-
+https://git_hub.com/acme/app	-	-
+https://github..com/acme/app	-	-
+git://github.com/acme/app	-	-
+file:///srv/git/app	-	-
+ftp://git.example/acme/app	-	-
+://github.com/acme/app	-	-
+# one slash: git reads it as scp-like with host "ssh", which has no dot
+ssh:/github.com/acme/app	-	-
+# hosts need a dot (FQDN or IPv4): the git guard runs ssh with -F /dev/null, so aliases never resolve
+git@localhost:acme/app	-	-
+/acme/app	gitserver	-
+https://gitserver/acme/app	-	-
+
+# --- characters: printable ASCII only, ASCII-only lowercasing
+""	-	-
+""	github.com	-
+"acme/app "	-	-
+" acme/app"	-	-
+"acme\tapp"	-	-
+"acme/app\n"	-	-
+"acme/app\r"	-	-
+"acme/app\x7f"	-	-
+"acme/Kapp"	-	-
+acme/kapp	-	github.com/acme/kapp
+"acme/café"	-	-
+"İstanbul/app"	-	-
+acme/app+x	-	-
+acme/app%20x	-	-
+acme/[app]	-	-
+acme/app*	-	-
+acme\app	-	-

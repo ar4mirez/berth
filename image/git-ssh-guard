@@ -30,7 +30,10 @@ host="${BASH_REMATCH[2]}"
 path="${BASH_REMATCH[2]}"
 [[ "$path" != *..* ]] || deny "bad repo path"
 
+# Registered repos mean port 22 (docs/repo-policy.md): another port on the same name may be another server.
+[ -z "$port" ] || [ "$((10#$port))" -eq 22 ] || deny "ssh port $port is not allowed (registered repos use port 22)"
 canon=$(repo_canon "$path" "$host")
+[ -n "$canon" ] || deny "bad repo path"
 if ! repo_allowed_canon "$canon"; then
   deny "$canon is not in the allowed repo list for '$ORG'.
   Only repos set up with ccenv may be used here. Ask the user to run on the host:
