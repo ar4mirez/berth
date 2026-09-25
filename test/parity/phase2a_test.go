@@ -54,6 +54,7 @@ func init() {
 var writing = [][]string{
 	{"down", "acme"}, {"restart", "acme"}, {"attach", "acme"}, {"shell", "acme"},
 	{"claude", "acme", "--resume"}, {"run", "acme", "hi"}, {"up", "acme"},
+	{"fw", "acme", "allow", "x.example"}, {"fw", "acme", "deny", "pypi.org"}, {"fw", "acme", "off"}, {"fw", "acme", "reload"},
 	{"token", "acme", "--paste"}, {"auth", "acme"}, {"login", "acme"}, {"logout", "acme", "--all"}, {"gh-login", "acme"},
 	// Writing subcommands of reading commands check for themselves.
 	{"password", "acme", "rotate"}, {"env", "acme", "set", "X_KEY"}, {"env", "acme", "unset", "X_KEY"}, {"remote", "acme", "restart"},

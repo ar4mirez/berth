@@ -80,3 +80,16 @@ func completionCmd(root *cobra.Command) *cobra.Command {
 		},
 	})
 }
+
+// completeFw: the org, then the subcommand, then (for allow) the presets, as ccenv's completion.
+func completeFw(cmd *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	switch {
+	case len(args) == 0:
+		return completionOrgs(cmd), cobra.ShellCompDirectiveNoFileComp
+	case len(args) == 1:
+		return []string{"show", "allow", "deny", "on", "off", "edit", "reload", "presets", "test"}, cobra.ShellCompDirectiveNoFileComp
+	case args[1] == "allow" || args[1] == "add":
+		return app.FwPresets, cobra.ShellCompDirectiveNoFileComp
+	}
+	return nil, cobra.ShellCompDirectiveNoFileComp
+}

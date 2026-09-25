@@ -142,8 +142,9 @@ func addCommands(root *cobra.Command) {
 			RunE:              func(cmd *cobra.Command, args []string) error { return appFor(cmd).Logs(cmd.Context(), arg(args, 0)) },
 		}),
 		reads(&cobra.Command{
-			Use: "fw <org> [show|presets]", Short: "show the egress allowlist, or the presets", Args: cobra.ArbitraryArgs,
-			ValidArgsFunction: completeArgs(orgArg, []string{"show", "presets"}),
+			Use: "fw <org> [show|allow|deny|on|off|edit|reload|presets|test] [entries...]", Short: "the egress allowlist (changes apply live)",
+			DisableFlagParsing: true, // entries are positional, as in ccenv
+			ValidArgsFunction:  completeFw,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if len(args) == 0 {
 					return appFor(cmd).Fw(cmd.Context(), "", nil)

@@ -117,6 +117,31 @@ func hasScenario(name string) bool {
 // readCommands only read berth's state, so they must behave the same under --read-only.
 var readCommands = map[string]bool{"ls": true, "info": true, "whoami": true, "logs": true, "fw": true, "repo": true}
 
+// writingSubs are the subcommands of those commands that write (refused under --read-only).
+var writingSubs = map[string]map[string]bool{
+	"fw":   {"allow": true, "add": true, "deny": true, "remove": true, "rm": true, "on": true, "off": true, "edit": true, "reload": true},
+	"repo": {"add": true, "new": true, "create": true, "publish": true, "rm": true, "remove": true, "adopt": true, "sync": true, "policy": true},
+}
+
+// readsOnly reports whether a scenario's command line only reads.
+func readsOnly(args []string) bool {
+	if len(args) == 0 || !readCommands[args[0]] {
+		return false
+	}
+	sub := ""
+	switch args[0] {
+	case "fw":
+		if len(args) > 2 {
+			sub = args[2] // fw <org> <sub>
+		}
+	case "repo":
+		if len(args) > 1 {
+			sub = args[1] // repo <sub> <org>
+		}
+	}
+	return !writingSubs[args[0]][sub]
+}
+
 // readOnlySkipsWrites are scenarios where legacy creates files as a side effect of a read (compose's
 // bind-mount dirs, fw's template), which berth skips under --read-only.
 var readOnlySkipsWrites = map[string]bool{
@@ -133,7 +158,7 @@ func TestParityReadOnly(t *testing.T) {
 		return append([]string{argv[0], "--read-only"}, argv[1:]...)
 	}
 	for _, sc := range scenarios {
-		if !ported[sc.Name] || len(sc.Args) == 0 || !readCommands[sc.Args[0]] {
+		if !ported[sc.Name] || !readsOnly(sc.Args) {
 			continue // writing commands are refused under --read-only: TestReadOnlyRefusesWritingCommands
 		}
 		t.Run(sc.Name, func(t *testing.T) {
