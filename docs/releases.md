@@ -57,3 +57,8 @@ Steps 1 and 2 together cover every archive. `docs/host-install.md` puts them in 
 
 Pull requests that change `.goreleaser.yaml` or the release workflow run the same pipeline as a dry run. It builds,
 signs and verifies, and publishes nothing. `gh workflow run release` runs the dry run by hand.
+
+## Releases that change the image
+
+A release whose image changed reaches each org only at that org's next restart. `docs/image-update.md` rolls one out:
+one org at a time, each restart approved, verified and undoable. Its release notes list the image changes.

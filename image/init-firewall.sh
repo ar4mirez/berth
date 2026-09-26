@@ -48,6 +48,37 @@ if [ -f "$CONF" ]; then
   done < "$CONF"
 fi
 
+# --- DNS-time allowlisting (#1) ---------------------------------------------------------------
+# dnsmasq, on 127.0.0.1, becomes the container's only resolver. For an allowlisted name (and its
+# subdomains) it adds each answer's IPs to the "allowed-dns" set before returning the answer, so a
+# connection that follows a lookup is never blocked by an IP the one-shot resolution below didn't
+# see (rotating pools, CDNs). Its upstream is the resolver Docker gave the container (127.0.0.11 on
+# a compose network), saved once per container; DNS to anywhere else is blocked below.
+UPSTREAM=/run/resolv.conf.upstream
+[ -f "$UPSTREAM" ] || cp /etc/resolv.conf "$UPSTREAM"
+dns_setup() {  # dns_setup <domain>...: (re)start dnsmasq for these names, point resolv.conf at it
+  local conf=/run/berth-dnsmasq.conf new=/run/berth-dnsmasq.conf.new ns doms=""
+  ipset create -exist allowed-dns hash:ip timeout 3600
+  {
+    echo "listen-address=127.0.0.1"; echo "bind-interfaces"; echo "no-resolv"; echo "cache-size=1000"
+    for ns in $(awk '/^nameserver/ {print $2}' "$UPSTREAM"); do echo "server=$ns"; done
+    for e in "$@"; do doms+="/$e"; done
+    [ -n "$doms" ] && echo "ipset=$doms/allowed-dns"
+  } > "$new"
+  # Restart only when the names changed or it isn't running: the 5-minute refresh keeps its cache.
+  if cmp -s "$new" "$conf" && [ -f /run/dnsmasq.pid ] && kill -0 "$(cat /run/dnsmasq.pid)" 2>/dev/null; then
+    rm -f "$new"
+  else
+    mv "$new" "$conf"
+    if [ -f /run/dnsmasq.pid ]; then kill "$(cat /run/dnsmasq.pid)" 2>/dev/null || true; sleep 0.2; fi
+    dnsmasq --conf-file="$conf" --pid-file=/run/dnsmasq.pid --user=root
+  fi
+  { echo "nameserver 127.0.0.1"; grep -E '^(search|options)' "$UPSTREAM" || true; } > /etc/resolv.conf
+}
+domains=()
+for e in $entries; do [[ "$e" =~ ^[0-9]+(\.[0-9]+){3}(/[0-9]+)?$ ]] || domains+=("$e"); done
+dns_setup "${domains[@]}"
+
 iptables -N CLAUDE-EGRESS 2>/dev/null || true
 iptables -C OUTPUT -j CLAUDE-EGRESS 2>/dev/null || iptables -I OUTPUT 1 -j CLAUDE-EGRESS
 
@@ -80,11 +111,19 @@ ipset swap allowed-new allowed && ipset destroy allowed-new
 iptables -F CLAUDE-EGRESS
 iptables -A CLAUDE-EGRESS -o lo -j ACCEPT
 iptables -A CLAUDE-EGRESS -m state --state ESTABLISHED,RELATED -j ACCEPT
-iptables -A CLAUDE-EGRESS -p udp --dport 53 -j ACCEPT
-iptables -A CLAUDE-EGRESS -p tcp --dport 53 -j ACCEPT
+# DNS goes to dnsmasq (loopback, accepted above), which asks the upstream Docker gave the
+# container. Only that upstream is reachable on port 53 when it isn't loopback: no DNS to arbitrary
+# resolvers, which also closes DNS-based exfiltration.
+for ns in $(awk '/^nameserver/ {print $2}' "$UPSTREAM"); do
+  case "$ns" in 127.*) ;; *[!0-9.]*) ;; *)
+    iptables -A CLAUDE-EGRESS -d "$ns" -p udp --dport 53 -j ACCEPT
+    iptables -A CLAUDE-EGRESS -d "$ns" -p tcp --dport 53 -j ACCEPT ;;
+  esac
+done
 subnet=$(ip -4 route | awk '!/default/ && /proto kernel/ {print $1; exit}')
 [ -n "$subnet" ] && iptables -A CLAUDE-EGRESS -d "$subnet" -j ACCEPT
 iptables -A CLAUDE-EGRESS -m set --match-set allowed dst -j ACCEPT
+iptables -A CLAUDE-EGRESS -m set --match-set allowed-dns dst -j ACCEPT
 iptables -A CLAUDE-EGRESS -j REJECT --reject-with icmp-admin-prohibited
 ip6tables -P OUTPUT DROP 2>/dev/null || true
 ip6tables -C OUTPUT -o lo -j ACCEPT 2>/dev/null || ip6tables -A OUTPUT -o lo -j ACCEPT 2>/dev/null || true
