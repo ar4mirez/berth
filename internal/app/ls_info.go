@@ -4,38 +4,80 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strconv"
+
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // Ls is `ccenv ls`: every org dir with an org.env, whatever its MANAGER.
 func (a *App) Ls(ctx context.Context) error {
+	rows := a.orgRows(ctx)
+	if a.Output == OutputJSON {
+		out := ops.Orgs{Schema: "berth.orgs/v1", Orgs: []ops.OrgStatus{}}
+		for _, r := range rows {
+			out.Orgs = append(out.Orgs, r.OrgStatus)
+		}
+		return a.writeJSON(out)
+	}
 	fmt.Fprintf(a.Stdout, "%-14s %-6s %-6s %-6s %-8s %s\n", "ORG", "STATE", "SSH", "TTYD", "TOKEN", "REMOTE")
+	for _, r := range rows {
+		token := "MISSING"
+		if r.Token {
+			token = "set"
+		}
+		fmt.Fprintf(a.Stdout, "%-14s %-6s %-6s %-6s %-8s %s\n", r.Name, r.State, r.ssh, r.ttyd, token, r.Remote)
+	}
+	return nil
+}
+
+// orgRow is an org's status, plus the raw port values the text table prints as they are.
+type orgRow struct {
+	ops.OrgStatus
+	ssh, ttyd string
+}
+
+// orgRows is ls's data: every dir with an org.env, in byte order, with the same checks (and the
+// same docker calls, in the same order) as ccenv's cmd_ls.
+func (a *App) orgRows(ctx context.Context) []orgRow {
+	var rows []orgRow
 	for _, o := range a.orgDirs() {
 		if !a.isFile(a.Orgs.EnvPath(o)) {
 			continue
 		}
-		r, s := "-", "down"
+		r := orgRow{OrgStatus: ops.OrgStatus{Name: o, Manager: "ccenv", State: "down", Remote: "-"}}
+		if m := a.env(o, "MANAGER"); m != "" {
+			r.Manager = m
+		}
 		if a.running(ctx, o) {
-			s = "up"
+			r.State = "up"
 			switch {
 			case a.env(o, "REMOTE_CONTROL") == "0":
-				r = "off"
+				r.Remote = "off"
 			case !a.rcLoggedIn(ctx, o):
-				r = "login-needed"
+				r.Remote = "login-needed"
 			case a.rcRunning(ctx, o):
-				r = "on"
+				r.Remote = "on"
 			case a.rcBlocked(ctx, o):
-				r = "blocked-by-org"
+				r.Remote = "blocked-by-org"
 			default:
-				r = "restarting"
+				r.Remote = "restarting"
 			}
 		}
-		token := "MISSING"
-		if a.env(o, "CLAUDE_CODE_OAUTH_TOKEN")+a.env(o, "ANTHROPIC_API_KEY") != "" {
-			token = "set"
-		}
-		fmt.Fprintf(a.Stdout, "%-14s %-6s %-6s %-6s %-8s %s\n", o, s, a.env(o, "SSH_PORT"), a.env(o, "TTYD_PORT"), token, r)
+		r.Token = a.env(o, "CLAUDE_CODE_OAUTH_TOKEN")+a.env(o, "ANTHROPIC_API_KEY") != ""
+		r.ssh, r.ttyd = a.env(o, "SSH_PORT"), a.env(o, "TTYD_PORT")
+		r.SSHPort, r.TTYDPort = portOf(r.ssh), portOf(r.ttyd)
+		rows = append(rows, r)
 	}
-	return nil
+	return rows
+}
+
+// portOf is a port value as a number, or nil if it isn't one.
+func portOf(v string) *int {
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 || n > 65535 {
+		return nil
+	}
+	return &n
 }
 
 // Info is `ccenv info <org>`: every way to connect.

@@ -33,6 +33,8 @@ type App struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Getenv func(string) string
+	// Output is OutputText (the default, ccenv's) or OutputJSON, for operations that return data.
+	Output string
 	// Self is the berth binary itself (symlinks resolved): what install links to.
 	Self string
 	// Invoked is the path berth was run as, symlinks kept (~/.local/bin/berth): what the scheduled

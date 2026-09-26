@@ -15,6 +15,7 @@ import (
 
 	"github.com/ar4mirez/berth/internal/contract"
 	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // writable is the check a writing subcommand of a reading command makes: not under --read-only,
@@ -125,6 +126,13 @@ func (a *App) Env(ctx context.Context, args []string) error {
 	}
 	switch sub {
 	case "ls", "list":
+		if a.Output == OutputJSON {
+			out := ops.Env{Schema: "berth.env/v1", Org: o, Vars: []ops.EnvVar{}}
+			for _, k := range strings.Fields(keys) {
+				out.Vars = append(out.Vars, ops.EnvVar{Name: k, Present: hasLine(k)})
+			}
+			return a.writeJSON(out)
+		}
 		if keys == "" {
 			fmt.Fprintf(a.Stdout, "(no custom variables; add one: %s env %s set KEY)\n", Tool, o)
 			return nil

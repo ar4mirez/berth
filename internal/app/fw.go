@@ -9,6 +9,7 @@ import (
 
 	"github.com/ar4mirez/berth/internal/contract"
 	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // firewallTemplate is ccenv's write_firewall_template.
@@ -74,6 +75,23 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 	}
 	switch sub {
 	case "show":
+		if a.Output == OutputJSON {
+			// The same data as the text, but no entries isn't an error here, just an empty list.
+			out := ops.Firewall{Schema: "berth.firewall/v1", Org: o, File: f, Entries: []string{}}
+			for _, l := range fileLines(content) {
+				if t := strings.TrimLeft(l, " \t\n\v\f\r"); t != "" && !strings.HasPrefix(t, "#") {
+					out.Entries = append(out.Entries, l)
+				}
+			}
+			if a.running(ctx, o) {
+				live, err := a.capture(ctx, true, "docker", "exec", "claude-"+o, "cat", contract.FirewallStatus)
+				if err != nil {
+					live = "unknown"
+				}
+				out.Live = &live
+			}
+			return a.writeJSON(out)
+		}
 		fmt.Fprintln(a.Stdout, f)
 		// grep -vE '^\s*(#|$)' "$f" | sed 's/^/  /': under pipefail and set -e, a file with no
 		// entries (grep selects nothing, exit 1) ends the command here with exit 1.
