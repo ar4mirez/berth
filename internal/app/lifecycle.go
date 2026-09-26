@@ -90,7 +90,7 @@ func (a *App) Claude(ctx context.Context, o string, args []string) error {
 	if err := a.interactive(ctx, o); err != nil {
 		return err
 	}
-	return a.execIn(ctx, true, []string{"-it", "-u", "node", "-w", "/workspace"}, o, append([]string{"claude"}, args...)...)
+	return a.execIn(ctx, true, []string{"-it", "-u", "node", "-w", "/workspace"}, o, a.execLoader(o, append([]string{"claude"}, args...)...)...)
 }
 
 // Run is `ccenv run <org> "<prompt>" [args...]`: headless claude -p, stdin passed (docker exec -i).
@@ -101,7 +101,7 @@ func (a *App) Run(ctx context.Context, o string, args []string) error {
 	if len(args) == 0 {
 		return errors.New("missing prompt")
 	}
-	return a.execIn(ctx, false, []string{"-i", "-u", "node", "-w", "/workspace"}, o, append([]string{"claude", "-p", args[0]}, args[1:]...)...)
+	return a.execIn(ctx, false, []string{"-i", "-u", "node", "-w", "/workspace"}, o, a.execLoader(o, append([]string{"claude", "-p", args[0]}, args[1:]...)...)...)
 }
 
 // Up is `ccenv up <org>`: build if needed and recreate, then `sleep 3` and the last 5 lines of

@@ -8,6 +8,9 @@ as_node() { runuser -u node -- "$@"; }
 mkdir -p /etc/claude-env
 echo "$ORG" > /etc/claude-env/org
 
+# --- Secrets kept as files (#37): exported here, so every session below inherits them ---
+. /usr/local/lib/claude-env/secrets-env.sh
+
 # --- Firewall (re-applied every 5 min so CDN IP changes and edits are picked up) ---
 /usr/local/bin/init-firewall.sh apply
 ( while sleep 300; do /usr/local/bin/init-firewall.sh apply >/dev/null || true; done ) &

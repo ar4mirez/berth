@@ -361,7 +361,7 @@ func (a *App) repoNew(ctx context.Context, o, f string, entries []repopolicy.Ent
 		if err := a.needUp(ctx, o); err != nil {
 			return err
 		}
-		if a.passthrough(ctx, true, append([]string{"docker", "exec", "-u", "node", "claude-" + o, "gh"}, ghArgs...)...) != nil {
+		if a.passthrough(ctx, true, append([]string{"docker", "exec", "-u", "node", "claude-" + o}, a.execLoader(o, append([]string{"gh"}, ghArgs...)...)...)...) != nil {
 			return fmt.Errorf("couldn't create %s: no host gh, and the container's gh failed (%s gh-login %s?)", name, Tool, o)
 		}
 	}

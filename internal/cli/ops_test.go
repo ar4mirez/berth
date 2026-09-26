@@ -14,10 +14,13 @@ func TestCatalogCoversEveryCommand(t *testing.T) {
 	root := NewRoot()
 	seen := map[string]bool{}
 	for _, c := range root.Commands() {
-		if !c.Runnable() || c.Name() == "help" {
+		if c.Name() == "help" {
 			continue
 		}
 		seen[c.Name()] = true
+		if !c.Runnable() {
+			continue // a group (secrets): its subcommands declare access themselves
+		}
 		op, ok := ops.Catalog[c.Name()]
 		if !ok {
 			t.Errorf("%s: missing from ops.Catalog (declare whether it writes and whether it restarts)", c.Name())

@@ -63,7 +63,7 @@ func (a *App) orgRows(ctx context.Context) []orgRow {
 				r.Remote = "restarting"
 			}
 		}
-		r.Token = a.env(o, "CLAUDE_CODE_OAUTH_TOKEN")+a.env(o, "ANTHROPIC_API_KEY") != ""
+		r.Token = a.secret(o, "CLAUDE_CODE_OAUTH_TOKEN")+a.secret(o, "ANTHROPIC_API_KEY") != ""
 		r.ssh, r.ttyd = a.env(o, "SSH_PORT"), a.env(o, "TTYD_PORT")
 		r.SSHPort, r.TTYDPort = portOf(r.ssh), portOf(r.ttyd)
 		rows = append(rows, r)

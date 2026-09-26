@@ -35,7 +35,7 @@ func (a *App) Whoami(ctx context.Context, orgs []string) error {
 			}
 		}
 		token := "MISSING"
-		if a.env(o, "CLAUDE_CODE_OAUTH_TOKEN") != "" {
+		if a.secret(o, "CLAUDE_CODE_OAUTH_TOKEN") != "" {
 			token = "set"
 		}
 		fmt.Fprintf(a.Stdout, "%-12s %-7s %-14s %s\n", o, token, gh, st)

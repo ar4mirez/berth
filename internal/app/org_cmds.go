@@ -117,6 +117,9 @@ func (a *App) Env(ctx context.Context, args []string) error {
 	keys := a.env(o, contract.EnvKeys)
 	data, _ := a.Host.FS.ReadFile(f)
 	hasLine := func(k string) bool {
+		if a.migrated(o) && a.exists(path.Join(a.secretsDir(o), k)) {
+			return true // kept as a file (#37)
+		}
 		for _, l := range fileLines(data) {
 			if strings.HasPrefix(l, k+"=") {
 				return true
@@ -194,7 +197,7 @@ func (a *App) Env(ctx context.Context, args []string) error {
 		if err := relock(); err != nil {
 			return err
 		}
-		if err := a.Orgs.Set(o, key, "'"+val+"'"); err != nil {
+		if err := a.setSecret(o, key, val, "'"+val+"'"); err != nil {
 			return err
 		}
 		if !contains(key) {
@@ -217,6 +220,11 @@ func (a *App) Env(ctx context.Context, args []string) error {
 		}
 		if err := a.Host.FS.WriteFile(f, []byte(kept.String()), 0o600); err != nil {
 			return err
+		}
+		if a.migrated(o) { // and its file (#37)
+			if err := a.setSecret(o, key, "", ""); err != nil {
+				return err
+			}
 		}
 		var rest []string
 		for _, k := range listed {

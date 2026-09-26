@@ -34,6 +34,18 @@ jobs:
           check ttyd        "$(pin TTYD_VERSION)" "$(got 'ttyd --version')"
           check mise        "$(pin MISE_VERSION | sed 's/^v//')" "$(got 'mise --version')"
           docker image inspect berth-image-ci --format '{{index .Config.Labels "org.opencontainers.image.base.digest"}}' || true
+      - name: secrets as files (#37) are exported at start and never in docker inspect
+        run: |
+          set -euo pipefail
+          d=$(mktemp -d); mkdir -p "$d/secrets/env"
+          printf 'sk-ant-oat01-IMAGE-CHECK' > "$d/secrets/env/CLAUDE_CODE_OAUTH_TOKEN"
+          got=$(docker run --rm -v "$d:/config:ro" --entrypoint bash berth-image-ci \
+            -c '. /usr/local/lib/claude-env/secrets-env.sh; printf %s "$CLAUDE_CODE_OAUTH_TOKEN"')
+          [ "$got" = sk-ant-oat01-IMAGE-CHECK ] || { echo "not exported: $got" >&2; exit 1; }
+          cid=$(docker create -v "$d:/config:ro" berth-image-ci)
+          if docker inspect "$cid" | grep -q IMAGE-CHECK; then echo "the secret is in docker inspect" >&2; exit 1; fi
+          docker rm "$cid" >/dev/null
+          echo "ok: exported from the file, absent from docker inspect"
       - name: a download that doesn't match its checksum fails the build
         run: |
           if docker build --build-arg TTYD_SHA256_AMD64=0000000000000000000000000000000000000000000000000000000000000000 image/ >/tmp/tamper.log 2>&1; then

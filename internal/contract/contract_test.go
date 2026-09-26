@@ -27,6 +27,7 @@ func TestImageAndComposeAgree(t *testing.T) {
 	firewall := shipped(t, "image/init-firewall.sh")
 	policy := shipped(t, "image/repo-policy.sh")
 	guard := shipped(t, "image/repo-guard.js")
+	secretsEnv := shipped(t, "image/secrets-env.sh")
 
 	checks := []struct {
 		what, in, want string
@@ -51,6 +52,9 @@ func TestImageAndComposeAgree(t *testing.T) {
 		{"Remote Control log", entrypoint, `RC_LOG="$CFG/` + strings.TrimPrefix(RemoteControlLog, ClaudeDir+"/") + `"`},
 		{"Remote Control log dir", entrypoint, "CFG=" + ClaudeDir + "\n"},
 		{"custom env vars snapshot for SSH", entrypoint, "${" + EnvKeys + ":-}"},
+		{"secrets as files: the dir", secretsEnv, "for _f in " + SecretsEnv + "/*; do"},
+		{"secrets as files: loaded before the snapshot", entrypoint, ". /usr/local/lib/claude-env/secrets-env.sh\n"},
+		{"secrets as files: shipped", dockerfile, "secrets-env.sh /usr/local/lib/claude-env/"},
 	}
 	for _, c := range checks {
 		if !strings.Contains(c.in, c.want) {

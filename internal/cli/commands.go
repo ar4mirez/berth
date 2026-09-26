@@ -40,6 +40,22 @@ func invokedPath() string {
 	return abs
 }
 
+// secretsCmd is `berth secrets migrate <org> [--no-backup]` (#37).
+func secretsCmd() *cobra.Command {
+	c := &cobra.Command{Use: "secrets", Short: "where an org keeps its tokens and custom variables"}
+	c.AddCommand(writes(&cobra.Command{
+		Use:   "migrate <org> [--no-backup]",
+		Short: "move an org's tokens and custom variables out of org.env into files (backup first; restarts nothing)",
+		Long: "Moves the org's tokens (CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, GH_TOKEN) and its custom variables\n" +
+			"from org.env into one file each (0600) under the org's config/secrets/env, so docker inspect can't show\n" +
+			"them. A backup is taken first. Nothing restarts: the org's next restart takes the values from the files.",
+		DisableFlagParsing: true,
+		ValidArgsFunction:  completeArgs(orgArg),
+		RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).SecretsMigrate(cmd.Context(), args) },
+	}))
+	return c
+}
+
 // arg is ccenv's "${n:-}": the nth positional argument, or "". Like ccenv, extra arguments are
 // ignored (the commands take cobra.ArbitraryArgs).
 func arg(args []string, n int) string {
@@ -202,6 +218,7 @@ func addCommands(root *cobra.Command) {
 				return appFor(cmd).Handback(cmd.Context(), arg(args, 0))
 			},
 		}),
+		secretsCmd(),
 		// restore and migrate parse their own arguments, as ccenv does.
 		writes(&cobra.Command{
 			Use:   "restore <file|-> [--as name] [--identity|-i key] [--force] [--no-start] [--no-rehydrate]",
