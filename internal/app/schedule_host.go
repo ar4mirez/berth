@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -141,9 +142,13 @@ func (a *App) pushBerth(ctx context.Context, name string, h *host.Host, rhome st
 	if err := h.FS.WriteFileAtomic(dst, bin, 0o755); err != nil {
 		return err
 	}
-	out, err := remoteOut(ctx, h, dst, "--version")
+	var o, e bytes.Buffer
+	err = h.Exec.Run(ctx, host.Cmd{Args: []string{dst, "--version"}, Stdout: &o, Stderr: &e})
+	out := strings.TrimSpace(o.String())
 	if err != nil {
-		return fmt.Errorf("berth on %s doesn't run: %w", name, err)
+		// 127 from the shell for a file that is there: it can't be executed (another platform, or a
+		// binary linked against a C library the host lacks).
+		return fmt.Errorf("berth on %s (%s) doesn't run there: %w %s", name, dst, err, strings.TrimSpace(e.String()))
 	}
 	if !strings.Contains(out, " "+ver+" ") {
 		return fmt.Errorf("berth on %s doesn't run as %s (%q)", name, ver, out)
