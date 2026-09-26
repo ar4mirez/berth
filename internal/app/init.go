@@ -147,7 +147,7 @@ Next:
 // nothing at all if there are none or any of them can't be read.
 func (a *App) homePubKeys() []byte {
 	dir := path.Join(a.Getenv("HOME"), ".ssh")
-	entries, err := a.Host.FS.ReadDir(dir)
+	entries, err := a.Operator.FS.ReadDir(dir) // the operator's keys, wherever the org is
 	if err != nil {
 		return nil
 	}
@@ -160,7 +160,7 @@ func (a *App) homePubKeys() []byte {
 	sort.Strings(names)
 	var out []byte
 	for _, n := range names {
-		b, err := a.Host.FS.ReadFile(path.Join(dir, n))
+		b, err := a.Operator.FS.ReadFile(path.Join(dir, n))
 		if err != nil {
 			return nil
 		}

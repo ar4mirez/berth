@@ -26,13 +26,19 @@ const Tool = "berth"
 
 // App is one berth invocation: the state it runs against, the host holding it, and stdio.
 type App struct {
-	State  config.State
-	Host   *host.Host
-	Orgs   org.Orgs
-	Stdin  io.Reader
-	Stdout io.Writer
-	Stderr io.Writer
-	Getenv func(string) string
+	State config.State
+	// Host is the machine the org lives on: this one, or a registered host for org@host (#45).
+	Host *host.Host
+	// Operator is the machine berth runs on: the operator's own files (~/.ssh keys, berth's host
+	// registry) are read and written here, whichever host the org is on.
+	Operator *host.Host
+	// HostName is the registered host an org@host resolved to ("" for this machine).
+	HostName string
+	Orgs     org.Orgs
+	Stdin    io.Reader
+	Stdout   io.Writer
+	Stderr   io.Writer
+	Getenv   func(string) string
 	// Upgrader fetches and verifies releases for `berth upgrade` (nil: not available).
 	Upgrader *Upgrader
 	// Output is OutputText (the default, ccenv's) or OutputJSON, for operations that return data.
@@ -55,7 +61,7 @@ type App struct {
 func New(st config.State, h *host.Host, stdin io.Reader, stdout, stderr io.Writer, getenv func(string) string) *App {
 	h = host.Guard(h, st)
 	a := &App{
-		State: st, Host: h,
+		State: st, Host: h, Operator: h,
 		Orgs:  org.Orgs{FS: h.FS, Dir: path.Join(st.Home.Path, "orgs")},
 		Stdin: stdin, Stdout: stdout, Stderr: stderr, Getenv: getenv,
 	}

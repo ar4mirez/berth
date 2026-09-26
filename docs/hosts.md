@@ -4,8 +4,36 @@ berth keeps a registry of the machines it manages (#44). This machine is always 
 added with `berth host add` and reached over SSH: files through SFTP, commands through SSH sessions, and Docker
 through its socket (docs/plan.md, decision 2). A host needs only sshd, a POSIX shell, Docker and compose.
 
-This PR adds the registry itself. Pointing commands at a host (`berth up acme@box1`) comes with `org@host`
-addressing (#45). Until then, every org command still runs on this machine, as before.
+An org on a host is addressed as `org@host` (#45). A bare org name stays on this machine, exactly as before.
+
+## org@host
+
+```bash
+berth init acme@box1 --name "Ada" --email ada@example.com   # the org lives in box1's state root
+berth up acme@box1
+berth fw acme@box1 allow pypi.org
+berth repo add acme@box1 acme/widgets
+berth attach acme@box1                        # interactive commands go through your ssh binary (ssh -t)
+berth ls                                      # this machine's orgs, then each host's, with a HOST column
+```
+
+- **Where things run.** Everything the org needs runs on its host: its files (`org.env`, `firewall.txt`,
+  `repos.txt`, secrets), `docker compose`, the image (pulled, or built there), and the state lock.
+- **What stays on this machine.** Your own files are read here, whichever host the org is on: the SSH public keys `init`
+  authorizes into the org, and berth's host registry and keys. Prompts and pasted values come from your terminal.
+- **Addressing forms.**
+  - `acme@local` is the same as `acme`.
+  - An unknown host is refused before anything connects.
+  - `whoami` takes several orgs, all on one host.
+- **What `ls` shows.**
+  - `ls` lists every host's orgs and never hides one it can't reach: it says so on stderr, and
+    `--output json` lists it under `unreachable`.
+  - With no hosts registered, its output is exactly as before.
+- **Completion.** After an `@`, completion offers the registered hosts. It reads the registry and never connects.
+- **Not remote yet.** `backup`, `restore`, `migrate`, `secrets migrate` and `parity-check` refuse an
+  `org@host`, because they read your backup key or write your files. Host-side backups are #49, and moving orgs
+  between hosts is #50. `build`, `pull` and `schedule` act on this machine.
+- **`fw edit` on a host.** It opens the editor on that host, over `ssh -t`.
 
 ## Commands
 
