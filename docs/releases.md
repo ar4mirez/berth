@@ -27,7 +27,8 @@ v=v0.1.0                                   # the release you're installing
 gh release download "$v" -R ar4mirez/berth -D berth-"$v" && cd berth-"$v"
 
 # 1. The checksums were signed by berth's release workflow, at that tag.
-cosign verify-blob --bundle checksums.txt.sigstore.json \
+#    (v0.3.0 and later use the standard Sigstore bundle: add --new-bundle-format, as here.)
+cosign verify-blob --new-bundle-format --bundle checksums.txt.sigstore.json \
   --certificate-identity "https://github.com/ar4mirez/berth/.github/workflows/release.yml@refs/tags/$v" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
@@ -40,6 +41,31 @@ gh attestation verify berth_*_linux_amd64.tar.gz -R ar4mirez/berth
 ```
 
 Steps 1 and 2 together cover every archive. `docs/host-install.md` puts them in the install steps.
+
+## Upgrading
+
+From v0.3.0, berth upgrades itself:
+
+```bash
+berth upgrade                    # the latest release
+berth upgrade --version v0.4.0   # a given one
+berth upgrade --rollback         # back to the version before
+```
+
+What `berth upgrade` does:
+- **Verifies before installing.** It downloads the release for this platform, and checks the signature over
+  `checksums.txt` against Sigstore's trust root: the certificate must name berth's release workflow at that tag,
+  and the signature must be in the transparency log. It then checks the archive's checksum. **Nothing changes unless
+  both pass.**
+- **Installs next to the current version,** in `~/.local/opt/berth/<version>/`, and checks that the new binary runs
+  as that version.
+- **Switches the `berth` link to it,** using the new binary's own `install`, so the shell completion matches.
+- **Keeps the previous version** for `--rollback`.
+- **Never restarts a container.** It says whether the container image changes. If it does, each org picks the new
+  image up at its next restart: `docs/image-update.md`.
+
+berth does all this itself, with no cosign or gh needed on the host. Releases before v0.3.0 were signed in cosign's older
+bundle format; install those by hand.
 
 ## Cutting a release (maintainers)
 

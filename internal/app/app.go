@@ -33,6 +33,8 @@ type App struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Getenv func(string) string
+	// Upgrader fetches and verifies releases for `berth upgrade` (nil: not available).
+	Upgrader *Upgrader
 	// Output is OutputText (the default, ccenv's) or OutputJSON, for operations that return data.
 	Output string
 	// Self is the berth binary itself (symlinks resolved): what install links to.
