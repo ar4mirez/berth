@@ -1,0 +1,80 @@
+name: release
+
+# Publishes a signed release when a v* tag is pushed (docs/releases.md). Anything else is a dry run:
+# the same build and signing, then verification, with nothing published.
+# - pull requests that touch the release setup run the dry run, so it's proven before a tag;
+# - `gh workflow run release` runs it by hand.
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - .goreleaser.yaml
+      - .github/workflows/release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GOPROXY: https://proxy.golang.org
+  GOTOOLCHAIN: local
+  GOFLAGS: -mod=readonly
+  # What a berth release's cosign certificate must name: this workflow, run by GitHub Actions.
+  OIDC_ISSUER: https://token.actions.githubusercontent.com
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # create the release (tags only)
+      id-token: write      # keyless cosign signing, and the provenance attestations
+      attestations: write  # build provenance (tags only)
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4
+      - uses: sigstore/cosign-installer@v3
+
+      - name: build and sign (dry run, nothing published)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: goreleaser release --snapshot --clean
+      - name: build, sign and publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: goreleaser release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: verify, as a user would (docs/releases.md)
+        run: |
+          set -euo pipefail
+          cd dist
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}"
+          cosign verify-blob --bundle checksums.txt.sigstore.json \
+            --certificate-identity "$identity" --certificate-oidc-issuer "$OIDC_ISSUER" checksums.txt
+          sha256sum -c --ignore-missing checksums.txt
+
+          # Tampering must fail both checks.
+          cp checksums.txt /tmp/checksums.orig
+          echo "0000000000000000000000000000000000000000000000000000000000000000  berth_evil.tar.gz" >> checksums.txt
+          if cosign verify-blob --bundle checksums.txt.sigstore.json \
+              --certificate-identity "$identity" --certificate-oidc-issuer "$OIDC_ISSUER" checksums.txt 2>/dev/null; then
+            echo "a modified checksums.txt verified" >&2; exit 1
+          fi
+          cp /tmp/checksums.orig checksums.txt
+          archive=$(ls berth_*_linux_amd64.tar.gz)
+          cp "$archive" /tmp/archive.orig && echo tampered >> "$archive"
+          if sha256sum -c --ignore-missing --quiet checksums.txt 2>/dev/null; then
+            echo "a modified archive passed its checksum" >&2; exit 1
+          fi
+          cp /tmp/archive.orig "$archive"
+          echo "signature and checksums verified; tampering is caught"
+
+      - name: build provenance (SLSA) for the archives
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/checksums.txt

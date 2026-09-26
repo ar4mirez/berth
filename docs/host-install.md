@@ -38,10 +38,27 @@ LEGACY=~/Work/claude-envs     # the ccenv checkout that runs the live orgs
 
 ## Stage 1: install and check (read-only)
 
-### 1. Download a CI build of `main`, and verify it
+### 1. Download a build, and verify it
 
-berth is only installed from CI builds, never from a workspace build (plan, decision 8). Every `ci` run on `main`
-uploads checksummed linux/darwin archives, kept for 14 days.
+berth is only installed from CI builds, never from a workspace build (plan, decision 8).
+
+**From a release (preferred, once there is one).** Releases are signed, and don't expire:
+
+```bash
+v=v0.1.0; dl=$(mktemp -d)                                        # the release to install
+gh release download "$v" -R ar4mirez/berth -D "$dl"
+cosign verify-blob --bundle "$dl/checksums.txt.sigstore.json" \
+  --certificate-identity "https://github.com/ar4mirez/berth/.github/workflows/release.yml@refs/tags/$v" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com "$dl/checksums.txt"
+(cd "$dl" && sha256sum -c --ignore-missing checksums.txt)
+arch=$(uname -m); case $arch in x86_64) arch=amd64 ;; aarch64) arch=arm64 ;; esac
+tar -xzf "$dl"/berth_*_linux_"$arch".tar.gz -C "$dl" berth && "$dl"/berth --version
+```
+
+Then go on with step 2. `docs/releases.md` has more on verification.
+
+**From `main`**, for a change not released yet. Every `ci` run on `main` uploads checksummed linux/darwin archives,
+kept for 14 days:
 
 ```bash
 dl=$(mktemp -d)
