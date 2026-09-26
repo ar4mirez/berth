@@ -28,11 +28,28 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# Keyless cosign signature over checksums.txt (which covers every archive), as a Sigstore bundle.
+# In the release workflow the certificate names that workflow and its tag ref; docs/releases.md has
+# the verification commands.
+signs:
+  - id: checksums
+    cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--bundle=${signature}", "--yes", "${artifact}"]
+
 snapshot:
   version_template: "{{ incpatch .Version }}-snapshot+{{ .ShortCommit }}"
 
+# Release notes: GitHub's own, from the merged PRs since the last tag.
 changelog:
-  disable: true
+  use: github-native
 
+# Only the release workflow publishes (on a v* tag); CI builds snapshots.
 release:
-  disable: true
+  github:
+    owner: ar4mirez
+    name: berth
+  draft: false
+  prerelease: auto
+  mode: replace

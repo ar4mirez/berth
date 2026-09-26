@@ -34,4 +34,4 @@ reference.
 ## Commands
 - `go build ./... && go vet ./... && go test ./...`
 - `golangci-lint run`
-- `goreleaser release --snapshot --clean`
+- `goreleaser release --snapshot --clean --skip=sign` (releases are signed in `.github/workflows/release.yml`)
