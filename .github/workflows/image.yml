@@ -50,11 +50,12 @@ jobs:
         run: |
           set -euo pipefail
           remap='. /usr/local/lib/claude-env/uid-remap.sh; echo "node=$(id -u node):$(id -g node)"'
-          # Another user: node becomes 4321:4321, the image's own home files follow, and a file node
+          # Another user: node becomes 4321:4321, the image's own home files follow (not .claude, .mise,
+          # .config: bind mounts in an org, the host user's already), and a file node
           # creates in the bind-mounted /workspace is 4321's on the host.
           ws=$(mktemp -d); chmod 777 "$ws"
           out=$(docker run --rm -e HOST_UID=4321 -e HOST_GID=4321 -v "$ws:/workspace" --entrypoint bash berth-image-ci -c \
-            "$remap; runuser -u node -- touch /workspace/made-by-node; stat -c 'home=%u:%g' /home/node; find /home/node -xdev ! -user node | head -3")
+            "$remap; runuser -u node -- touch /workspace/made-by-node; stat -c 'home=%u:%g' /home/node; find /home/node -xdev \( -path /home/node/.claude -o -path /home/node/.mise -o -path /home/node/.config \) -prune -o ! -user node -print | head -3")
           echo "$out"
           grep -qx 'node=4321:4321' <<<"$out" && grep -qx 'home=4321:4321' <<<"$out"
           [ "$(grep -c '^/home/node' <<<"$out" || true)" = 0 ] || { echo "files under /home/node not remapped" >&2; exit 1; }
