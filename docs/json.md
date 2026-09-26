@@ -35,9 +35,11 @@ data (`JSON: true` in the catalog). The rest follow in #54.
       "ssh_port": 2201,
       "ttyd_port": 7701,
       "token": true,
-      "remote": "on"
+      "remote": "on",
+      "host": "local"
     }
-  ]
+  ],
+  "unreachable": []
 }
 ```
 
@@ -48,6 +50,8 @@ data (`JSON: true` in the catalog). The rest follow in #54.
 | `ssh_port`, `ttyd_port` | numbers, or `null` when `org.env` has no valid value |
 | `token` | whether a Claude token or API key is set |
 | `remote` | Remote Control: `-` (down), `off`, `login-needed`, `on`, `blocked-by-org` or `restarting` |
+| `host` | where the org is: `local`, or a registered host's name (docs/hosts.md). This machine's orgs come first. |
+| `unreachable` | the registered hosts whose orgs couldn't be listed: `{"host": "box1", "error": "…"}`. Always present, `[]` when none. |
 
 ## `berth.env/v1`: `env <org> ls`
 

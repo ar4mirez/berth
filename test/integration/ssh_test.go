@@ -51,8 +51,9 @@ func startSSHTarget(t *testing.T) *sshTarget {
 	mustDo(t, os.WriteFile(keyFile, pem.EncodeToMemory(block), 0o600))
 
 	docker(t, "build", "-q", "-t", img, "testdata/sshd")
-	_ = exec.Command("docker", "rm", "-f", name).Run()
-	docker(t, "run", "-d", "--privileged", "--name", name,
+	_ = exec.Command("docker", "rm", "-f", "-v", name).Run()
+	// /var/lib/docker on a volume: overlay2 can't sit on the container's own overlay filesystem.
+	docker(t, "run", "-d", "--privileged", "--name", name, "-v", "/var/lib/docker",
 		"-e", "AUTHORIZED_KEY="+strings.TrimSpace(string(gossh.MarshalAuthorizedKey(signer.PublicKey()))),
 		"-e", "DOCKER_TLS_CERTDIR=", "-p", "127.0.0.1::22", img)
 	t.Cleanup(func() {
@@ -62,7 +63,7 @@ func startSSHTarget(t *testing.T) *sshTarget {
 			out, _ = exec.Command("docker", "exec", name, "tail", "-n", "40", "/var/log/sshd.log").CombinedOutput()
 			t.Logf("sshd log:\n%s", out)
 		}
-		_ = exec.Command("docker", "rm", "-f", name).Run()
+		_ = exec.Command("docker", "rm", "-f", "-v", name).Run()
 	})
 
 	// Wait for the inner dockerd (sshd starts first, so it is up by then).

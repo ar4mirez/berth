@@ -7,6 +7,14 @@ package ops
 type Orgs struct {
 	Schema string      `json:"schema"` // "berth.orgs/v1"
 	Orgs   []OrgStatus `json:"orgs"`
+	// Unreachable are the registered hosts whose orgs couldn't be listed (#45).
+	Unreachable []HostError `json:"unreachable"`
+}
+
+// HostError is a host that couldn't be reached, and why.
+type HostError struct {
+	Host  string `json:"host"`
+	Error string `json:"error"`
 }
 
 // OrgStatus is one org in `ls`.
@@ -24,6 +32,8 @@ type OrgStatus struct {
 	// Remote is Remote Control's state: "-" (down), "off", "login-needed", "on", "blocked-by-org",
 	// or "restarting".
 	Remote string `json:"remote"`
+	// Host is where the org is: "local" or a registered host's name (#45).
+	Host string `json:"host"`
 }
 
 // Env is `berth env <org> ls --output json`: the custom variables' names, never their values.

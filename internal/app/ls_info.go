@@ -9,23 +9,48 @@ import (
 	"github.com/ar4mirez/berth/internal/ops"
 )
 
-// Ls is `ccenv ls`: every org dir with an org.env, whatever its MANAGER.
+// Ls is `ccenv ls`: every org dir with an org.env, whatever its MANAGER. With registered hosts
+// (#45), their orgs follow this machine's, with a HOST column; a host that can't be reached is
+// reported, never hidden. Without any, the output is ccenv's.
 func (a *App) Ls(ctx context.Context) error {
 	rows := a.orgRows(ctx)
+	others := a.otherHosts()
+	var unreachable []ops.HostError
+	for _, e := range others {
+		h, err := a.dialHost(ctx, e, e.Key)
+		if err != nil {
+			unreachable = append(unreachable, ops.HostError{Host: e.Name, Error: err.Error()})
+			continue
+		}
+		rows = append(rows, a.On(e.Name, h, e.Home).orgRows(ctx)...)
+		_ = h.Close()
+	}
 	if a.Output == OutputJSON {
-		out := ops.Orgs{Schema: "berth.orgs/v1", Orgs: []ops.OrgStatus{}}
+		out := ops.Orgs{Schema: "berth.orgs/v1", Orgs: []ops.OrgStatus{}, Unreachable: []ops.HostError{}}
 		for _, r := range rows {
 			out.Orgs = append(out.Orgs, r.OrgStatus)
 		}
+		out.Unreachable = append(out.Unreachable, unreachable...)
 		return a.writeJSON(out)
 	}
-	fmt.Fprintf(a.Stdout, "%-14s %-6s %-6s %-6s %-8s %s\n", "ORG", "STATE", "SSH", "TTYD", "TOKEN", "REMOTE")
+	format, head := "%-14s %-6s %-6s %-6s %-8s %s\n", []any{"ORG", "STATE", "SSH", "TTYD", "TOKEN", "REMOTE"}
+	if len(others) > 0 {
+		format, head = "%-14s %-6s %-6s %-6s %-8s %-14s %s\n", append(head, "HOST")
+	}
+	fmt.Fprintf(a.Stdout, format, head...)
 	for _, r := range rows {
 		token := "MISSING"
 		if r.Token {
 			token = "set"
 		}
-		fmt.Fprintf(a.Stdout, "%-14s %-6s %-6s %-6s %-8s %s\n", r.Name, r.State, r.ssh, r.ttyd, token, r.Remote)
+		cols := []any{r.Name, r.State, r.ssh, r.ttyd, token, r.Remote}
+		if len(others) > 0 {
+			cols = append(cols, r.Host)
+		}
+		fmt.Fprintf(a.Stdout, format, cols...)
+	}
+	for _, u := range unreachable {
+		fmt.Fprintf(a.Stderr, "%s: host %s is unreachable, its orgs aren't listed: %s\n", Tool, u.Host, u.Error)
 	}
 	return nil
 }
@@ -44,7 +69,7 @@ func (a *App) orgRows(ctx context.Context) []orgRow {
 		if !a.isFile(a.Orgs.EnvPath(o)) {
 			continue
 		}
-		r := orgRow{OrgStatus: ops.OrgStatus{Name: o, Manager: "ccenv", State: "down", Remote: "-"}}
+		r := orgRow{OrgStatus: ops.OrgStatus{Name: o, Manager: "ccenv", State: "down", Remote: "-", Host: a.hostLabel()}}
 		if m := a.env(o, "MANAGER"); m != "" {
 			r.Manager = m
 		}

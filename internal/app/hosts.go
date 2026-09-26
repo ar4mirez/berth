@@ -21,8 +21,7 @@ import (
 )
 
 // The host registry (#44): berth host add|ls|rm|rotate-access. The registry, berth's keys and its
-// known_hosts are on the operator's machine, which is a.Host today (every command runs locally);
-// when org@host (#45) points a.Host at another machine, these stay on the operator's.
+// known_hosts are on the operator's machine (a.Operator), whichever host an org is on.
 
 const hostTimeout = 10 * time.Second
 
@@ -37,10 +36,10 @@ func (a *App) hostPaths() hosts.Paths {
 // lockHosts serializes changes to the registry and to berth's keys.
 func (a *App) lockHosts(ctx context.Context) (func(), error) {
 	p := a.hostPaths()
-	if err := a.Host.FS.MkdirAll(p.Dir, 0o700); err != nil {
+	if err := a.Operator.FS.MkdirAll(p.Dir, 0o700); err != nil {
 		return nil, err
 	}
-	u, err := a.Host.FS.Lock(ctx, p.Lock())
+	u, err := a.Operator.FS.Lock(ctx, p.Lock())
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +51,7 @@ func (a *App) dialHost(ctx context.Context, e hosts.Entry, key string) (*host.Ho
 	return sshhost.Dial(ctx, sshhost.Config{
 		Addr: e.Addr, User: e.User, KnownHosts: a.hostPaths().KnownHosts(),
 		IdentityFiles: []string{key}, NoAgent: true, Timeout: hostTimeout,
-	}, a.Host)
+	}, a.Operator)
 }
 
 // remoteOut runs args on h and returns its trimmed stdout; a failure carries its stderr.
@@ -134,18 +133,18 @@ func editAuthorized(ctx context.Context, h *host.Host, edit func([]byte) []byte)
 
 // writeKey saves a key made for a host: the private key (0600) and its .pub.
 func (a *App) writeKey(file string, k hosts.Key, comment string) error {
-	if err := a.Host.FS.MkdirAll(path.Dir(file), 0o700); err != nil {
+	if err := a.Operator.FS.MkdirAll(path.Dir(file), 0o700); err != nil {
 		return err
 	}
-	if err := a.Host.FS.WriteFileAtomic(file, k.Private, 0o600); err != nil {
+	if err := a.Operator.FS.WriteFileAtomic(file, k.Private, 0o600); err != nil {
 		return err
 	}
-	return a.Host.FS.WriteFileAtomic(file+".pub", []byte(k.AuthorizedLine(comment)+"\n"), 0o644)
+	return a.Operator.FS.WriteFileAtomic(file+".pub", []byte(k.AuthorizedLine(comment)+"\n"), 0o644)
 }
 
 func (a *App) removeKey(file string) {
-	_ = a.Host.FS.Remove(file)
-	_ = a.Host.FS.Remove(file + ".pub")
+	_ = a.Operator.FS.Remove(file)
+	_ = a.Operator.FS.Remove(file + ".pub")
 }
 
 // HostAdd is `berth host add <name> <[user@]host[:port]> [--home <dir>] [--identity <file>]...
@@ -210,7 +209,7 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 	}
 	defer unlock()
 	p := a.hostPaths()
-	reg, err := hosts.Load(a.Host.FS, p)
+	reg, err := hosts.Load(a.Operator.FS, p)
 	if err != nil {
 		return err
 	}
@@ -227,15 +226,15 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 			}
 		}
 	}()
-	knownBefore, knownErr := a.Host.FS.ReadFile(p.KnownHosts())
+	knownBefore, knownErr := a.Operator.FS.ReadFile(p.KnownHosts())
 	undo = append(undo, func() {
-		now, _ := a.Host.FS.ReadFile(p.KnownHosts())
+		now, _ := a.Operator.FS.ReadFile(p.KnownHosts())
 		switch {
 		case bytes.Equal(now, knownBefore):
 		case errors.Is(knownErr, fs.ErrNotExist):
-			_ = a.Host.FS.Remove(p.KnownHosts())
+			_ = a.Operator.FS.Remove(p.KnownHosts())
 		case knownErr == nil:
-			_ = a.Host.FS.WriteFileAtomic(p.KnownHosts(), knownBefore, 0o600)
+			_ = a.Operator.FS.WriteFileAtomic(p.KnownHosts(), knownBefore, 0o600)
 		}
 	})
 
@@ -245,14 +244,14 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 		AcceptNewHostKey: acceptNew, ExpectFingerprint: fingerprint, Timeout: 15 * time.Second,
 	}
 	fmt.Fprintf(a.Stdout, "Connecting to %s@%s…\n", user, addr)
-	h, err := sshhost.Dial(ctx, cfg, a.Host)
+	h, err := sshhost.Dial(ctx, cfg, a.Operator)
 	var ue *sshhost.UnknownHostError
 	if errors.As(err, &ue) && fingerprint == "" && !acceptNew {
 		if cfg.ExpectFingerprint, err = a.confirmHostKey(ue); err != nil {
 			return err
 		}
 		fingerprint = cfg.ExpectFingerprint
-		h, err = sshhost.Dial(ctx, cfg, a.Host)
+		h, err = sshhost.Dial(ctx, cfg, a.Operator)
 	}
 	if err != nil {
 		return err
@@ -308,7 +307,7 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 
 	orgs, _ := orgsOn(h, home)
 	reg.Hosts = append(reg.Hosts, e)
-	if err := hosts.Save(a.Host.FS, p, reg); err != nil {
+	if err := hosts.Save(a.Operator.FS, p, reg); err != nil {
 		return err
 	}
 	ts := facts.TailscaleIP
@@ -371,11 +370,11 @@ func (a *App) HostLs(ctx context.Context, args []string) error {
 	if len(args) > 0 {
 		return fmt.Errorf("usage: %s host ls", Tool)
 	}
-	reg, err := hosts.Load(a.Host.FS, a.hostPaths())
+	reg, err := hosts.Load(a.Operator.FS, a.hostPaths())
 	if err != nil {
 		return err
 	}
-	res := ops.Hosts{Schema: "berth.hosts/v1", Hosts: []ops.HostStatus{a.statusOf(ctx, a.Host, hosts.Entry{Name: hosts.Local, Kind: hosts.KindLocal, Home: a.State.Home.Path})}}
+	res := ops.Hosts{Schema: "berth.hosts/v1", Hosts: []ops.HostStatus{a.statusOf(ctx, a.Operator, hosts.Entry{Name: hosts.Local, Kind: hosts.KindLocal, Home: a.State.Home.Path})}}
 	for _, e := range reg.Hosts {
 		h, err := a.dialHost(ctx, e, e.Key)
 		if err != nil {
@@ -467,7 +466,7 @@ func (a *App) HostRm(ctx context.Context, args []string) error {
 	}
 	defer unlock()
 	p := a.hostPaths()
-	reg, err := hosts.Load(a.Host.FS, p)
+	reg, err := hosts.Load(a.Operator.FS, p)
 	if err != nil {
 		return err
 	}
@@ -503,10 +502,10 @@ func (a *App) HostRm(ctx context.Context, args []string) error {
 		}
 	}
 	reg.Remove(name)
-	if err := hosts.Save(a.Host.FS, p, reg); err != nil {
+	if err := hosts.Save(a.Operator.FS, p, reg); err != nil {
 		return err
 	}
-	if err := sshhost.ForgetHost(a.Host.FS, p.KnownHosts(), e.Addr); err != nil {
+	if err := sshhost.ForgetHost(a.Operator.FS, p.KnownHosts(), e.Addr); err != nil {
 		fmt.Fprintf(a.Stderr, "warning: couldn't remove %s from %s: %v\n", e.Addr, p.KnownHosts(), err)
 	}
 	a.removeKey(e.Key)
@@ -518,7 +517,7 @@ func (a *App) HostRm(ctx context.Context, args []string) error {
 }
 
 func (a *App) hostKeyPub(file string) (gossh.PublicKey, error) {
-	b, err := a.Host.FS.ReadFile(file)
+	b, err := a.Operator.FS.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
@@ -540,7 +539,7 @@ func (a *App) HostRotateAccess(ctx context.Context, args []string) (err error) {
 		return err
 	}
 	defer unlock()
-	reg, err := hosts.Load(a.Host.FS, a.hostPaths())
+	reg, err := hosts.Load(a.Operator.FS, a.hostPaths())
 	if err != nil {
 		return err
 	}
@@ -577,10 +576,10 @@ func (a *App) HostRotateAccess(ctx context.Context, args []string) (err error) {
 		return fmt.Errorf("the new key doesn't log in to %s: %w; the old key still works, nothing was changed", name, err)
 	}
 	// The new key works: switch to it, then revoke the old one over a connection made with it.
-	if err := a.Host.FS.Rename(next, e.Key); err != nil {
+	if err := a.Operator.FS.Rename(next, e.Key); err != nil {
 		return err
 	}
-	if err := a.Host.FS.Rename(next+".pub", e.Key+".pub"); err != nil {
+	if err := a.Operator.FS.Rename(next+".pub", e.Key+".pub"); err != nil {
 		return err
 	}
 	fmt.Fprintf(a.Stdout, "berth's key for %s is now %s.\n", name, gossh.FingerprintSHA256(k.Public))

@@ -29,6 +29,8 @@ const (
 	SourceEnv     Source = "$BERTH_HOME"
 	SourceConfig  Source = "config"
 	SourceDefault Source = "default"
+	// SourceHost is the state root of a registered host, for an org addressed as org@host (#45).
+	SourceHost Source = "host"
 )
 
 // Home is a resolved state root.

@@ -24,7 +24,7 @@ jobs:
   docker:
     name: docker
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
@@ -36,5 +36,5 @@ jobs:
         run: |
           go build -o "$RUNNER_TEMP/berth" ./cmd/berth
           "$RUNNER_TEMP/berth" --version
-      - name: integration tests (compose lifecycle, ssh host against sshd + dind, backup matrix)
+      - name: integration tests (compose lifecycle, ssh host and remote lifecycle against sshd + dind, backup matrix)
         run: BERTH_BIN="$RUNNER_TEMP/berth" go test -tags integration -count=1 -v ./test/integration/...

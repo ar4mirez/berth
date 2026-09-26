@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -16,6 +17,14 @@ import (
 // completionOrgs lists orgs from the state root, the way the command would resolve it (--home,
 // $BERTH_HOME, config.yaml, default). cobra's __complete doesn't run the root's pre-run hook.
 func completionOrgs(cmd *cobra.Command) []string {
+	a := completionApp(cmd)
+	if a == nil {
+		return nil
+	}
+	return a.OrgNames()
+}
+
+func completionApp(cmd *cobra.Command) *app.App {
 	home, _ := cmd.Flags().GetString("home")
 	in, err := config.FromOS(home)
 	if err != nil {
@@ -26,19 +35,37 @@ func completionOrgs(cmd *cobra.Command) []string {
 		return nil
 	}
 	st := config.State{Home: h, ReadOnly: true} // completion never writes
-	return app.New(st, local.New(), nil, nil, nil, os.Getenv).OrgNames()
+	return app.New(st, local.New(), nil, nil, nil, os.Getenv)
+}
+
+// completionOrgsAt is completionOrgs for commands that take org@host (#45): once the word has an
+// "@", the registered hosts after it (this reads berth's registry, and never connects to a host).
+func completionOrgsAt(cmd *cobra.Command, toComplete string) []string {
+	o, _, found := strings.Cut(toComplete, "@")
+	if !found {
+		return completionOrgs(cmd)
+	}
+	a := completionApp(cmd)
+	if a == nil {
+		return nil
+	}
+	out := []string{o + "@local"}
+	for _, h := range a.HostNames() {
+		out = append(out, o+"@"+h)
+	}
+	return out
 }
 
 // completeArgs builds a ValidArgsFunction from one candidate list per position; "org" means the
 // org names, and a nil list means nothing to suggest.
 func completeArgs(positions ...[]string) cobra.CompletionFunc {
-	return func(cmd *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 		if len(args) >= len(positions) || positions[len(args)] == nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		words := positions[len(args)]
 		if len(words) == 1 && words[0] == "org" {
-			words = completionOrgs(cmd)
+			words = completionOrgsAt(cmd, toComplete)
 		}
 		return words, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -50,9 +77,9 @@ var orgArg = []string{"org"}
 var repoSubsShown = []string{"add", "new", "publish", "ls", "rm", "adopt", "sync", "audit", "policy"}
 
 // completeOrgs suggests every org not already on the line (whoami [org...]).
-func completeOrgs(cmd *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
+func completeOrgs(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 	var out []string
-	for _, o := range completionOrgs(cmd) {
+	for _, o := range completionOrgsAt(cmd, toComplete) {
 		if !slices.Contains(args, o) {
 			out = append(out, o)
 		}
@@ -107,10 +134,10 @@ func completeBackup(cmd *cobra.Command, args []string, _ string) ([]cobra.Comple
 }
 
 // completeFw: the org, then the subcommand, then (for allow) the presets, as ccenv's completion.
-func completeFw(cmd *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
+func completeFw(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 	switch {
 	case len(args) == 0:
-		return completionOrgs(cmd), cobra.ShellCompDirectiveNoFileComp
+		return completionOrgsAt(cmd, toComplete), cobra.ShellCompDirectiveNoFileComp
 	case len(args) == 1:
 		return []string{"show", "allow", "deny", "on", "off", "edit", "reload", "presets", "test"}, cobra.ShellCompDirectiveNoFileComp
 	case args[1] == "allow" || args[1] == "add":
