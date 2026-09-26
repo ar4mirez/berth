@@ -186,9 +186,14 @@ berth --home "$LEGACY" build          # builds berth's current image beforehand 
 berth --home "$LEGACY" restart "$ORG" # the restart: about 10 seconds
 berth --home "$LEGACY" ls             # up, same ports
 berth --home "$LEGACY" remote "$ORG" status
-berth --home "$LEGACY" fw "$ORG" show # ends with "live: firewall: ON …"
+berth --home "$LEGACY" fw "$ORG" show # ends with "live: on <N>": the firewall is on, with N allowed networks
 berth --home "$LEGACY" attach "$ORG"  # the tmux session is new; your files are all there
 ```
+
+N can change with the restart, and that's expected. The firewall rebuilds its list when the container starts:
+GitHub's published ranges, plus every address the allowlisted hostnames resolve to at that moment. CDN-hosted
+names often resolve to a few more (or fewer) addresses than last time. `off`, or no `live:` line at all, is what
+would be wrong.
 
 The new image carries #9's stricter repo checks. Stage 1's `repo ls` and `repo audit` matching ccenv's show that the
 org's registered repos are all accepted by them.
