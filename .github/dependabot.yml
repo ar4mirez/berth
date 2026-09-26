@@ -1,0 +1,19 @@
+# Dependency updates with GitHub's built-in Dependabot (no third-party apps). The image's pinned
+# tools (gh, ttyd, mise, Claude Code: ARGs with checksums) are bumped by #69's workflow instead,
+# since Dependabot can't update a checksum together with its version.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule: {interval: weekly}
+    labels: [dependencies, area:core]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly}
+    labels: [dependencies, area:release]
+  # The base image's digest in image/Dockerfile. An image change: it reaches a live org only at its
+  # next restart, which is announced per org.
+  - package-ecosystem: docker
+    directory: /image
+    schedule: {interval: weekly}
+    labels: [dependencies, area:image, restarts-orgs]
