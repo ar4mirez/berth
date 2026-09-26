@@ -26,7 +26,7 @@ ARG TARGETARCH
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git openssh-client openssh-server tmux tini sudo less vim-tiny \
-      iptables ipset iproute2 dnsutils curl ca-certificates jq ripgrep fd-find \
+      iptables ipset iproute2 dnsutils dnsmasq-base curl ca-certificates jq ripgrep fd-find \
       procps locales unzip xz-utils bzip2 zstd file age gnupg \
       build-essential pkg-config autoconf bison libssl-dev zlib1g-dev libyaml-dev libffi-dev \
       libreadline-dev libgdbm-dev libncurses-dev libsqlite3-dev libbz2-dev liblzma-dev \

@@ -64,6 +64,30 @@ jobs:
           grep -qx 'node=1000:1000' <<<"$(docker run --rm --entrypoint bash berth-image-ci -c "$remap")"
           grep -qx 'node=1000:1000' <<<"$(docker run --rm -e HOST_UID=1000 -e HOST_GID=1000 --entrypoint bash berth-image-ci -c "$remap")"
           echo "ok: node follows HOST_UID/HOST_GID, and nothing changes when they match"
+      - name: firewall - DNS-time allowlisting (#1)
+        run: |
+          set -euo pipefail
+          cfg=$(mktemp -d); printf 'mode on\n@go\nexample.com\n' > "$cfg/firewall.txt"
+          docker network create berth-fw-ci >/dev/null   # a user-defined network, like an org's (127.0.0.11)
+          docker run --rm --network berth-fw-ci --cap-add NET_ADMIN --cap-add NET_RAW -v "$cfg:/config:ro" \
+            --entrypoint bash berth-image-ci -c '
+              set -euo pipefail
+              init-firewall.sh apply
+              grep -q "^nameserver 127.0.0.1" /etc/resolv.conf || { echo "resolv.conf does not use dnsmasq"; exit 1; }
+              # The case from #1: a rotating pool, looked up again and again, is always reachable,
+              # and the answers land in the allowed-dns set.
+              for i in 1 2 3 4 5; do curl -fsS -o /dev/null --max-time 15 https://sum.golang.org/lookup/golang.org/x/text@v0.3.0; done
+              ipset list allowed-dns | grep -qE "^[0-9]" || { echo "allowed-dns is empty"; exit 1; }
+              curl -fsS -o /dev/null --max-time 15 https://example.com
+              # Not allowlisted: blocked.
+              if curl -fsS -o /dev/null --max-time 8 https://www.wikipedia.org 2>/dev/null; then echo "a name not allowlisted is reachable"; exit 1; fi
+              # DNS to a resolver outside the container: blocked.
+              if dig +short +time=2 +tries=1 @1.1.1.1 example.com 2>/dev/null | grep -q .; then echo "outside DNS is reachable"; exit 1; fi
+              # A second apply (the 5-minute refresh) keeps dnsmasq running, with its cache.
+              pid=$(cat /run/dnsmasq.pid); init-firewall.sh apply >/dev/null
+              [ "$(cat /run/dnsmasq.pid)" = "$pid" ] || { echo "dnsmasq restarted on an unchanged list"; exit 1; }
+              echo "ok: names resolve through dnsmasq into the allowlist; other names and outside DNS are blocked"'
+          docker network rm berth-fw-ci >/dev/null
       - name: a download that doesn't match its checksum fails the build
         run: |
           if docker build --build-arg TTYD_SHA256_AMD64=0000000000000000000000000000000000000000000000000000000000000000 image/ >/tmp/tamper.log 2>&1; then
