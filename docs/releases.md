@@ -62,3 +62,20 @@ signs and verifies, and publishes nothing. `gh workflow run release` runs the dr
 
 A release whose image changed reaches each org only at that org's next restart. `docs/image-update.md` rolls one out:
 one org at a time, each restart approved, verified and undoable. Its release notes list the image changes.
+
+## The released image
+
+From the first release after #41, the release workflow also builds the container image for linux/amd64 and
+linux/arm64, publishes it as `ghcr.io/ar4mirez/berth-image`, tagged with berth's content hash and the version, signs it
+with cosign (keyless, same identity as above), and attests its provenance. The release binary embeds its digest
+(`berth --version` shows it), and berth pulls that digest instead of building: `berth pull` gets it ahead of time,
+restarting nothing. When the pull fails, berth builds locally, as before.
+
+To check the image yourself:
+
+```bash
+cosign verify ghcr.io/ar4mirez/berth-image@<digest> \
+  --certificate-identity "https://github.com/ar4mirez/berth/.github/workflows/release.yml@refs/tags/<version>" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify oci://ghcr.io/ar4mirez/berth-image@<digest> -R ar4mirez/berth
+```

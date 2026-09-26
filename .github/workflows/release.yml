@@ -24,8 +24,106 @@ env:
   OIDC_ISSUER: https://token.actions.githubusercontent.com
 
 jobs:
-  release:
+  # The container image (#41), built natively per architecture. On a tag each is pushed to GHCR by
+  # digest; otherwise (the dry run) it's only built.
+  image:
+    strategy:
+      matrix:
+        include:
+          - {arch: amd64, runner: ubuntu-latest}
+          - {arch: arm64, runner: ubuntu-24.04-arm}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - name: log in to GHCR (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: build (and on a tag, push by digest)
+        run: |
+          set -euo pipefail
+          ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/berth-image
+          out="type=cacheonly"
+          case "$GITHUB_REF" in refs/tags/v*) out="type=image,name=$ref,push-by-digest=true,name-canonical=true,push=true" ;; esac
+          docker buildx build --platform "linux/${{ matrix.arch }}" \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --metadata-file /tmp/meta.json --output "$out" image/
+          mkdir -p /tmp/digests
+          jq -r '."containerimage.digest" // empty' /tmp/meta.json > "/tmp/digests/${{ matrix.arch }}"
+          echo "linux/${{ matrix.arch }}: $(cat "/tmp/digests/${{ matrix.arch }}")"
+      - uses: actions/upload-artifact@v7
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: image-digest-${{ matrix.arch }}
+          path: /tmp/digests/${{ matrix.arch }}
+          if-no-files-found: error
+
+  # One multi-arch manifest, tagged with berth's content hash and the version, signed with cosign
+  # (keyless) and attested; its digest goes into the release binary.
+  image-manifest:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      image: ${{ steps.manifest.outputs.image }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: sigstore/cosign-installer@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: image-digest-*
+          path: /tmp/digests
+          merge-multiple: true
+      - name: manifest, signature
+        id: manifest
+        run: |
+          set -euo pipefail
+          ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/berth-image
+          hash=$(go run ./tools/imagetag)
+          docker buildx imagetools create -t "$ref:$hash" -t "$ref:${GITHUB_REF_NAME}" \
+            "$ref@$(cat /tmp/digests/amd64)" "$ref@$(cat /tmp/digests/arm64)"
+          digest=$(docker buildx imagetools inspect "$ref:${GITHUB_REF_NAME}" --format '{{json .Manifest}}' | jq -r .digest)
+          cosign sign --yes "$ref@$digest"
+          cosign verify "$ref@$digest" \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}" \
+            --certificate-oidc-issuer "$OIDC_ISSUER" >/dev/null
+          echo "image=$ref@$digest" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "published $ref@$digest ($hash, ${GITHUB_REF_NAME})"
+      - name: image provenance (SLSA)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/berth-image
+          subject-digest: ${{ steps.manifest.outputs.digest }}
+          push-to-registry: true
+
+  release:
+    needs: [image, image-manifest]
+    # On a tag the image must be published first; the dry run has no manifest job.
+    if: always() && needs.image.result == 'success' && (needs.image-manifest.result == 'success' || needs.image-manifest.result == 'skipped')
+    runs-on: ubuntu-latest
+    env:
+      BERTH_IMAGE: ${{ needs.image-manifest.outputs.image }}
     permissions:
       contents: write      # create the release (tags only)
       id-token: write      # keyless cosign signing, and the provenance attestations
@@ -54,6 +152,11 @@ jobs:
           cosign verify-blob --bundle checksums.txt.sigstore.json \
             --certificate-identity "$identity" --certificate-oidc-issuer "$OIDC_ISSUER" checksums.txt
           sha256sum -c --ignore-missing checksums.txt
+          # A release binary pulls the image just published (#41).
+          if [ -n "${BERTH_IMAGE:-}" ]; then
+            ./berth_linux_amd64_v1/berth --version | grep -F "image $BERTH_IMAGE" \
+              || { echo "the binary doesn't carry the published image" >&2; exit 1; }
+          fi
 
           # Tampering must fail both checks.
           cp checksums.txt /tmp/checksums.orig

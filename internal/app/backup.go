@@ -91,6 +91,7 @@ func (a *App) ensureImage(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	a.imageFromRelease(ctx) // a release pulls its image rather than building it
 	if a.quietRun(ctx, "docker", "image", "inspect", set.Tag) == nil &&
 		a.quietRun(ctx, "docker", "run", "--rm", "--entrypoint", "sh", set.Tag, "-c", "command -v age && command -v gpg") == nil {
 		return nil

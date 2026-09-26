@@ -69,6 +69,7 @@ var Catalog = map[string]Op{
 	"restart": writeHard("recreates the container"),
 	"down":    writeHard("stops and removes the container"),
 	"build":   write, // builds berth's image; containers keep running on theirs until their next restart
+	"pull":    write, // pulls the released image (#41); containers keep running on theirs
 	"attach":  write, // exec into the running container (acts as the org)
 	"shell":   write,
 	"claude":  write,

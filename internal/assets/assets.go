@@ -21,6 +21,10 @@ import (
 // Dir is berth's assets directory under the state root.
 const Dir = "berth"
 
+// PublishedImage is the released image for this build's image/, as <registry>/<name>@sha256:<digest>
+// (#41). The release workflow sets it with -ldflags; it's empty in development builds.
+var PublishedImage = ""
+
 // ImageRepo is the repository berth tags its images in.
 const ImageRepo = "berth/claude-env"
 

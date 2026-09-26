@@ -163,6 +163,11 @@ func addCommands(root *cobra.Command) {
 		}),
 		one("up <org>", "build if needed and (re)create the container", func(a *app.App, c *cobra.Command, o string) error { return a.Up(c.Context(), o) }),
 		writes(&cobra.Command{
+			Use: "pull", Short: "get the released image now, so restarts don't wait for it (restarts nothing)", Args: cobra.NoArgs,
+			ValidArgsFunction: completeArgs(),
+			RunE:              func(cmd *cobra.Command, _ []string) error { return appFor(cmd).Pull(cmd.Context()) },
+		}),
+		writes(&cobra.Command{
 			Use: "build [docker-build-args...]", Short: "rebuild berth's image (updates Claude Code)", DisableFlagParsing: true,
 			RunE: func(cmd *cobra.Command, args []string) error { return appFor(cmd).Build(cmd.Context(), args) },
 		}),
