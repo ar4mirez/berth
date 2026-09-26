@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Default-deny egress firewall driven by /config/firewall.txt (live-editable via `ccenv fw`).
+# Default-deny egress firewall driven by /config/firewall.txt (live-editable via `berth fw`).
 #   init-firewall.sh apply    (re)build the allowlist and rules; safe to run anytime
 #   init-firewall.sh presets  list available @presets
 # File format: one entry per line. `mode on|off`, a domain, an IP/CIDR, or `@preset`.
