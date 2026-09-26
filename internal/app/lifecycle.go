@@ -52,7 +52,11 @@ func (a *App) Restart(ctx context.Context, o string) error {
 		return err
 	}
 	a.imageFromRelease(ctx) // a release pulls its image here; otherwise compose builds it if missing
-	return a.compose(ctx, o, "up", "-d", "--force-recreate")
+	if err := a.compose(ctx, o, "up", "-d", "--force-recreate"); err != nil {
+		return err
+	}
+	a.refreshGuard(ctx)
+	return nil
 }
 
 // execIn runs `docker exec <flags> claude-<org> <cmd>` on berth's own stdio. tty is `-it`: the
@@ -126,6 +130,7 @@ func (a *App) Up(ctx context.Context, o string) error {
 	if err := a.compose(ctx, o, args...); err != nil {
 		return err
 	}
+	a.refreshGuard(ctx)
 	if err := a.passthrough(ctx, false, "sleep", "3"); err != nil {
 		return err
 	}

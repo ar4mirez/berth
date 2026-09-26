@@ -134,6 +134,8 @@ var Catalog = map[string]Op{
 	// host's authorized_keys. No org or container on any host is touched.
 	"host": {Access: BySub, Subs: map[string]Op{
 		"ls": readJSON, "add": write, "rm": write, "rotate-access": write,
+		// The host guard's rules apply live to running containers; nothing restarts.
+		"guard": {Access: BySub, Subs: map[string]Op{"": read, "status": read, "on": write, "off": write}},
 	}},
 
 	// Cutover and install.
