@@ -51,3 +51,27 @@ type Firewall struct {
 	// can't be read, or nil when the org is down.
 	Live *string `json:"live"`
 }
+
+// Hosts is `berth host ls --output json` (#44).
+type Hosts struct {
+	Schema string       `json:"schema"` // "berth.hosts/v1"
+	Hosts  []HostStatus `json:"hosts"`
+}
+
+// HostStatus is one host in `host ls`. The first is always this machine, "local".
+type HostStatus struct {
+	Name string `json:"name"`
+	// Kind is "local" or "ssh".
+	Kind string `json:"kind"`
+	// Address is user@host:port ("" for local).
+	Address string `json:"address"`
+	// Home is the state root on that host.
+	Home      string `json:"home"`
+	Reachable bool   `json:"reachable"`
+	// Docker is the engine's version ("" when unknown).
+	Docker string `json:"docker"`
+	// Orgs is the number of orgs there (null when unknown).
+	Orgs *int `json:"orgs"`
+	// Error says what failed, if anything ("" otherwise).
+	Error string `json:"error"`
+}

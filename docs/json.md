@@ -74,3 +74,21 @@ shows the same case as `(listed but missing)`.
 - `live` is the running container's `/run/firewall.status` (`on <N>` or `off`). It's `unknown` if it can't be read,
   and `null` when the org is down.
 - An empty allowlist is `"entries": []` with exit 0. The text output exits 1 in that case, as ccenv does.
+
+## `berth.hosts/v1`: `host ls`
+
+```json
+{
+  "schema": "berth.hosts/v1",
+  "hosts": [
+    { "name": "local", "kind": "local", "address": "", "home": "/home/op/.local/share/berth",
+      "reachable": true, "docker": "27.3.1", "orgs": 3, "error": "" },
+    { "name": "box1", "kind": "ssh", "address": "ops@box1.example:22", "home": "/home/ops/.local/share/berth",
+      "reachable": false, "docker": "", "orgs": null, "error": "ssh ops@box1.example:22: dial tcp …: i/o timeout" }
+  ]
+}
+```
+
+- `local`, this machine, is always first.
+- `orgs` is `null` when it couldn't be counted. `error` says what failed, and is `""` otherwise.
+- A host that can't be reached is still listed, and the exit code is 0.

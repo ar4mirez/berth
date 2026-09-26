@@ -174,3 +174,47 @@ func TestAlgorithms(t *testing.T) {
 		t.Errorf("host with nothing on file: %v, want nil", got)
 	}
 }
+
+// TestExpectFingerprint: a new host is trusted only with the fingerprint the operator confirmed;
+// another key is refused even with acceptNew, and the error carries what it presented (#44).
+func TestExpectFingerprint(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "known_hosts")
+	key, other := pubKey(t, "ed25519"), pubKey(t, "ed25519")
+
+	err := check(t, hostKeys{fs: local.FS{}, path: path, acceptNew: true, expect: gossh.FingerprintSHA256(other)}, key)
+	var ue *UnknownHostError
+	if !errors.As(err, &ue) || ue.Fingerprint != gossh.FingerprintSHA256(key) || ue.Expected == "" || !errors.Is(err, ErrUnknownHost) {
+		t.Fatalf("a different key: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("a refused key must not be recorded")
+	}
+	if err := check(t, hostKeys{fs: local.FS{}, path: path, expect: ue.Fingerprint}, key); err != nil {
+		t.Fatalf("the expected key: %v", err)
+	}
+	if err := check(t, hostKeys{fs: local.FS{}, path: path}, key); err != nil {
+		t.Errorf("recorded key refused: %v", err)
+	}
+}
+
+func TestForgetHost(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "known_hosts")
+	if err := ForgetHost(local.FS{}, path, hostPort); err != nil {
+		t.Fatalf("missing file: %v", err)
+	}
+	keep := "# a comment\n" + knownhosts.Line([]string{"globex.example"}, pubKey(t, "ed25519")) + "\n"
+	body := knownhosts.Line([]string{"[acme.example]:2222"}, pubKey(t, "ed25519")) + "\n" + keep +
+		knownhosts.Line([]string{"[acme.example]:2222"}, pubKey(t, "rsa")) + "\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := ForgetHost(local.FS{}, path, hostPort); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(path); string(b) != keep {
+		t.Errorf("after ForgetHost: %q, want %q", b, keep)
+	}
+	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o600 {
+		t.Errorf("mode %o", fi.Mode().Perm())
+	}
+}

@@ -130,6 +130,12 @@ var Catalog = map[string]Op{
 		"migrate": write, // moves values into files; the container keeps its environment until its next restart
 	}},
 
+	// Hosts (#44): the registry and berth's keys on the operator's machine, and berth's line in a
+	// host's authorized_keys. No org or container on any host is touched.
+	"host": {Access: BySub, Subs: map[string]Op{
+		"ls": readJSON, "add": write, "rm": write, "rotate-access": write,
+	}},
+
 	// Cutover and install.
 	"takeover": write, // MANAGER=berth only; the container keeps running
 	"handback": write,

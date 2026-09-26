@@ -56,6 +56,44 @@ func secretsCmd() *cobra.Command {
 	return c
 }
 
+// hostCmd is `berth host add|ls|rm|rotate-access` (#44).
+func hostCmd() *cobra.Command {
+	c := &cobra.Command{Use: "host", Short: "the hosts berth manages: this machine and others over SSH"}
+	c.AddCommand(
+		writes(&cobra.Command{
+			Use:   "add <name> <[user@]host[:port]> [--home <dir>] [--identity <key file>] [--fingerprint SHA256:…] [--accept-new-host-key]",
+			Short: "register a host: pin its SSH key, check Docker, and give berth its own key there",
+			Long: "Connects with your own SSH access (ssh-agent, or --identity), pins the host's key in berth's known_hosts\n" +
+				"(asking you to confirm its fingerprint, or taking --fingerprint), checks Docker and compose, then adds a key\n" +
+				"of berth's own to the host's authorized_keys and records the host. --home is the state root there\n" +
+				"(default ~/.local/share/berth). Nothing on the host is started or restarted.",
+			DisableFlagParsing: true,
+			RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostAdd(cmd.Context(), args) },
+		}),
+		reads(&cobra.Command{
+			Use:   "ls",
+			Short: "each host: reachable, its Docker version and its number of orgs",
+			Args:  cobra.NoArgs,
+			RunE:  func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostLs(cmd.Context(), args) },
+		}),
+		writes(&cobra.Command{
+			Use:                "rm <name> [--force]",
+			Short:              "forget a host and revoke berth's key there (refused while it has orgs, unless --force)",
+			DisableFlagParsing: true,
+			RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostRm(cmd.Context(), args) },
+		}),
+		writes(&cobra.Command{
+			Use:                "rotate-access <name>",
+			Short:              "replace berth's key on a host (the old one goes only once the new one works)",
+			DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return appFor(cmd).HostRotateAccess(cmd.Context(), args)
+			},
+		}),
+	)
+	return c
+}
+
 // arg is ccenv's "${n:-}": the nth positional argument, or "". Like ccenv, extra arguments are
 // ignored (the commands take cobra.ArbitraryArgs).
 func arg(args []string, n int) string {
@@ -233,6 +271,7 @@ func addCommands(root *cobra.Command) {
 			},
 		}),
 		secretsCmd(),
+		hostCmd(),
 		// restore and migrate parse their own arguments, as ccenv does.
 		writes(&cobra.Command{
 			Use:   "restore <file|-> [--as name] [--identity|-i key] [--force] [--no-start] [--no-rehydrate]",

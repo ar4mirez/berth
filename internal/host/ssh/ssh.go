@@ -43,6 +43,9 @@ type Config struct {
 	// AcceptNewHostKey trusts and records the key of a host that isn't in KnownHosts yet.
 	// A key that differs from the recorded one is refused regardless.
 	AcceptNewHostKey bool
+	// ExpectFingerprint trusts and records a new host's key only if its SHA256 fingerprint is this
+	// one (what the operator confirmed after an *UnknownHostError). It overrides AcceptNewHostKey.
+	ExpectFingerprint string
 	// IdentityFiles are private keys on the operator's machine. Passphrase-protected keys must
 	// be loaded into ssh-agent instead.
 	IdentityFiles []string
@@ -81,7 +84,7 @@ func Dial(ctx context.Context, cfg Config, operator *host.Host) (*host.Host, err
 	if err != nil {
 		return nil, err
 	}
-	hk := hostKeys{fs: operator.FS, path: cfg.KnownHosts, acceptNew: cfg.AcceptNewHostKey}
+	hk := hostKeys{fs: operator.FS, path: cfg.KnownHosts, acceptNew: cfg.AcceptNewHostKey, expect: cfg.ExpectFingerprint}
 	known, err := hk.load()
 	if err != nil {
 		closeAgent()
