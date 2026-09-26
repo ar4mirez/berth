@@ -5,6 +5,9 @@ set -euo pipefail
 ORG="${ORG:?ORG must be set}"
 as_node() { runuser -u node -- "$@"; }
 
+# --- node becomes the host user (HOST_UID/HOST_GID), before anything runs as node (#38) ---
+. /usr/local/lib/claude-env/uid-remap.sh
+
 mkdir -p /etc/claude-env
 echo "$ORG" > /etc/claude-env/org
 
