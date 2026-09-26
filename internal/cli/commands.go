@@ -18,6 +18,7 @@ func appFor(cmd *cobra.Command) *app.App {
 	a.OpenTTY = local.OpenTTY
 	a.Self, _ = os.Executable()
 	a.Invoked = invokedPath()
+	a.Output = outputFrom(cmd.Context())
 	return a
 }
 
