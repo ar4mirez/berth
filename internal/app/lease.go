@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ar4mirez/berth/internal/assets"
 	"github.com/ar4mirez/berth/internal/hosts"
 )
 
@@ -139,6 +140,10 @@ func (a *App) markLease(o, here string) {
 	f := hosts.LeaseMarker(a.State.Home.Path, o)
 	b, err := a.Host.FS.ReadFile(f)
 	if err == nil && strings.HasPrefix(string(b), "active: "+here+"\n") || err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return
+	}
+	// berth's own directory first, with its .gitignore (the state root may be a git checkout).
+	if _, err := assets.LockPath(a.Host.FS, a.State.Home.Path); err != nil {
 		return
 	}
 	if err := a.Host.FS.MkdirAll(path.Dir(f), 0o700); err != nil {

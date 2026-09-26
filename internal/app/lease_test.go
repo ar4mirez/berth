@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ar4mirez/berth/internal/assets"
 	"github.com/ar4mirez/berth/internal/config"
 	"github.com/ar4mirez/berth/internal/host/local"
 	"github.com/ar4mirez/berth/internal/hosts"
@@ -67,6 +68,13 @@ func TestLease(t *testing.T) {
 		t.Fatalf("auto-claim: %v", leases())
 	}
 	must(base.checkLease(ctx, "acme")) // the holder, again
+	// The marker lives in berth's own directory, which is git-ignored and still takes the assets.
+	if b, err := os.ReadFile(filepath.Join(stA, "berth", ".gitignore")); err != nil || !strings.Contains(string(b), "*") {
+		t.Errorf(".gitignore: %q %v", b, err)
+	}
+	if _, err := assets.Materialize(base.Host.FS, stA); err != nil {
+		t.Fatalf("the assets after a lease marker: %v", err)
+	}
 
 	// A copy on box1 is refused, naming the holder.
 	newOrg(stB, "acme")

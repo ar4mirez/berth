@@ -10,6 +10,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/ar4mirez/berth/internal/assets"
 	"github.com/ar4mirez/berth/internal/host"
 )
 
@@ -22,9 +23,9 @@ type Leases struct {
 
 func (p Paths) Leases() string { return path.Join(p.Dir, "leases.yaml") }
 
-// LeaseMarker is the marker file for org under a host's state root.
+// LeaseMarker is the marker file for org under a host's state root: <state>/berth/lease/<org>.
 func LeaseMarker(stateRoot, org string) string {
-	return path.Join(stateRoot, "berth", "lease", org)
+	return path.Join(stateRoot, assets.Dir, assets.LeaseDir, org)
 }
 
 // LoadLeases reads the leases; a missing file is none.
