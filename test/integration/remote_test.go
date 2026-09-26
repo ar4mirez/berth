@@ -4,6 +4,7 @@ package integration
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -92,7 +93,12 @@ func TestRemoteLifecycle(t *testing.T) {
 			diag := func() string {
 				st, _ := s.docker("inspect", "-f", "{{json .State}} restarts={{.RestartCount}}", "claude-"+o)
 				logs, _ := s.docker("logs", "claude-"+o)
-				return st + "\n" + logs
+				img, _ := s.docker("inspect", "-f", "{{.Config.Image}}", "claude-"+o)
+				// The entrypoint traced, the way compose starts it (as far as the environment goes).
+				trace, _ := s.docker("run", "--rm", "--cap-add", "NET_ADMIN", "--cap-add", "NET_RAW", "-e", "ORG="+o,
+					"-e", fmt.Sprintf("HOST_UID=%d", os.Getuid()), "-e", fmt.Sprintf("HOST_GID=%d", os.Getgid()),
+					"--entrypoint", "timeout", strings.TrimSpace(img), "60", "bash", "-x", "/usr/local/bin/entrypoint.sh")
+				return st + "\n" + logs + "\ntrace:\n" + trace
 			}
 
 			res["init"] = norm(must("init", s.org, "--name", "Test User", "--email", "test@example.com"))
