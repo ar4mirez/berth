@@ -48,6 +48,18 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 	} else if err := a.needOrg(o); err != nil {
 		return err
 	}
+	// allow/deny/on/off edit firewall.txt under the state root's lock, released before the rules
+	// are applied in the container. edit doesn't lock: it waits on a person in an editor.
+	unlock := func() {}
+	switch sub {
+	case "allow", "add", "deny", "remove", "rm", "on", "off":
+		u, err := a.lock(ctx)
+		if err != nil {
+			return err
+		}
+		unlock = u
+	}
+	defer unlock()
 	// ccenv writes the template before looking at the subcommand, whatever it is. Under --read-only
 	// berth uses the template without writing it.
 	f := path.Join(a.Orgs.Dir, o, "config", "firewall.txt")
@@ -106,6 +118,7 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 			}
 			fmt.Fprintln(a.Stdout, "allowed: "+e)
 		}
+		unlock()
 		return a.fwApply(ctx, o)
 	case "deny", "remove", "rm":
 		if len(args) == 0 {
@@ -133,6 +146,7 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 			}
 			fmt.Fprintln(a.Stdout, "removed: "+e)
 		}
+		unlock()
 		return a.fwApply(ctx, o)
 	case "on", "off":
 		// grep -vE '^\s*mode\s+(on|off)\s*$' "$f" > "$tmp" || true; echo "mode $sub" >> "$tmp"; cat "$tmp" > "$f"
@@ -145,6 +159,7 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 		if err := a.Host.FS.WriteFile(f, append(kept, "mode "+sub+"\n"...), 0o644); err != nil {
 			return err
 		}
+		unlock()
 		return a.fwApply(ctx, o)
 	case "edit":
 		editor := a.Getenv("EDITOR")
@@ -154,8 +169,10 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 		if err := a.Host.Exec.Run(ctx, host.Cmd{Args: []string{editor, f}, TTY: true, Stdin: a.Stdin, Stdout: a.Stdout, Stderr: a.Stderr}); err != nil {
 			return err
 		}
+		unlock()
 		return a.fwApply(ctx, o)
 	case "reload":
+		unlock()
 		return a.fwApply(ctx, o)
 	case "test":
 		if err := a.needUp(ctx, o); err != nil {

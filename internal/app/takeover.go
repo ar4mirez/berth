@@ -13,13 +13,18 @@ import (
 // (MANAGER=berth), and nothing else. The container isn't touched: it keeps running, on its current
 // image, until its next restart under berth (docs/cutover.md). It refuses when the state root's own
 // ccenv doesn't refuse berth's orgs, since both tools could then manage the org.
-func (a *App) Takeover(_ context.Context, o string) error {
+func (a *App) Takeover(ctx context.Context, o string) error {
 	if err := a.State.Writable("take over " + o); err != nil {
 		return err
 	}
 	if err := a.needOrg(o); err != nil {
 		return err
 	}
+	unlock, err := a.lock(ctx)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if a.env(o, "MANAGER") == "berth" {
 		fmt.Fprintf(a.Stdout, "%s is already berth's (MANAGER=berth); nothing to do.\n", o)
 		return nil
@@ -43,11 +48,19 @@ func (a *App) Takeover(_ context.Context, o string) error {
 
 // Handback is `berth handback <org>`: the rollback of takeover, MANAGER=ccenv. Nothing restarts;
 // ccenv manages the org again from its next command.
-func (a *App) Handback(_ context.Context, o string) error {
+func (a *App) Handback(ctx context.Context, o string) error {
 	if err := a.State.Writable("hand " + o + " back to ccenv"); err != nil {
 		return err
 	}
-	if err := a.needOwnedOrg(o); err != nil {
+	if err := a.needOwnedOrg(o); err != nil { // refuse before touching anything, the lock included
+		return err
+	}
+	unlock, err := a.lock(ctx)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if err := a.needOwnedOrg(o); err != nil { // again, under the lock
 		return err
 	}
 	if err := a.setManager(o, "ccenv"); err != nil {

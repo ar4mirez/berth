@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -41,16 +42,21 @@ type App struct {
 	OpenTTY func() (*os.File, error)
 
 	umaskVal *fs.FileMode // cached by umask()
+
+	lockHeld  host.Unlocker // the state root's lock, while held (lock.go)
+	lockDepth int
 }
 
 // New builds an App for st on h. h's FS is guarded, so writes fail under --read-only.
 func New(st config.State, h *host.Host, stdin io.Reader, stdout, stderr io.Writer, getenv func(string) string) *App {
 	h = host.Guard(h, st)
-	return &App{
+	a := &App{
 		State: st, Host: h,
 		Orgs:  org.Orgs{FS: h.FS, Dir: path.Join(st.Home.Path, "orgs")},
 		Stdin: stdin, Stdout: stdout, Stderr: stderr, Getenv: getenv,
 	}
+	a.Orgs.Lock = func() (func(), error) { return a.lock(context.Background()) }
+	return a
 }
 
 // Exit ends berth with Code and no message: ccenv exits that way where set -e stops a command.

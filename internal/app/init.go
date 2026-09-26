@@ -110,6 +110,13 @@ func (a *App) Init(ctx context.Context, args []string) error {
 	if _, err := a.capture(ctx, true, "sh", "-c", "command -v tailscale"); err == nil {
 		bind = "tailscale"
 	}
+	// Port allocation and org.env run under the state root's lock, so two inits can't pick the
+	// same ports (#46).
+	unlock, err := a.lock(ctx)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	ssh, err := a.Orgs.NextPort("SSH_PORT", 2201)
 	if err != nil {
 		return err

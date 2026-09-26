@@ -41,13 +41,13 @@ func (a *App) Repo(ctx context.Context, sub, o string, rest []string) error {
 	f := a.reposFile(o)
 	switch sub {
 	case "add":
-		return a.repoAdd(ctx, o, f, entries, rest)
+		return a.repoAdd(ctx, o, f, rest)
 	case "new", "create":
 		return a.repoNew(ctx, o, f, entries, rest)
 	case "publish":
 		return a.repoPublish(ctx, o, f, entries, rest)
 	case "rm", "remove":
-		return a.repoRm(ctx, o, f, entries, rest)
+		return a.repoRm(ctx, o, f, rest)
 	case "adopt":
 		return a.repoAdopt(ctx, o, f, rest)
 	case "sync":
@@ -113,7 +113,7 @@ func (a *App) appendLine(f, line string) error {
 }
 
 // repoAdd is `ccenv repo add <org> <owner/repo|git-url> [--dir name] [--branch b] [--no-clone]`.
-func (a *App) repoAdd(ctx context.Context, o, f string, entries []repopolicy.Entry, args []string) error {
+func (a *App) repoAdd(ctx context.Context, o, f string, args []string) error {
 	spec, dir, branch, clone := "", "", "", true
 	for i := 0; i < len(args); {
 		switch x := args[i]; {
@@ -151,6 +151,13 @@ func (a *App) repoAdd(ctx context.Context, o, f string, entries []repopolicy.Ent
 	if !dirName.MatchString(dir) || dir == ".claude" {
 		return fmt.Errorf("invalid dir name '%s'", dir)
 	}
+	// The registration runs under the state root's lock (re-reading repos.txt); the clone doesn't.
+	unlock, err := a.lock(ctx)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	entries := a.readEntries(f)
 	// existing=$(repo_entries | awk -v d="$dir" '$1==d {print $2}'): every match, one per line,
 	// "-" for a URL with no canonical form.
 	var ex []string
@@ -179,6 +186,7 @@ func (a *App) repoAdd(ctx context.Context, o, f string, entries []repopolicy.Ent
 	} else {
 		fmt.Fprintf(a.Stdout, "%s is already registered as /workspace/%s\n", canon, dir)
 	}
+	unlock()
 	if !clone {
 		return nil
 	}
@@ -194,6 +202,11 @@ func (a *App) repoAdd(ctx context.Context, o, f string, entries []repopolicy.Ent
 		if existing == "" {
 			// grep -v "^$dir " "$f" > "$tmp"; cat "$tmp" > "$f": dir is a regexp here (a '.' matches
 			// any character). When nothing is left, grep exits 1 and set -e ends the command.
+			relock, err := a.lock(ctx)
+			if err != nil {
+				return err
+			}
+			defer relock()
 			re := regexp.MustCompile("^" + dir + " ")
 			b, _ := a.Host.FS.ReadFile(f)
 			var kept []byte
@@ -275,7 +288,12 @@ func (a *App) repoNew(ctx context.Context, o, f string, entries []repopolicy.Ent
 		if !dirName.MatchString(dir) || dir == ".claude" {
 			return fmt.Errorf("invalid dir name '%s'", dir)
 		}
-		if allowedDir(entries, dir) {
+		unlock, err := a.lock(ctx)
+		if err != nil {
+			return err
+		}
+		defer unlock()
+		if allowedDir(a.readEntries(f), dir) {
 			return fmt.Errorf("/workspace/%s is already registered", dir)
 		}
 		if err := a.needUp(ctx, o); err != nil {
@@ -287,6 +305,7 @@ func (a *App) repoNew(ctx context.Context, o, f string, entries []repopolicy.Ent
 		if err := a.appendLine(f, dir+" local"); err != nil {
 			return err
 		}
+		unlock()
 		if err := a.passthrough(ctx, false, "docker", "exec", "-u", "node", "-w", "/workspace", "claude-"+o, "git", "init", "-q", "-b", "main", dir); err != nil {
 			return err
 		}
@@ -353,12 +372,12 @@ func (a *App) repoNew(ctx context.Context, o, f string, entries []repopolicy.Ent
 			return err
 		}
 	}
-	// cmd_repo add "$org" owner/repo --dir "$dir", which re-reads repos.txt.
-	entries, err := a.repoEntries(ctx, o)
-	if err != nil {
+	// cmd_repo add "$org" owner/repo --dir "$dir", which runs ensure_repos_file again (repoAdd then
+	// re-reads repos.txt under the lock).
+	if _, err := a.repoEntries(ctx, o); err != nil {
 		return err
 	}
-	return a.repoAdd(ctx, o, f, entries, []string{name, "--dir", dir})
+	return a.repoAdd(ctx, o, f, []string{name, "--dir", dir})
 }
 
 // hostGh is `command -v gh >/dev/null && gh auth status >/dev/null 2>&1`: gh on the host and
@@ -413,7 +432,12 @@ func (a *App) repoPublish(ctx context.Context, o, f string, entries []repopolicy
 		return err
 	}
 	// awk -v d="$dir" -v u="$url" '$1==d {$2=u} {print}': a matching line is rebuilt from its
-	// fields, joined by single spaces; the others are printed as they are.
+	// fields, joined by single spaces; the others are printed as they are. Under the lock.
+	unlock, err := a.lock(ctx)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	b, _ := a.Host.FS.ReadFile(f)
 	var out []byte
 	for _, l := range fileLines(b) {
@@ -434,11 +458,17 @@ func (a *App) repoPublish(ctx context.Context, o, f string, entries []repopolicy
 }
 
 // repoRm is `ccenv repo rm <org> <dir> [--delete]` (--delete only as the 2nd argument).
-func (a *App) repoRm(ctx context.Context, o, f string, entries []repopolicy.Entry, args []string) error {
+func (a *App) repoRm(ctx context.Context, o, f string, args []string) error {
 	dir, del := nth(args, 0), nth(args, 1)
 	if dir == "" {
 		return fmt.Errorf("usage: %s repo rm <org> <dir> [--delete]", Tool)
 	}
+	unlock, err := a.lock(ctx)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	entries := a.readEntries(f) // re-read under the lock
 	if !allowedDir(entries, dir) {
 		return fmt.Errorf("/workspace/%s is not registered", dir)
 	}
@@ -454,6 +484,7 @@ func (a *App) repoRm(ctx context.Context, o, f string, entries []repopolicy.Entr
 	if err := a.Host.FS.WriteFile(f, kept, 0o644); err != nil {
 		return err
 	}
+	unlock()
 	fmt.Fprintf(a.Stdout, "Unregistered /workspace/%s\n", dir)
 	if del == "--delete" && a.running(ctx, o) {
 		if err := a.passthrough(ctx, false, "docker", "exec", "-u", "node", "claude-"+o, "rm", "-rf", "/workspace/"+dir); err != nil {
@@ -494,6 +525,11 @@ func (a *App) repoAdopt(ctx context.Context, o, f string, args []string) error {
 		return fmt.Errorf("usage: %s repo adopt <org> <dir>...   (or --all for everything unregistered)", Tool)
 	}
 	ws, qdir := path.Join(a.Orgs.Dir, o, "workspace"), path.Join(a.Orgs.Dir, o, "quarantine")
+	unlock, err := a.lock(ctx)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	names := args
 	if args[0] == "--all" {
 		names = nil

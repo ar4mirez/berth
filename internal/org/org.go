@@ -16,6 +16,8 @@ import (
 type Orgs struct {
 	FS  host.FS
 	Dir string // <state root>/orgs
+	// Lock, if set, is taken around Set's read-modify-write (the state root's lock; re-entrant).
+	Lock func() (unlock func(), err error)
 }
 
 // EnvPath is <orgs>/<org>/org.env.
@@ -51,6 +53,13 @@ func (o Orgs) Get(org, key string) (string, bool, error) {
 func (o Orgs) Set(org, key, value string) error {
 	if err := checkKey(key); err != nil {
 		return err
+	}
+	if o.Lock != nil {
+		unlock, err := o.Lock()
+		if err != nil {
+			return err
+		}
+		defer unlock()
 	}
 	p := o.EnvPath(org)
 	data, err := o.FS.ReadFile(p)
