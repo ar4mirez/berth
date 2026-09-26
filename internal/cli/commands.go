@@ -84,6 +84,12 @@ func hostCmd() *cobra.Command {
 			DisableFlagParsing: true,
 			RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostRm(cmd.Context(), args) },
 		}),
+		reads(&cobra.Command{
+			Use:                "guard <name> [on|off|status]",
+			Short:              "the host guard: org containers can't reach the host or cloud metadata (on at host add; restarts nothing)",
+			DisableFlagParsing: true,
+			RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostGuard(cmd.Context(), args) },
+		}),
 		writes(&cobra.Command{
 			Use:                "rotate-access <name>",
 			Short:              "replace berth's key on a host (the old one goes only once the new one works)",

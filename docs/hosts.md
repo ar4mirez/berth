@@ -42,6 +42,7 @@ berth host add box1 ops@box1.example           # [user@]host[:port]; the user de
 berth host ls                                  # every host: reachable, Docker version, number of orgs
 berth --output json host ls                    # the same, as berth.hosts/v1 (docs/json.md)
 berth host rotate-access box1                  # replace berth's key on box1
+berth host guard box1 [on|off|status]          # the host guard (on from host add)
 berth host rm box1                             # forget box1 (refused while it has orgs; --force overrides)
 ```
 
@@ -71,7 +72,8 @@ the host ends up registered completely or not at all.
    adds its public half to the host's `~/.ssh/authorized_keys` (the line ends `berth:<name>`), and checks that the
    key logs in. From then on, berth uses only that key for the host, not your agent. The host's access can then be
    rotated or revoked on its own.
-5. **Records the host** in `~/.config/berth/hosts.yaml`. `--home <dir>` sets the state root on the host; the
+5. **Starts the host guard** (below), unless `--no-guard`.
+6. **Records the host** in `~/.config/berth/hosts.yaml`. `--home <dir>` sets the state root on the host; the
    default is `~/.local/share/berth` there.
 
 ### `host ls`
@@ -100,6 +102,46 @@ It then:
 
 It never stops or deletes anything on the host: its orgs keep running there. If the host was unreachable, berth
 reminds you to remove the `berth:<name>` line by hand.
+
+## The host guard
+
+Each org has its own egress firewall inside its container. On a registered host, berth adds a second layer
+underneath it on the host itself (#48). This matters most on a cloud VM:
+
+- **The host:** an org container can't open connections to the host, whether through its bridge gateway or any of
+  the host's addresses. That covers anything listening there (sshd, databases, the Docker API on TCP).
+- **Cloud metadata:** an org container can't reach `169.254.0.0/16`, which includes the metadata endpoint
+  `169.254.169.254`.
+
+Replies to connections the org opened still get through, and so does allowlisted egress.
+
+### Scope
+
+The rules cover only org networks: the bridges of compose projects named `claude-<org>`. Other containers on the
+host are left alone.
+
+### How it runs
+
+- **The container:** it runs as `berth-host-guard`, from berth's image, with the host network, `NET_ADMIN` and the
+  Docker socket. Anyone in the host's `docker` group has that much access already, so it needs no root login and
+  installs nothing on the host.
+- **The chains:** it keeps two chains in the host's filter table, `BERTH-INPUT` (from `INPUT`) and `BERTH-FORWARD`
+  (from Docker's `DOCKER-USER`).
+- **Updates:** it rebuilds both chains every 20 seconds, and at once when berth starts an org there. New orgs are
+  covered without a restart.
+- **Reboots:** Docker's restart policy brings it back after a reboot.
+
+### Turning it on and off
+
+- `berth host add` starts it (`--no-guard` skips it).
+- `berth host guard <name> on|off|status` turns it on or off later, or shows its rules. Either way, nothing restarts.
+- `berth host rm` takes the rules out and removes the container.
+- If a host can't be reached when it's removed, run `docker rm -f berth-host-guard` on it. Its rules then last until
+  the host reboots.
+
+### This machine
+
+The guard is only for registered hosts. This machine's own orgs are unchanged.
 
 ## Active-host leases
 

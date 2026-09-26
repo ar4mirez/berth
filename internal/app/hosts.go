@@ -151,10 +151,10 @@ func (a *App) removeKey(file string) {
 // HostAdd is `berth host add <name> <[user@]host[:port]> [--home <dir>] [--identity <file>]...
 // [--fingerprint SHA256:…] [--accept-new-host-key]`.
 func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
-	usage := fmt.Errorf("usage: %s host add <name> <[user@]host[:port]> [--home <remote state root>] [--identity <key file>] [--fingerprint SHA256:…] [--accept-new-host-key]", Tool)
+	usage := fmt.Errorf("usage: %s host add <name> <[user@]host[:port]> [--home <remote state root>] [--identity <key file>] [--fingerprint SHA256:…] [--accept-new-host-key] [--no-guard]", Tool)
 	var pos, identities []string
 	var home, fingerprint string
-	acceptNew := false
+	acceptNew, guard := false, true
 	for i := 0; i < len(args); i++ {
 		switch x := args[i]; x {
 		case "--home", "--identity", "--fingerprint":
@@ -172,6 +172,8 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 			}
 		case "--accept-new-host-key":
 			acceptNew = true
+		case "--no-guard":
+			guard = false
 		default:
 			if strings.HasPrefix(x, "-") {
 				return usage
@@ -306,6 +308,18 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 		return fmt.Errorf("berth's new key doesn't log in to %s: %w; nothing was changed", name, err)
 	}
 
+	// The host guard (#48), unless the operator opted out.
+	guarded := "off (--no-guard)"
+	if guard {
+		b := a.On(name, h, home)
+		if err := a.installGuard(ctx, b); err != nil {
+			_ = a.removeGuard(context.WithoutCancel(ctx), b)
+			return fmt.Errorf("the host guard on %s: %w (--no-guard skips it)", name, err)
+		}
+		undo = append(undo, func() { _ = a.removeGuard(context.WithoutCancel(ctx), b) })
+		guarded = "on: org containers can't reach the host or 169.254.0.0/16"
+	}
+
 	orgs, _ := orgsOn(h, home)
 	reg.Hosts = append(reg.Hosts, e)
 	if err := hosts.Save(a.Operator.FS, p, reg); err != nil {
@@ -328,6 +342,7 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 	fmt.Fprintf(w, "  ports in use\t%d\n", len(ports))
 	fmt.Fprintf(w, "  state root\t%s (%d orgs)\n", home, len(orgs))
 	fmt.Fprintf(w, "  access\tberth's own key %s; its line in authorized_keys ends %q\n", e.Key, hosts.Comment(name))
+	fmt.Fprintf(w, "  guard\t%s\n", guarded)
 	return w.Flush()
 }
 
@@ -493,7 +508,10 @@ func (a *App) HostRm(ctx context.Context, args []string) error {
 			return fmt.Errorf("%s has %d org(s) in %s: %s. Move or remove them first, or --force to forget the host anyway (they keep running there)",
 				name, len(orgs), e.Home, strings.Join(orgs, ", "))
 		}
-		// Revoke berth's access: its line in authorized_keys, nothing else.
+		// Take the host guard's rules out, then revoke berth's access (its line in authorized_keys).
+		if err := a.removeGuard(ctx, a.On(name, h, e.Home)); err != nil {
+			fmt.Fprintf(a.Stderr, "warning: couldn't remove the host guard from %s: %v (there: docker rm -f %s)\n", name, err, hosts.GuardContainer)
+		}
 		if pub, err := a.hostKeyPub(e.Key); err == nil {
 			if err := editAuthorized(ctx, h, func(b []byte) []byte { out, _ := hosts.RemoveAuthorized(b, pub); return out }); err != nil {
 				keyLeft = true
@@ -519,6 +537,7 @@ func (a *App) HostRm(ctx context.Context, args []string) error {
 	}
 	if keyLeft {
 		fmt.Fprintf(a.Stdout, "berth's key may still be in its authorized_keys: remove the line ending %q there by hand.\n", hosts.Comment(name))
+		fmt.Fprintf(a.Stdout, "The host guard may still run there too: docker rm -f %s on it (its rules then last until the host reboots; docs/hosts.md).\n", hosts.GuardContainer)
 	}
 	return nil
 }

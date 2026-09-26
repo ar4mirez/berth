@@ -33,7 +33,7 @@ func TestHostRegistry(t *testing.T) {
 	home := t.TempDir()
 	cfg := filepath.Join(home, "cfg", "berth")
 	env := append(os.Environ(), "HOME="+home, "XDG_CONFIG_HOME="+filepath.Join(home, "cfg"),
-		"BERTH_HOME="+filepath.Join(home, "state"), "SSH_AUTH_SOCK=", "USER=root")
+		"BERTH_HOME="+filepath.Join(home, "state"), "SSH_AUTH_SOCK=", "USER=root", "BERTH_PUBLISHED_IMAGE="+publishedImage)
 	berth := func(args ...string) (string, error) {
 		cmd := exec.Command(bin, args...)
 		cmd.Env = env
