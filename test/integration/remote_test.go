@@ -143,7 +143,8 @@ func TestRemoteLifecycle(t *testing.T) {
 				t.Errorf("ls: %s", b)
 			}
 
-			res["fw allow"] = norm(must("fw", s.org, "allow", "example.com"))
+			// How many addresses DNS returns for the allowlist varies from one resolver and moment to the next.
+			res["fw allow"] = regexp.MustCompile(`\d+ allowlisted networks`).ReplaceAllString(norm(must("fw", s.org, "allow", "example.com")), "N allowlisted networks")
 			res["fw show"] = regexp.MustCompile(`on \d+`).ReplaceAllString(norm(must("fw", s.org, "show")), "on N")
 			res["repo add"] = norm(must("repo", "add", s.org, "acme/widgets", "--no-clone"))
 			res["repo ls"] = norm(must("repo", "ls", s.org))
