@@ -1,33 +1,42 @@
 name: image
 
-# Builds the container image from image/ on a real daemon (#39): the pinned versions must be the ones
-# installed, and a download that doesn't match its pinned sha256 must fail the build.
+# Builds the container image from image/ on a real daemon (#39): the installed versions must be the
+# pinned ones, and a download that doesn't match its pinned sha256 must fail the build.
 on:
   pull_request:
-    paths: ["image/**", ".github/workflows/image.yml"]
+    paths: ["image/**", "compose.yml", ".github/workflows/image.yml"]
   push:
     branches: [main]
-    paths: ["image/**", ".github/workflows/image.yml"]
+    paths: ["image/**", "compose.yml", ".github/workflows/image.yml"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  # Temporary (removed before merge): prints what to pin, from each project's own checksums.
-  resolve-pins:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
-      - name: resolve
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/checkout@v5
+      - name: build the image
+        run: docker build -t berth-image-ci image/
+      - name: the installed versions are the pinned ones
         run: |
           set -euo pipefail
-          echo "node:22-bookworm-slim digest: $(docker buildx imagetools inspect node:22-bookworm-slim --format '{{json .Manifest.Digest}}')"
-          sums() { curl -fsSL "$1" | grep -E "$2"; }
-          echo "--- ttyd 1.7.7"; sums https://github.com/tsl0922/ttyd/releases/download/1.7.7/SHA256SUMS 'ttyd\.(x86_64|aarch64)$'
-          mv=$(gh release view -R jdx/mise --json tagName -q .tagName); echo "--- mise $mv"
-          sums "https://github.com/jdx/mise/releases/download/$mv/SHASUMS256.txt" "mise-$mv-linux-(x64|arm64)\$"
-          gv=$(gh release view -R cli/cli --json tagName -q .tagName); echo "--- gh $gv"
-          sums "https://github.com/cli/cli/releases/download/$gv/gh_${gv#v}_checksums.txt" "gh_${gv#v}_linux_(amd64|arm64)\.tar\.gz\$"
-          echo "--- claude-code 2.1.281: $(npm view @anthropic-ai/claude-code@2.1.281 version dist.integrity)"
+          pin() { sed -n "s/^ARG $1=//p" image/Dockerfile; }
+          got() { docker run --rm --entrypoint sh berth-image-ci -c "$1" 2>&1; }
+          check() {  # check <what> <expected> <actual>
+            case "$3" in *"$2"*) echo "ok  $1 $2" ;; *) echo "BAD $1: want $2, got: $3" >&2; exit 1 ;; esac
+          }
+          check claude-code "$(pin CLAUDE_CODE_PINNED)" "$(got 'claude --version')"
+          check gh          "$(pin GH_VERSION | sed 's/^v//')" "$(got 'gh --version | head -1')"
+          check ttyd        "$(pin TTYD_VERSION)" "$(got 'ttyd --version')"
+          check mise        "$(pin MISE_VERSION | sed 's/^v//')" "$(got 'mise --version')"
+          docker image inspect berth-image-ci --format '{{index .Config.Labels "org.opencontainers.image.base.digest"}}' || true
+      - name: a download that doesn't match its checksum fails the build
+        run: |
+          if docker build --build-arg TTYD_SHA256_AMD64=0000000000000000000000000000000000000000000000000000000000000000 image/ >/tmp/tamper.log 2>&1; then
+            echo "the build passed with a wrong ttyd checksum" >&2; exit 1
+          fi
+          grep -q 'FAILED' /tmp/tamper.log && echo "ok: a wrong checksum fails the build"

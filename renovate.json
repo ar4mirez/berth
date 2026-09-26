@@ -1,0 +1,34 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "labels": ["dependencies"],
+  "postUpdateOptions": ["gomodTidy"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Versions pinned as ARGs in image/Dockerfile, each under a `# renovate:` comment (#39)",
+      "managerFilePatterns": ["/^image/Dockerfile$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nARG [A-Z_]+=(?<currentValue>\\S+)"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "matchFileNames": ["image/Dockerfile"],
+      "addLabels": ["area:image", "restarts-orgs"],
+      "prBodyNotes": [
+        "**Checksums:** update the matching `*_SHA256_*` / `CLAUDE_CODE_INTEGRITY` ARGs in this PR, from the project's own published checksums. The `image` workflow fails until they match.",
+        "**Live orgs:** an image change reaches each org only at its next restart. Announce it per org (CLAUDE.md)."
+      ]
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "addLabels": ["area:release"]
+    },
+    {
+      "matchManagers": ["gomod"],
+      "addLabels": ["area:core"]
+    }
+  ]
+}

@@ -11,7 +11,7 @@ services:
       args:
         USER_UID: ${HOST_UID:-1000}
         USER_GID: ${HOST_GID:-1000}
-        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-latest}
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-}   # empty: the image's pinned version (#39)
     container_name: claude-${ORG}
     hostname: ${ORG}
     restart: unless-stopped
