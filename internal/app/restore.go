@@ -89,6 +89,11 @@ func (a *App) Restore(ctx context.Context, args []string) error {
 		return fmt.Errorf("key-encrypted backup: pass --identity <key> (default %s not found)", kf)
 	}
 
+	// ccenv's checkout always has orgs/; berth's own state root starts empty (a restore onto a new
+	// machine), so it is created here (PARITY.md).
+	if err := a.Host.FS.MkdirAll(a.Orgs.Dir, 0o777&^a.umask(ctx)); err != nil {
+		return err
+	}
 	stage, err := a.Host.FS.MkdirTemp(a.Orgs.Dir, ".restore-XXXXXX")
 	if err != nil {
 		return err

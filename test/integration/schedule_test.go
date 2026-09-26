@@ -111,16 +111,21 @@ func TestHostSchedule(t *testing.T) {
 	mustDo(t, err)
 	local := filepath.Join(t.TempDir(), name)
 	mustDo(t, os.WriteFile(local, data, 0o600))
+	// Into a fresh state root (no orgs/ yet), as on a new machine.
+	must("restore", local, "--as", "t-sched-r", "--no-start", "--no-rehydrate")
+	if _, err := os.Stat(filepath.Join(home, "state", "orgs", "t-sched-r", "org.env")); err != nil {
+		t.Errorf("the restored org: %v", err)
+	}
 	other := filepath.Join(t.TempDir(), "other.key")
 	if _, err := berthEnv([]string{"BERTH_BACKUP_KEY=" + other}, "keygen"); err != nil {
 		t.Fatal(err)
 	}
 	if out, err := berthEnv([]string{"BERTH_BACKUP_KEY=" + other}, "restore", local, "--as", "t-sched-x", "--no-start", "--no-rehydrate"); err == nil {
 		t.Fatalf("another key restored the host's backup:\n%s", out)
-	}
-	must("restore", local, "--as", "t-sched-r", "--no-start", "--no-rehydrate")
-	if _, err := os.Stat(filepath.Join(home, "state", "orgs", "t-sched-r", "org.env")); err != nil {
-		t.Errorf("the restored org: %v", err)
+	} else if _, serr := os.Stat(filepath.Join(home, "state", "orgs", "t-sched-x")); serr == nil {
+		t.Errorf("a failed restore left t-sched-x behind:\n%s", out)
+	} else {
+		t.Logf("another key, refused as it should be:\n%s", out)
 	}
 
 	out = must("schedule", "--host", "box", "off")
