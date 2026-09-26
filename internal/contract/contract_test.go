@@ -54,7 +54,9 @@ func TestImageAndComposeAgree(t *testing.T) {
 		{"custom env vars snapshot for SSH", entrypoint, "${" + EnvKeys + ":-}"},
 		{"secrets as files: the dir", secretsEnv, "for _f in " + SecretsEnv + "/*; do"},
 		{"secrets as files: loaded before the snapshot", entrypoint, ". /usr/local/lib/claude-env/secrets-env.sh\n"},
-		{"secrets as files: shipped", dockerfile, "secrets-env.sh /usr/local/lib/claude-env/"},
+		{"secrets as files: shipped", dockerfile, "secrets-env.sh uid-remap.sh /usr/local/lib/claude-env/"},
+		{"runtime UID remap: compose passes the host user", compose, "HOST_UID: ${HOST_UID:-}\n      HOST_GID: ${HOST_GID:-}\n"},
+		{"runtime UID remap: first in the entrypoint", entrypoint, ". /usr/local/lib/claude-env/uid-remap.sh\n"},
 	}
 	for _, c := range checks {
 		if !strings.Contains(c.in, c.want) {

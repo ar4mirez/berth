@@ -20,6 +20,9 @@ services:
     env_file: ${ORG_DIR}/org.env
     environment:
       ORG: ${ORG}
+      # The container user becomes the host user at start (#38); the build args below are unused now.
+      HOST_UID: ${HOST_UID:-}
+      HOST_GID: ${HOST_GID:-}
     ports:
       - "${BIND_ADDR:-127.0.0.1}:${SSH_PORT}:2222"
       - "${BIND_ADDR:-127.0.0.1}:${TTYD_PORT}:7681"

@@ -46,6 +46,24 @@ jobs:
           if docker inspect "$cid" | grep -q IMAGE-CHECK; then echo "the secret is in docker inspect" >&2; exit 1; fi
           docker rm "$cid" >/dev/null
           echo "ok: exported from the file, absent from docker inspect"
+      - name: runtime UID remap (#38) - one image for any host user
+        run: |
+          set -euo pipefail
+          remap='. /usr/local/lib/claude-env/uid-remap.sh; echo "node=$(id -u node):$(id -g node)"'
+          # Another user: node becomes 4321:4321, the image's own home files follow (not .claude, .mise,
+          # .config: bind mounts in an org, the host user's already), and a file node
+          # creates in the bind-mounted /workspace is 4321's on the host.
+          ws=$(mktemp -d); chmod 777 "$ws"
+          out=$(docker run --rm -e HOST_UID=4321 -e HOST_GID=4321 -v "$ws:/workspace" --entrypoint bash berth-image-ci -c \
+            "$remap; runuser -u node -- touch /workspace/made-by-node; stat -c 'home=%u:%g' /home/node; find /home/node -xdev \( -path /home/node/.claude -o -path /home/node/.mise -o -path /home/node/.config \) -prune -o ! -user node -print | head -3")
+          echo "$out"
+          grep -qx 'node=4321:4321' <<<"$out" && grep -qx 'home=4321:4321' <<<"$out"
+          [ "$(grep -c '^/home/node' <<<"$out" || true)" = 0 ] || { echo "files under /home/node not remapped" >&2; exit 1; }
+          [ "$(stat -c %u:%g "$ws/made-by-node")" = 4321:4321 ] || { echo "the file isn't the host user's" >&2; exit 1; }
+          # No HOST_UID (ccenv's compose), or the image's own 1000: nothing changes.
+          grep -qx 'node=1000:1000' <<<"$(docker run --rm --entrypoint bash berth-image-ci -c "$remap")"
+          grep -qx 'node=1000:1000' <<<"$(docker run --rm -e HOST_UID=1000 -e HOST_GID=1000 --entrypoint bash berth-image-ci -c "$remap")"
+          echo "ok: node follows HOST_UID/HOST_GID, and nothing changes when they match"
       - name: a download that doesn't match its checksum fails the build
         run: |
           if docker build --build-arg TTYD_SHA256_AMD64=0000000000000000000000000000000000000000000000000000000000000000 image/ >/tmp/tamper.log 2>&1; then

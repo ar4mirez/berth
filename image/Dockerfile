@@ -22,8 +22,6 @@ ARG GH_SHA256_AMD64=9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b0202930
 ARG GH_SHA256_ARM64=b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f
 # CLAUDE_CODE_VERSION (from org.env, through compose) overrides the pin; empty means the pin.
 ARG CLAUDE_CODE_VERSION=
-ARG USER_UID=1000
-ARG USER_GID=1000
 ARG TARGETARCH
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -56,9 +54,9 @@ RUN case "${TARGETARCH:-amd64}" in amd64) a=x64 sum=$MISE_SHA256_AMD64;; arm64) 
     && echo "$sum  /usr/local/bin/mise" | sha256sum -c - \
     && chmod +x /usr/local/bin/mise && mise --version
 
-# Match the host user's UID/GID so bind-mounted files stay owned by you.
-RUN groupmod -o -g ${USER_GID} node && usermod -o -u ${USER_UID} -g ${USER_GID} node \
-    && usermod -p '*' node \
+# node keeps the base image's UID/GID here; the entrypoint makes it the host user's at start
+# (uid-remap.sh, #38), so one image fits every host user.
+RUN usermod -p '*' node \
     && mkdir -p /workspace /home/node/.claude /home/node/.mise /run/sshd /etc/ssh/authorized_keys \
     && chown -R node:node /workspace /home/node
 
@@ -85,7 +83,7 @@ RUN chmod +x /usr/local/bin/*.sh \
 # Repo allowlist. The org's git key is mounted under a root-only dir; `node` reaches GitHub only through
 # git-ssh-guard (via a single sudo rule), which checks every fetch/push against /config/repos.txt.
 # repo-guard.js is the Claude-side PreToolUse hook (wired in managed-settings.json).
-COPY repo-policy.sh repo-guard.js secrets-env.sh /usr/local/lib/claude-env/
+COPY repo-policy.sh repo-guard.js secrets-env.sh uid-remap.sh /usr/local/lib/claude-env/
 COPY git-ssh-guard /usr/local/bin/git-ssh-guard
 RUN chmod 755 /usr/local/bin/git-ssh-guard && chmod 644 /usr/local/lib/claude-env/* \
     && install -d -m 700 -o root -g root /opt/claude-secrets \
