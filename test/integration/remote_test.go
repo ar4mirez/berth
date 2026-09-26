@@ -113,6 +113,9 @@ func TestRemoteLifecycle(t *testing.T) {
 			slices.Sort(keys)
 			res["org.env keys"] = strings.Join(keys, " ")
 
+			// Earlier tests leave a stub image under berth's tag on this machine; up would use it
+			// instead of pulling the released one.
+			_, _ = s.docker("rmi", "-f", strings.TrimSpace(must("image-tag")))
 			must("up", s.org)
 			if running, _ := s.docker("inspect", "-f", "{{.State.Running}}", "claude-"+o); strings.TrimSpace(running) != "true" {
 				t.Fatalf("not running after up (%s):\n%s", running, diag())
