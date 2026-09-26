@@ -112,7 +112,13 @@ func TestHostSchedule(t *testing.T) {
 	local := filepath.Join(t.TempDir(), name)
 	mustDo(t, os.WriteFile(local, data, 0o600))
 	// Into a fresh state root (no orgs/ yet), as on a new machine.
-	must("restore", local, "--as", "t-sched-r", "--no-start", "--no-rehydrate")
+	if out, err := berth("restore", local, "--as", "t-sched-r", "--no-start", "--no-rehydrate"); err != nil {
+		logs, _ := asOps("ls -l /home/ops/.local/share/berth/backups/; cat /home/ops/.local/share/berth/backups/cron.log")
+		key := filepath.Join(home, "cfg", "berth", "backup.key")
+		listing, _ := exec.Command("docker", "run", "--rm", "-i", "-v", key+":/k:ro", "--entrypoint", "sh", strings.TrimSpace(must("image-tag")),
+			"-c", "age -d -i /k | zstd -dc | tar -tv | head -20").CombinedOutput()
+		t.Fatalf("restore: %v\n%s\non the host:\n%s\nthe archive, decrypted here:\n%s", err, out, logs, listing)
+	}
 	if _, err := os.Stat(filepath.Join(home, "state", "orgs", "t-sched-r", "org.env")); err != nil {
 		t.Errorf("the restored org: %v", err)
 	}
