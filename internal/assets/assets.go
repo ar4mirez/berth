@@ -108,7 +108,8 @@ func LockPath(fsys host.FS, stateRoot string) (string, error) {
 	}
 	gi := path.Join(dir, ".gitignore")
 	if _, err := fsys.Stat(gi); err != nil {
-		if err := fsys.WriteFile(gi, []byte(gitignore), 0o644); err != nil {
+		// Two commands can get here at once; the loser's create fails with ErrExist, which is fine.
+		if err := fsys.WriteFile(gi, []byte(gitignore), 0o644); err != nil && !errors.Is(err, fs.ErrExist) {
 			return "", err
 		}
 	}
