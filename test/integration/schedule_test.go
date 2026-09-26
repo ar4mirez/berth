@@ -114,6 +114,11 @@ func TestHostSchedule(t *testing.T) {
 	// Into a fresh state root (no orgs/ yet), as on a new machine.
 	// The host's user (ops, uid 1000) isn't this machine's: the restore must still read what it extracts.
 	must("restore", local, "--as", "t-sched-r", "--no-start", "--no-rehydrate")
+	// Its sshd host keys are root's, as restore leaves them: remove them the same way.
+	tag := strings.TrimSpace(must("image-tag"))
+	t.Cleanup(func() {
+		_ = exec.Command("docker", "run", "--rm", "-v", filepath.Join(home, "state", "orgs")+":/orgs", "--entrypoint", "rm", tag, "-rf", "/orgs/t-sched-r").Run()
+	})
 	if _, err := os.Stat(filepath.Join(home, "state", "orgs", "t-sched-r", "org.env")); err != nil {
 		t.Errorf("the restored org: %v", err)
 	}
