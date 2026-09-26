@@ -28,7 +28,8 @@ func TestBerthJSONOutput(t *testing.T) {
       "ssh_port": 2201,
       "ttyd_port": 7701,
       "token": true,
-      "remote": "on"
+      "remote": "on",
+      "host": "local"
     },
     {
       "name": "globex",
@@ -37,9 +38,11 @@ func TestBerthJSONOutput(t *testing.T) {
       "ssh_port": 2202,
       "ttyd_port": 7702,
       "token": false,
-      "remote": "-"
+      "remote": "-",
+      "host": "local"
     }
-  ]
+  ],
+  "unreachable": []
 }
 `
 	if r.Stdout != want {
