@@ -11,6 +11,9 @@ import (
 
 const units = "home/.config/systemd/user/"
 
+// withBackupsDir has the backups dir the cron job logs into.
+var withBackupsDir = merge(withKey, map[string]File{"state/backups": {Dir: true, Mode: 0o755}})
+
 var withTimer = merge(withKey, map[string]File{
 	units + "ccenv-backup.timer":   {Content: "[Timer]\nOnCalendar=*-*-* 03:00:00\n", Mode: 0o644},
 	units + "ccenv-backup.service": {Content: "[Service]\nExecStart=old\n", Mode: 0o644},
@@ -25,7 +28,7 @@ func init() {
 			Rules: []Rule{{Bin: "loginctl", Match: `^show-user parity -p Linger --value$`, Stdout: "yes\n"}}}, 0, []string{"daily at 03:00, keeping the newest 3"}},
 		{Scenario{Name: "schedule, enable fails", Args: []string{"schedule"}, Files: withKey,
 			Rules: []Rule{{Bin: "systemctl", Match: `^--user enable --now `, Stdout: "hidden\n", Stderr: "Failed to enable unit\n", Exit: 1}}}, 1, []string{"Failed to enable unit"}},
-		{Scenario{Name: "schedule via cron, replaces its line", Args: []string{"schedule", "--at", "00:05", "--output", "bk"}, Files: withKey,
+		{Scenario{Name: "schedule via cron, replaces its line", Args: []string{"schedule", "--at", "00:05", "--output", "bk"}, Files: withBackupsDir,
 			Rules: []Rule{noSystemd, {Bin: "crontab", Match: `^-l$`, Stdout: cronTable}}}, 0, []string{"Scheduled (cron): daily at 00:05", "Log: <RUN>/state/backups/cron.log"}},
 		{Scenario{Name: "schedule, bad --at", Args: []string{"schedule", "--at", "24:00"}, Files: withKey}, 1, []string{"<tool>: --at must be HH:MM (24h)"}},
 		{Scenario{Name: "schedule, bad --keep", Args: []string{"schedule", "--keep", "0"}, Files: withKey}, 1, []string{"<tool>: --keep needs a number >= 1"}},
@@ -86,6 +89,17 @@ func TestBerthScheduleNames(t *testing.T) {
 		`[Service]\nType=oneshot\nExecStart=<SELF> --home <RUN>/state backup --all --keep 14\nNice=10\nIOSchedulingClass=idle\n"`
 	if r.Exit != 0 || !slices.Contains(r.Tree, want) || !slices.Contains(r.Calls, `systemctl "--user" "enable" "--now" "berth-backup.timer"`) {
 		t.Errorf("exit %d, stderr %q\ntree:\n%s\ncalls:\n%s", r.Exit, r.Stderr, strings.Join(r.Tree, "\n"), strings.Join(r.Calls, "\n"))
+	}
+}
+
+// TestBerthScheduleCronCreatesBackups: the cron job appends to <backups>/cron.log, and a shell
+// redirect into a missing directory fails, so the job would never run: berth creates the directory
+// when it installs the job; ccenv doesn't (PARITY.md).
+func TestBerthScheduleCronCreatesBackups(t *testing.T) {
+	r := run(t, BerthUnowned(berthBin), Scenario{Args: []string{"schedule"}, Files: withKey,
+		Rules: []Rule{noSystemd, {Bin: "crontab", Match: `^-l$`, Stdout: "0 * * * * /usr/bin/true\n"}}})
+	if r.Exit != 0 || !slices.Contains(r.Tree, "state/backups/ 0755") {
+		t.Errorf("exit %d, stderr %q, tree:\n%s", r.Exit, r.Stderr, strings.Join(r.Tree, "\n"))
 	}
 }
 

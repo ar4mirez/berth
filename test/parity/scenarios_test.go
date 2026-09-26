@@ -142,7 +142,9 @@ var scenarios = []checked{
 	{Scenario{Name: "init bad name", Args: []string{"init", "Bad_Name"}}, 1, []string{"lowercase"}},
 	{Scenario{Name: "schedule via systemd", Args: []string{"schedule", "--at", "02:30", "--keep", "7"}, Files: withKey},
 		0, []string{"daily at 02:30", "keeping the newest 7"}},
-	{Scenario{Name: "schedule via cron", Args: []string{"schedule"}, Files: withKey, Rules: []Rule{
+	// With backups/ there already: without it, berth creates it and ccenv doesn't (PARITY.md,
+	// TestBerthScheduleCronCreatesBackups).
+	{Scenario{Name: "schedule via cron", Args: []string{"schedule"}, Files: withBackupsDir, Rules: []Rule{
 		noSystemd,
 		{Bin: "crontab", Match: `^-l$`, Stdout: "MAILTO=\"\"\n0 * * * * /usr/bin/true\n"},
 	}}, 0, []string{"Scheduled (cron)"}},

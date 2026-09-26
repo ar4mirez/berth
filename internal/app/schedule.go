@@ -165,6 +165,11 @@ func (a *App) Schedule(ctx context.Context, args []string) error {
 	}
 	h, m, _ := strings.Cut(at, ":")
 	logFile := a.backupsDir() + "/cron.log"
+	// The job appends to cron.log there: if the directory doesn't exist yet, the shell's redirect
+	// fails and the job never runs. ccenv doesn't create it (PARITY.md).
+	if err := a.Host.FS.MkdirAll(a.backupsDir(), 0o777&^a.umask(ctx)); err != nil {
+		return err
+	}
 	job := strings.TrimPrefix(m, "0") + " " + strings.TrimPrefix(h, "0") + " * * * " + line + " >> " + logFile + " 2>&1  # " + scheduleName + "\n"
 	// ccenv's ( crontab -l | grep -v …; echo "<job>" ) | crontab - never adds the job when there is
 	// no crontab yet, or only its own line (grep fails under set -e): berth always does (PARITY.md).
