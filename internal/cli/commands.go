@@ -163,6 +163,15 @@ func addCommands(root *cobra.Command) {
 		}),
 		one("up <org>", "build if needed and (re)create the container", func(a *app.App, c *cobra.Command, o string) error { return a.Up(c.Context(), o) }),
 		writes(&cobra.Command{
+			Use:   "upgrade [--version vX.Y.Z] | --rollback",
+			Short: "install a verified release and switch to it (the previous one stays; restarts nothing)", DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error { return appFor(cmd).Upgrade(cmd.Context(), args) },
+		}),
+		reads(&cobra.Command{
+			Use: "image-tag", Short: "the image tag this berth uses", Hidden: true, Args: cobra.NoArgs,
+			RunE: func(cmd *cobra.Command, _ []string) error { return appFor(cmd).ImageTag() },
+		}),
+		writes(&cobra.Command{
 			Use: "pull", Short: "get the released image now, so restarts don't wait for it (restarts nothing)", Args: cobra.NoArgs,
 			ValidArgsFunction: completeArgs(),
 			RunE:              func(cmd *cobra.Command, _ []string) error { return appFor(cmd).Pull(cmd.Context()) },

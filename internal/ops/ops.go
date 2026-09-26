@@ -64,16 +64,18 @@ var Catalog = map[string]Op{
 	"parity-check": read,
 
 	// Lifecycle.
-	"init":    write,
-	"up":      writeHard("builds if needed, then recreates the container"),
-	"restart": writeHard("recreates the container"),
-	"down":    writeHard("stops and removes the container"),
-	"build":   write, // builds berth's image; containers keep running on theirs until their next restart
-	"pull":    write, // pulls the released image (#41); containers keep running on theirs
-	"attach":  write, // exec into the running container (acts as the org)
-	"shell":   write,
-	"claude":  write,
-	"run":     write,
+	"init":      write,
+	"up":        writeHard("builds if needed, then recreates the container"),
+	"restart":   writeHard("recreates the container"),
+	"down":      writeHard("stops and removes the container"),
+	"build":     write, // builds berth's image; containers keep running on theirs until their next restart
+	"pull":      write, // pulls the released image (#41); containers keep running on theirs
+	"upgrade":   write, // installs a verified release next to the current one and moves the link (#42); restarts nothing
+	"image-tag": read,  // hidden: the image tag this berth uses (for upgrade)
+	"attach":    write, // exec into the running container (acts as the org)
+	"shell":     write,
+	"claude":    write,
+	"run":       write,
 
 	// Sign-in.
 	"token":    writeMay("restarts a running org to apply the token, unless --no-restart"),

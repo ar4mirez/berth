@@ -149,8 +149,10 @@ jobs:
           set -euo pipefail
           cd dist
           identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}"
-          cosign verify-blob --bundle checksums.txt.sigstore.json \
+          cosign verify-blob --new-bundle-format --bundle checksums.txt.sigstore.json \
             --certificate-identity "$identity" --certificate-oidc-issuer "$OIDC_ISSUER" checksums.txt
+          # berth's own verifier, as berth upgrade runs it (#42), must accept it too.
+          (cd .. && go run ./tools/verifyrelease dist/checksums.txt dist/checksums.txt.sigstore.json "$identity")
           sha256sum -c --ignore-missing checksums.txt
           # A release binary pulls the image just published (#41).
           if [ -n "${BERTH_IMAGE:-}" ]; then
@@ -161,7 +163,7 @@ jobs:
           # Tampering must fail both checks.
           cp checksums.txt /tmp/checksums.orig
           echo "0000000000000000000000000000000000000000000000000000000000000000  berth_evil.tar.gz" >> checksums.txt
-          if cosign verify-blob --bundle checksums.txt.sigstore.json \
+          if cosign verify-blob --new-bundle-format --bundle checksums.txt.sigstore.json \
               --certificate-identity "$identity" --certificate-oidc-issuer "$OIDC_ISSUER" checksums.txt 2>/dev/null; then
             echo "a modified checksums.txt verified" >&2; exit 1
           fi

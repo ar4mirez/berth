@@ -48,6 +48,10 @@ linters:
       # Test infrastructure: it launches the tools under test and writes fixtures with ccenv's modes.
       - path: ^test/
         linters: [forbidigo, gosec]
+      # Release tooling run by CI (tools/imagetag, tools/verifyrelease): it reads the files it's given,
+      # never org state.
+      - path: ^tools/
+        linters: [forbidigo]
 
 formatters:
   enable:
