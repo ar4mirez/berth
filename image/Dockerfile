@@ -3,7 +3,7 @@
 # A bump changes a version and its checksums together (#69; the checksums come
 # from the project's own published checksum file). Debian's packages come from the digest-pinned
 # base's signed apt repos.
-FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c
+FROM node:26-bookworm-slim@sha256:662933cf47f013bc8e4beb31a6116448427a82057ba7c42c97e4c5ba766504c2
 
 # pin: datasource=npm depName=@anthropic-ai/claude-code
 ARG CLAUDE_CODE_PINNED=2.1.281
