@@ -34,11 +34,16 @@ type App struct {
 	Operator *host.Host
 	// HostName is the registered host an org@host resolved to ("" for this machine).
 	HostName string
-	Orgs     org.Orgs
-	Stdin    io.Reader
-	Stdout   io.Writer
-	Stderr   io.Writer
-	Getenv   func(string) string
+	// TakeLease lets up and restart move the org's active-host lease here (--take-lease, #47).
+	TakeLease bool
+	// HostAppFn, when set, replaces how an App for another host is made (tests).
+	HostAppFn func(ctx context.Context, name string) (*App, func(), error)
+	root      *App // the App on this machine, for an org@host App
+	Orgs      org.Orgs
+	Stdin     io.Reader
+	Stdout    io.Writer
+	Stderr    io.Writer
+	Getenv    func(string) string
 	// Upgrader fetches and verifies releases for `berth upgrade` (nil: not available).
 	Upgrader *Upgrader
 	// Output is OutputText (the default, ccenv's) or OutputJSON, for operations that return data.

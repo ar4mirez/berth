@@ -48,6 +48,9 @@ func (a *App) Restart(ctx context.Context, o string) error {
 	if err := a.needOwnedOrg(o); err != nil {
 		return err
 	}
+	if err := a.checkLease(ctx, o); err != nil {
+		return err
+	}
 	a.imageFromRelease(ctx) // a release pulls its image here; otherwise compose builds it if missing
 	return a.compose(ctx, o, "up", "-d", "--force-recreate")
 }
@@ -109,6 +112,9 @@ func (a *App) Run(ctx context.Context, o string, args []string) error {
 // `docker logs claude-<org> 2>&1`. The command ends with docker logs' exit code (pipefail).
 func (a *App) Up(ctx context.Context, o string) error {
 	if err := a.needOwnedOrg(o); err != nil {
+		return err
+	}
+	if err := a.checkLease(ctx, o); err != nil {
 		return err
 	}
 	// ccenv's up always builds (--build). A release that pulled its image doesn't: building would
