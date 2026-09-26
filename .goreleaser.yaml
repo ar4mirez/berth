@@ -15,6 +15,9 @@ builds:
       - -X github.com/ar4mirez/berth/internal/version.Version={{ .Version }}
       - -X github.com/ar4mirez/berth/internal/version.Commit={{ .ShortCommit }}
       - -X github.com/ar4mirez/berth/internal/version.Date={{ .Date }}
+      # The released image (#41): set by the release workflow; empty in snapshots.
+      - -X github.com/ar4mirez/berth/internal/assets.PublishedImage={{ index .Env "BERTH_IMAGE" }}
+      - -X github.com/ar4mirez/berth/internal/version.Image={{ index .Env "BERTH_IMAGE" }}
     goos: [linux, darwin]
     goarch: [amd64, arm64]
 

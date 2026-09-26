@@ -48,6 +48,7 @@ func (a *App) Restart(ctx context.Context, o string) error {
 	if err := a.needOwnedOrg(o); err != nil {
 		return err
 	}
+	a.imageFromRelease(ctx) // a release pulls its image here; otherwise compose builds it if missing
 	return a.compose(ctx, o, "up", "-d", "--force-recreate")
 }
 
@@ -110,7 +111,13 @@ func (a *App) Up(ctx context.Context, o string) error {
 	if err := a.needOwnedOrg(o); err != nil {
 		return err
 	}
-	if err := a.compose(ctx, o, "up", "-d", "--build", "--force-recreate"); err != nil {
+	// ccenv's up always builds (--build). A release that pulled its image doesn't: building would
+	// replace the pulled image with a local build of the same image/.
+	args := []string{"up", "-d", "--build", "--force-recreate"}
+	if a.imageFromRelease(ctx) {
+		args = []string{"up", "-d", "--force-recreate"}
+	}
+	if err := a.compose(ctx, o, args...); err != nil {
 		return err
 	}
 	if err := a.passthrough(ctx, false, "sleep", "3"); err != nil {
