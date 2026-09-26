@@ -103,6 +103,9 @@ func Embedded(stateRoot string) (Set, error) {
 // LockFile is the state root's lock, in berth's own directory (git-ignored with the rest of it).
 const LockFile = ".lock"
 
+// LeaseDir holds the active-host lease markers (#47), in berth's own directory too.
+const LeaseDir = "lease"
+
 // LockPath returns <stateRoot>/berth/.lock, creating the directory (with its .gitignore) if needed,
 // so a lock taken before the first materialization doesn't show up in a git checkout either.
 func LockPath(fsys host.FS, stateRoot string) (string, error) {
@@ -146,7 +149,7 @@ func Materialize(fsys host.FS, stateRoot string) (Set, error) {
 	if _, err := fsys.ReadFile(path.Join(dir, stampFile)); err != nil {
 		if entries, rerr := fsys.ReadDir(dir); rerr == nil {
 			for _, e := range entries {
-				if n := e.Name(); n != LockFile && n != ".gitignore" {
+				if n := e.Name(); n != LockFile && n != LeaseDir && n != ".gitignore" {
 					return Set{}, fmt.Errorf("%s exists and isn't berth's (no %s stamp); move it away", dir, stampFile)
 				}
 			}

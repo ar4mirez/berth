@@ -101,6 +101,27 @@ It then:
 It never stops or deletes anything on the host: its orgs keep running there. If the host was unreachable, berth
 reminds you to remove the `berth:<name>` line by hand.
 
+## Active-host leases
+
+Once hosts are registered, the same org can exist on more than one of them, after a `migrate` or a restore
+elsewhere. Two running copies would share one Remote Control login and git identity. So each org has a **lease**
+that names the one host allowed to run it (#47).
+
+- **First start:** an org on a single host gets the lease there on its first `up` or `restart`. Nothing else changes,
+  and nothing restarts because of it.
+- **Other hosts:** `up` and `restart` on any other host refuse, naming the host that holds the lease.
+- **Moving the lease:** `berth up acme@box2 --take-lease` moves it. The copy on the old host is **stopped first**,
+  and berth says so: that's a restart there, and the work running in it stops. If the old host can't be reached,
+  the lease stays. A lease on a host that was removed (`host rm`) moves without stopping anything.
+- **No lease yet, org on several hosts:** berth refuses and asks which host runs it (`--take-lease` on that one).
+- **Where leases live:** in `~/.config/berth/leases.yaml`. The holding host also gets a marker at
+  `<state root>/berth/lease/<org>`.
+- **No registered hosts:** there are no leases at all. Nothing is read or written, and `up` behaves exactly as before.
+
+`migrate` still leaves both copies running, as ccenv's does. With a registered target, finish with
+`berth up acme@<target> --take-lease`. That stops the old copy and moves the lease in one step. Moving orgs over the
+registry, with the lease handed over at the end, is #50.
+
 ## Files
 
 | File (on this machine) | What |
@@ -108,6 +129,7 @@ reminds you to remove the `berth:<name>` line by hand.
 | `~/.config/berth/hosts.yaml` | the registry (0600). Unknown keys are an error, so a typo can't drop a host. |
 | `~/.config/berth/keys/<name>`, `<name>.pub` | berth's key for each host (0600, unencrypted, like a default `ssh-keygen` key) |
 | `~/.config/berth/known_hosts` | the hosts' pinned keys |
+| `~/.config/berth/leases.yaml` | each org's active host (0600) |
 
 `$XDG_CONFIG_HOME` replaces `~/.config` when it's set.
 

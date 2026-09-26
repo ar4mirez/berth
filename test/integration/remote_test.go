@@ -116,7 +116,12 @@ func TestRemoteLifecycle(t *testing.T) {
 			// Earlier tests leave a stub image under berth's tag on this machine; up would use it
 			// instead of pulling the released one.
 			_, _ = s.docker("rmi", "-f", strings.TrimSpace(must("image-tag")))
-			must("up", s.org)
+			// The same org on both hosts: the second side takes the lease from the first (#47).
+			if s.name == "box" {
+				must("up", s.org, "--take-lease")
+			} else {
+				must("up", s.org)
+			}
 			if running, _ := s.docker("inspect", "-f", "{{.State.Running}}", "claude-"+o); strings.TrimSpace(running) != "true" {
 				t.Fatalf("not running after up (%s):\n%s", running, diag())
 			}

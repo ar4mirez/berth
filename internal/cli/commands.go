@@ -163,6 +163,11 @@ func nthArg(n int) func([]string) int { return func([]string) int { return n } }
 
 func allArgs([]string) int { return -1 }
 
+// firstNonFlag picks the first argument that isn't a flag (up acme --take-lease, up --take-lease acme).
+func firstNonFlag(args []string) int {
+	return slices.IndexFunc(args, func(x string) bool { return !strings.HasPrefix(x, "-") })
+}
+
 // tokenOrg picks token's org: its last argument that isn't one of its flags, as Token reads it.
 func tokenOrg(args []string) int {
 	i := -1
@@ -213,6 +218,17 @@ func addCommands(root *cobra.Command) {
 		return writes(&cobra.Command{
 			Use: use, Short: short, Args: cobra.ArbitraryArgs, ValidArgsFunction: org1,
 			RunE: onOrg(nthArg(0), func(a *app.App, cmd *cobra.Command, args []string) error { return run(a, cmd, arg(args, 0)) }),
+		})
+	}
+	// up and restart start the org, so they honour its active-host lease (#47); --take-lease moves
+	// it here, stopping the copy on the old host first. Other arguments are ignored, as ccenv does.
+	leased := func(use, short string, run func(*app.App, *cobra.Command, string) error) *cobra.Command {
+		return writes(&cobra.Command{
+			Use: use, Short: short, DisableFlagParsing: true, ValidArgsFunction: org1,
+			RunE: onOrg(firstNonFlag, func(a *app.App, cmd *cobra.Command, args []string) error {
+				a.TakeLease = slices.Contains(args, "--take-lease")
+				return run(a, cmd, arg(slices.DeleteFunc(slices.Clone(args), func(x string) bool { return x == "--take-lease" }), 0))
+			}),
 		})
 	}
 	// claude and run pass their arguments straight to claude, flags included, so cobra doesn't parse
@@ -279,7 +295,7 @@ func addCommands(root *cobra.Command) {
 				return a.GhLogin(cmd.Context(), arg(args, 0), arg(args, 1))
 			}),
 		}),
-		one("up <org>", "build if needed and (re)create the container", func(a *app.App, c *cobra.Command, o string) error { return a.Up(c.Context(), o) }),
+		leased("up <org> [--take-lease]", "build if needed and (re)create the container", func(a *app.App, c *cobra.Command, o string) error { return a.Up(c.Context(), o) }),
 		writes(&cobra.Command{
 			Use:   "upgrade [--version vX.Y.Z] | --rollback",
 			Short: "install a verified release and switch to it (the previous one stays; restarts nothing)", DisableFlagParsing: true,
@@ -299,7 +315,7 @@ func addCommands(root *cobra.Command) {
 			RunE: func(cmd *cobra.Command, args []string) error { return appFor(cmd).Build(cmd.Context(), args) },
 		}),
 		one("down <org>", "stop the container", func(a *app.App, c *cobra.Command, o string) error { return a.Down(c.Context(), o) }),
-		one("restart <org>", "recreate the container", func(a *app.App, c *cobra.Command, o string) error { return a.Restart(c.Context(), o) }),
+		leased("restart <org> [--take-lease]", "recreate the container", func(a *app.App, c *cobra.Command, o string) error { return a.Restart(c.Context(), o) }),
 		one("attach <org>", "attach to the shared tmux session", func(a *app.App, c *cobra.Command, o string) error { return a.Attach(c.Context(), o) }),
 		one("shell <org>", "bash inside the container", func(a *app.App, c *cobra.Command, o string) error { return a.Shell(c.Context(), o) }),
 		passthrough("claude <org> [args...]", "interactive claude in /workspace", func(a *app.App, c *cobra.Command, o string, rest []string) error {

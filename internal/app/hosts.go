@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -510,6 +511,12 @@ func (a *App) HostRm(ctx context.Context, args []string) error {
 	}
 	a.removeKey(e.Key)
 	fmt.Fprintf(a.Stdout, "Removed %s (%s). Nothing on it was stopped.\n", name, e.Address())
+	if orgs, err := a.dropLeases(name); err != nil {
+		fmt.Fprintf(a.Stderr, "warning: couldn't drop %s's leases: %v\n", name, err)
+	} else if len(orgs) > 0 {
+		sort.Strings(orgs)
+		fmt.Fprintf(a.Stdout, "It held the lease for %s: the next up on another host takes it (with --take-lease if the org is elsewhere too).\n", strings.Join(orgs, ", "))
+	}
 	if keyLeft {
 		fmt.Fprintf(a.Stdout, "berth's key may still be in its authorized_keys: remove the line ending %q there by hand.\n", hosts.Comment(name))
 	}
