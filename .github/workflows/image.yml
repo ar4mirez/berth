@@ -1,0 +1,33 @@
+name: image
+
+# Builds the container image from image/ on a real daemon (#39): the pinned versions must be the ones
+# installed, and a download that doesn't match its pinned sha256 must fail the build.
+on:
+  pull_request:
+    paths: ["image/**", ".github/workflows/image.yml"]
+  push:
+    branches: [main]
+    paths: ["image/**", ".github/workflows/image.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Temporary (removed before merge): prints what to pin, from each project's own checksums.
+  resolve-pins:
+    runs-on: ubuntu-latest
+    steps:
+      - name: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "node:22-bookworm-slim digest: $(docker buildx imagetools inspect node:22-bookworm-slim --format '{{json .Manifest.Digest}}')"
+          sums() { curl -fsSL "$1" | grep -E "$2"; }
+          echo "--- ttyd 1.7.7"; sums https://github.com/tsl0922/ttyd/releases/download/1.7.7/SHA256SUMS 'ttyd\.(x86_64|aarch64)$'
+          mv=$(gh release view -R jdx/mise --json tagName -q .tagName); echo "--- mise $mv"
+          sums "https://github.com/jdx/mise/releases/download/$mv/SHASUMS256.txt" "mise-$mv-linux-(x64|arm64)\$"
+          gv=$(gh release view -R cli/cli --json tagName -q .tagName); echo "--- gh $gv"
+          sums "https://github.com/cli/cli/releases/download/$gv/gh_${gv#v}_checksums.txt" "gh_${gv#v}_linux_(amd64|arm64)\.tar\.gz\$"
+          echo "--- claude-code 2.1.281: $(npm view @anthropic-ai/claude-code@2.1.281 version dist.integrity)"
