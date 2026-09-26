@@ -117,7 +117,17 @@ func TestHostSchedule(t *testing.T) {
 		key := filepath.Join(home, "cfg", "berth", "backup.key")
 		listing, _ := exec.Command("docker", "run", "--rm", "-v", key+":/k:ro", "-v", local+":/b:ro", "--entrypoint", "sh", strings.TrimSpace(must("image-tag")),
 			"-c", "age -d -i /k /b | zstd -dc | tar -tv | head -20").CombinedOutput()
-		t.Fatalf("restore: %v\n%s\non the host:\n%s\nthe archive, decrypted here:\n%s", err, out, logs, listing)
+		// restore's extraction by hand: the same mounts, then what lands in the stage.
+		stage := t.TempDir()
+		ext := exec.Command("docker", "run", "--rm", "-i", "--network", "none", "--entrypoint", "bash",
+			"-v", key+":/secrets/identity:ro", "-v", filepath.Join(home, "state", "berth", "image", "archive.sh")+":/archive.sh:ro",
+			"-v", stage+":/dst", strings.TrimSpace(must("image-tag")), "/archive.sh", "extract", "1001", "118")
+		f, ferr := os.Open(local)
+		mustDo(t, ferr)
+		ext.Stdin = f
+		eout, eerr := ext.CombinedOutput()
+		ls, _ := exec.Command("ls", "-la", stage, filepath.Join(home, "state"), filepath.Join(home, "state", "orgs")).CombinedOutput()
+		t.Fatalf("restore: %v\n%s\non the host:\n%s\nthe archive, decrypted here:\n%s\nextract by hand: %v\n%s\n%s", err, out, logs, listing, eerr, eout, ls)
 	}
 	if _, err := os.Stat(filepath.Join(home, "state", "orgs", "t-sched-r", "org.env")); err != nil {
 		t.Errorf("the restored org: %v", err)
