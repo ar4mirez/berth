@@ -173,7 +173,13 @@ func (a *App) Restore(ctx context.Context, args []string) error {
 		return err
 	}
 
-	// Make it fit this host: free ports, and Tailscale only if this host has it.
+	// Make it fit this host: free ports, and Tailscale only if this host has it. Under the state
+	// root's lock, so a concurrent init or restore can't take the same ports (#46).
+	unlockPorts, err := a.lock(ctx)
+	if err != nil {
+		return err
+	}
+	defer unlockPorts()
 	for _, k := range []struct {
 		key  string
 		base int
@@ -201,6 +207,7 @@ func (a *App) Restore(ctx context.Context, args []string) error {
 		fmt.Fprintln(a.Stdout, "Tailscale not up on this host: bound to 127.0.0.1 (set BIND_ADDR=tailscale later)")
 	}
 
+	unlockPorts()
 	fmt.Fprintf(a.Stdout, "Restored to %s\n", d)
 	if !start {
 		fmt.Fprintf(a.Stdout, "Start with: %s up %s\n", Tool, name)

@@ -96,6 +96,25 @@ func Embedded(stateRoot string) (Set, error) {
 	return Set{Compose: path.Join(dir, "compose.yml"), ImageDir: path.Join(dir, "image"), Tag: ImageRepo + ":" + hashOf(all, "image/")[:12]}, nil
 }
 
+// LockFile is the state root's lock, in berth's own directory (git-ignored with the rest of it).
+const LockFile = ".lock"
+
+// LockPath returns <stateRoot>/berth/.lock, creating the directory (with its .gitignore) if needed,
+// so a lock taken before the first materialization doesn't show up in a git checkout either.
+func LockPath(fsys host.FS, stateRoot string) (string, error) {
+	dir := path.Join(stateRoot, Dir)
+	if err := fsys.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	gi := path.Join(dir, ".gitignore")
+	if _, err := fsys.Stat(gi); err != nil {
+		if err := fsys.WriteFile(gi, []byte(gitignore), 0o644); err != nil {
+			return "", err
+		}
+	}
+	return path.Join(dir, LockFile), nil
+}
+
 // Materialized reports whether <stateRoot>/berth holds the current embedded assets.
 func Materialized(fsys host.FS, stateRoot string) bool {
 	all, err := files()
@@ -120,8 +139,12 @@ func Materialize(fsys host.FS, stateRoot string) (Set, error) {
 	all, _ := files()
 	dir := path.Join(stateRoot, Dir)
 	if _, err := fsys.ReadFile(path.Join(dir, stampFile)); err != nil {
-		if entries, rerr := fsys.ReadDir(dir); rerr == nil && len(entries) > 0 {
-			return Set{}, fmt.Errorf("%s exists and isn't berth's (no %s stamp); move it away", dir, stampFile)
+		if entries, rerr := fsys.ReadDir(dir); rerr == nil {
+			for _, e := range entries {
+				if n := e.Name(); n != LockFile && n != ".gitignore" {
+					return Set{}, fmt.Errorf("%s exists and isn't berth's (no %s stamp); move it away", dir, stampFile)
+				}
+			}
 		}
 	}
 	if err := fsys.MkdirAll(path.Join(dir, "image"), 0o755); err != nil {

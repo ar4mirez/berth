@@ -158,6 +158,20 @@ func (a *App) Env(ctx context.Context, args []string) error {
 		}
 		return false
 	}
+	// The edit runs under the state root's lock, re-reading org.env; never across the value prompt
+	// or the restart.
+	unlock := func() {}
+	defer func() { unlock() }()
+	relock := func() error {
+		u, err := a.lock(ctx)
+		if err != nil {
+			return err
+		}
+		unlock = u
+		data, _ = a.Host.FS.ReadFile(f)
+		listed = strings.Fields(a.env(o, contract.EnvKeys))
+		return nil
+	}
 	if sub == "set" {
 		val, err := a.readValue(key)
 		if err != nil {
@@ -169,6 +183,9 @@ func (a *App) Env(ctx context.Context, args []string) error {
 		if strings.Contains(val, "'") {
 			return errors.New("values containing a single quote (') aren't supported")
 		}
+		if err := relock(); err != nil {
+			return err
+		}
 		if err := a.Orgs.Set(o, key, "'"+val+"'"); err != nil {
 			return err
 		}
@@ -177,6 +194,9 @@ func (a *App) Env(ctx context.Context, args []string) error {
 		}
 		fmt.Fprintln(a.Stdout, "set: "+key)
 	} else {
+		if err := relock(); err != nil {
+			return err
+		}
 		if !hasLine(key) && !contains(key) {
 			return fmt.Errorf("%s is not set for %s", key, o)
 		}
@@ -202,6 +222,8 @@ func (a *App) Env(ctx context.Context, args []string) error {
 	if err := a.Orgs.Set(o, contract.EnvKeys, strings.Join(listed, " ")); err != nil {
 		return err
 	}
+	unlock()
+	unlock = func() {}
 	if restart && a.running(ctx, o) {
 		// compose … >/dev/null 2>&1 && echo …: a failure ends the command with exit 1, silently.
 		q := *a

@@ -319,6 +319,21 @@ func TestSSHHost(t *testing.T) {
 		case <-time.After(10 * time.Second):
 			t.Fatal("waiter never got the lock after Unlock")
 		}
+
+		// A dropped connection releases the lock (#46): a second connection takes it and closes
+		// without unlocking; a waiter on the first connection must then get it.
+		other, err := sshhost.Dial(ctx, target.config(target.pin(t, target.hostKey)), operator)
+		mustDo(t, err)
+		_, err = other.FS.Lock(ctx, name)
+		mustDo(t, err)
+		mustDo(t, other.Close())
+		dctx, dcancel := context.WithTimeout(ctx, 10*time.Second)
+		defer dcancel()
+		u, err := h.FS.Lock(dctx, name)
+		if err != nil {
+			t.Fatalf("the lock wasn't released when its connection dropped: %v", err)
+		}
+		mustDo(t, u.Unlock())
 	})
 
 	t.Run("docker over streamlocal", func(t *testing.T) {
