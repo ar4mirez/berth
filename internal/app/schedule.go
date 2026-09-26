@@ -26,6 +26,14 @@ var (
 // Schedule is `ccenv schedule [--at HH:MM] [--keep N] [-o dir] | status | run | off`: a nightly
 // `backup --all` through a systemd user timer, or cron where there is no systemd user manager.
 func (a *App) Schedule(ctx context.Context, args []string) error {
+	// --host <name> (#49): the schedule runs on that registered host, with recipients only.
+	if name, rest, err := splitHostFlag(args); err != nil {
+		return err
+	} else if name != "" && name != "local" {
+		return a.scheduleOnHost(ctx, name, rest)
+	} else {
+		args = rest
+	}
 	at, keep, out, action := "03:00", "14", "", "on"
 	for i := 0; i < len(args); i++ {
 		switch x := args[i]; x {
