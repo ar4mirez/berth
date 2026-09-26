@@ -1,22 +1,22 @@
 # One image for every org. Org-specific state lives in bind mounts, never in the image.
 # Every version below is pinned, and every download is checked against its sha256 before use (#39).
-# A bump changes the version and its checksums together (Renovate opens the PR; the checksums come
+# A bump changes a version and its checksums together (#69; the checksums come
 # from the project's own published checksum file). Debian's packages come from the digest-pinned
 # base's signed apt repos.
 FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c
 
-# renovate: datasource=npm depName=@anthropic-ai/claude-code
+# pin: datasource=npm depName=@anthropic-ai/claude-code
 ARG CLAUDE_CODE_PINNED=2.1.281
 ARG CLAUDE_CODE_INTEGRITY=sha512-sldhFsGqOnGA8pfOMLjyc+Sc331VkZ1TsP1sdpvMeVFYBikC5x53miTCsnTiE6Bio74IYPn7BIzTNbHcRp5fXQ==
-# renovate: datasource=github-releases depName=tsl0922/ttyd
+# pin: datasource=github-releases depName=tsl0922/ttyd
 ARG TTYD_VERSION=1.7.7
 ARG TTYD_SHA256_AMD64=8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55
 ARG TTYD_SHA256_ARM64=b38acadd89d1d396a0f5649aa52c539edbad07f4bc7348b27b4f4b7219dd4165
-# renovate: datasource=github-releases depName=jdx/mise
+# pin: datasource=github-releases depName=jdx/mise
 ARG MISE_VERSION=v2026.9.14
 ARG MISE_SHA256_AMD64=2b289d1b3074e0b1d3f95bad0bd78bbc517c1a5bcb020cbc1643d260f5d1a351
 ARG MISE_SHA256_ARM64=b405a2ea062c4d9560eee0a3c45b79e53c8834cf38e956bb47ca70e0d2e7479a
-# renovate: datasource=github-releases depName=cli/cli
+# pin: datasource=github-releases depName=cli/cli
 ARG GH_VERSION=v2.101.0
 ARG GH_SHA256_AMD64=9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8
 ARG GH_SHA256_ARM64=b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f
