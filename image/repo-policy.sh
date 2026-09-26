@@ -1,6 +1,6 @@
 # Repo allowlist helpers, shared by the git guard and the workspace sweep (sourced, not executed).
 # Registry: /config/repos.txt, one repo per line:  <dir> <clone-url> [branch]   (# comments)
-# <clone-url> "local" = a repo created with `ccenv repo new --local` that has no remote yet.
+# <clone-url> "local" = a repo created with `berth repo new --local` that has no remote yet.
 # It lives on the read-only /config mount, so nothing inside the container can add to it.
 
 REPOS_FILE="${REPOS_FILE:-/config/repos.txt}"

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // PreToolUse hook (managed settings): keeps Claude inside the org's allowed repos.
-// Allowed = directories registered in /config/repos.txt (read-only here; managed with `ccenv repo`).
-//   - no cloning / adding remotes / tampering with git's transport (repos are set up via ccenv)
+// Allowed = directories registered in /config/repos.txt (read-only here; managed with `berth repo`).
+//   - no cloning / adding remotes / tampering with git's transport (repos are set up via berth)
 //   - no reading or editing inside /workspace folders that aren't registered repos
 // REPO_POLICY: enforce (default) | warn | off
 'use strict';
@@ -81,8 +81,8 @@ function decide(reason) {
   process.exit(0);
 }
 
-const HOW = (x) => `Only repos set up with ccenv can be used in this container ('${org}'). ` +
-  `Don't work around this: tell the user, and they can run on the host: ccenv repo add ${org} ${x}`;
+const HOW = (x) => `Only repos set up with berth can be used in this container ('${org}'). ` +
+  `Don't work around this: tell the user, and they can run on the host: berth repo add ${org} ${x}`;
 
 function checkPath(p, cwd, allowedDirs) {
   if (!p || typeof p !== 'string') return;
@@ -113,7 +113,7 @@ function main(input) {
 
   if (/\bgit\b[^;&|\n]*\bclone\b/.test(cmd) || /\bgh\s+repo\s+(clone|fork)\b/.test(cmd) ||
       /\bgit\b[^;&|\n]*\bsubmodule\s+add\b/.test(cmd)) {
-    decide(`Cloning is done through ccenv, not inside the container. ${HOW('<owner/repo>')}`);
+    decide(`Cloning is done through berth, not inside the container. ${HOW('<owner/repo>')}`);
   }
   if (/GIT_SSH(_COMMAND)?=|core\.sshCommand|insteadOf|GIT_CONFIG_(PARAMETERS|COUNT|KEY_|VALUE_)|ssh\.variant|git-ssh-guard|sudoers|\/opt\/claude-secrets/i.test(cmd)) {
     decide('Changing how git connects (ssh command, URL rewrites, the git guard) is not allowed in this container.');

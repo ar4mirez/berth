@@ -36,8 +36,8 @@ canon=$(repo_canon "$path" "$host")
 [ -n "$canon" ] || deny "bad repo path"
 if ! repo_allowed_canon "$canon"; then
   deny "$canon is not in the allowed repo list for '$ORG'.
-  Only repos set up with ccenv may be used here. Ask the user to run on the host:
-    ccenv repo add $ORG ${canon#*/}"
+  Only repos set up with berth may be used here. Ask the user to run on the host:
+    berth repo add $ORG ${canon#*/}"
 fi
 
 [ -r "$KEY" ] || deny "no git key for '$ORG' (orgs/$ORG/ssh/id_ed25519)"

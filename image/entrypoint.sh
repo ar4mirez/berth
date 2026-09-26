@@ -15,7 +15,7 @@ echo "$ORG" > /etc/claude-env/org
 # --- Env snapshot for SSH sessions (they don't inherit container env) --------
 : > /etc/claude-env/env
 for v in ORG CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY GH_TOKEN CLAUDE_CONFIG_DIR \
-         DISABLE_AUTOUPDATER LANG ANTHROPIC_MODEL REPO_POLICY ${CCENV_ENV_KEYS:-}; do   # + custom: ccenv env <org> set
+         DISABLE_AUTOUPDATER LANG ANTHROPIC_MODEL REPO_POLICY ${CCENV_ENV_KEYS:-}; do   # + custom: berth env <org> set
   [ -n "${!v:-}" ] && printf '%s=%q\n' "$v" "${!v}" >> /etc/claude-env/env
 done
 chown root:node /etc/claude-env/env && chmod 640 /etc/claude-env/env
@@ -92,7 +92,7 @@ fi
   done ) &
 
 # --- Remote Control service: new sessions are started from claude.ai/code -------
-# Needs a full-scope login (`ccenv login`); the inference-only token can't do it.
+# Needs a full-scope login (`berth login`); the inference-only token can't do it.
 RC_LOG="$CFG/remote-control.log"
 if [ "${REMOTE_CONTROL:-1}" = "1" ]; then
   ( while true; do
