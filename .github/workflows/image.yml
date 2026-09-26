@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: build the image
         run: docker build -t berth-image-ci image/
       - name: the installed versions are the pinned ones
