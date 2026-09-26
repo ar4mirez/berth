@@ -89,6 +89,11 @@ func TestRemoteLifecycle(t *testing.T) {
 			orgDir := s.state + "/orgs/" + o
 			norm := func(x string) string { return strings.ReplaceAll(x, orgDir, "<ORGDIR>") }
 			t.Cleanup(func() { _, _ = berth("down", s.org) })
+			diag := func() string {
+				st, _ := s.docker("inspect", "-f", "{{json .State}} restarts={{.RestartCount}}", "claude-"+o)
+				logs, _ := s.docker("logs", "claude-"+o)
+				return st + "\n" + logs
+			}
 
 			res["init"] = norm(must("init", s.org, "--name", "Test User", "--email", "test@example.com"))
 			envFile, err := s.cat(orgDir + "/org.env")
@@ -104,8 +109,7 @@ func TestRemoteLifecycle(t *testing.T) {
 
 			must("up", s.org)
 			if running, _ := s.docker("inspect", "-f", "{{.State.Running}}", "claude-"+o); strings.TrimSpace(running) != "true" {
-				logs, _ := s.docker("logs", "--tail", "30", "claude-"+o)
-				t.Fatalf("not running after up (%s):\n%s", running, logs)
+				t.Fatalf("not running after up (%s):\n%s", running, diag())
 			}
 			deadline := time.Now().Add(3 * time.Minute)
 			for {
@@ -114,8 +118,7 @@ func TestRemoteLifecycle(t *testing.T) {
 					break
 				}
 				if time.Now().After(deadline) {
-					logs, _ := s.docker("logs", "--tail", "30", "claude-"+o)
-					t.Fatalf("the firewall never came up (%q):\n%s", st, logs)
+					t.Fatalf("the firewall never came up (%q):\n%s", st, diag())
 				}
 				time.Sleep(2 * time.Second)
 			}
