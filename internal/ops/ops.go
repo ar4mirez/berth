@@ -122,6 +122,11 @@ var Catalog = map[string]Op{
 		"":       write, "run": write, "now": write, "off": write, "--off": write,
 	}},
 
+	// Secrets as files (#37).
+	"secrets": {Access: BySub, Subs: map[string]Op{
+		"migrate": write, // moves values into files; the container keeps its environment until its next restart
+	}},
+
 	// Cutover and install.
 	"takeover": write, // MANAGER=berth only; the container keeps running
 	"handback": write,

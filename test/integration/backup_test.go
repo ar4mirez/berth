@@ -135,11 +135,13 @@ func (m *matrixEnv) fixture(t *testing.T) {
 		"org.env":                        "GIT_USER_NAME=Test User\nBIND_ADDR=127.0.0.1\nSSH_PORT=2291\nTTYD_PORT=7791\nREMOTE_CONTROL=0\n",
 		"config/repos.txt":               "# repos\napp git@github.com:acme/app.git\n",
 		"config/secrets/ttyd_credential": "node:MATRIXpassword",
-		"ssh/id_ed25519":                 "FAKE PRIVATE KEY\n",
-		"claude/.credentials.json":       "{}",
-		"workspace/app/README.md":        "# app\n",
-		"workspace/app/node_modules/x":   "regenerable\n",
-		"mise/config/config.toml":        "[tools]\ngo = \"latest\"\n",
+		// A migrated org's secrets (#37) must come back byte for byte, 0600.
+		"config/secrets/env/CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-MATRIX",
+		"ssh/id_ed25519":               "FAKE PRIVATE KEY\n",
+		"claude/.credentials.json":     "{}",
+		"workspace/app/README.md":      "# app\n",
+		"workspace/app/node_modules/x": "regenerable\n",
+		"mise/config/config.toml":      "[tools]\ngo = \"latest\"\n",
 	}
 	for p, c := range files {
 		full := filepath.Join(o, p)
@@ -188,6 +190,7 @@ func checkTree(t *testing.T, got string) {
 	for _, want := range []string{
 		"sshd/ssh_host_ed25519_key f 0:0 600",
 		fmt.Sprintf("config/secrets/ttyd_credential f %d:%d 600", uid, gid),
+		fmt.Sprintf("config/secrets/env/CLAUDE_CODE_OAUTH_TOKEN f %d:%d 600", uid, gid),
 		fmt.Sprintf("workspace/app/README.md f %d:%d 644", uid, gid),
 	} {
 		if !strings.Contains(got, want+"\n") {

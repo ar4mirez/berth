@@ -106,7 +106,7 @@ func (a *App) Token(ctx context.Context, args []string) error {
 	if !strings.HasPrefix(t, "sk-ant-") {
 		return errors.New("that doesn't look like a Claude token (sk-ant-...)")
 	}
-	if err := a.Orgs.Set(o, "CLAUDE_CODE_OAUTH_TOKEN", t); err != nil {
+	if err := a.setSecret(o, "CLAUDE_CODE_OAUTH_TOKEN", t, t); err != nil {
 		return err
 	}
 	fmt.Fprintf(a.Stdout, "Token saved for %s.\n", o)
@@ -254,7 +254,7 @@ func (a *App) Logout(ctx context.Context, o, flag string) error {
 	}
 	fmt.Fprintf(a.Stdout, "Logged out %s (Remote Control login removed).\n", o)
 	if flag == "--all" {
-		if err := a.Orgs.Set(o, "CLAUDE_CODE_OAUTH_TOKEN", ""); err != nil {
+		if err := a.setSecret(o, "CLAUDE_CODE_OAUTH_TOKEN", "", ""); err != nil {
 			return err
 		}
 		fmt.Fprintln(a.Stdout, "Token removed too.")
@@ -270,7 +270,7 @@ func (a *App) Logout(ctx context.Context, o, flag string) error {
 
 // ghAccount is gh_account: the container's gh login, or "".
 func (a *App) ghAccount(ctx context.Context, o string) string {
-	out, _ := a.capture(ctx, false, "docker", "exec", "-u", "node", "claude-"+o, "sh", "-c", "gh api user -q .login 2>/dev/null; true")
+	out, _ := a.capture(ctx, false, append([]string{"docker", "exec", "-u", "node", "claude-" + o}, a.execLoader(o, "sh", "-c", "gh api user -q .login 2>/dev/null; true")...)...)
 	return out
 }
 

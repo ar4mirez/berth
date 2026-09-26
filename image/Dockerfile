@@ -85,7 +85,7 @@ RUN chmod +x /usr/local/bin/*.sh \
 # Repo allowlist. The org's git key is mounted under a root-only dir; `node` reaches GitHub only through
 # git-ssh-guard (via a single sudo rule), which checks every fetch/push against /config/repos.txt.
 # repo-guard.js is the Claude-side PreToolUse hook (wired in managed-settings.json).
-COPY repo-policy.sh repo-guard.js /usr/local/lib/claude-env/
+COPY repo-policy.sh repo-guard.js secrets-env.sh /usr/local/lib/claude-env/
 COPY git-ssh-guard /usr/local/bin/git-ssh-guard
 RUN chmod 755 /usr/local/bin/git-ssh-guard && chmod 644 /usr/local/lib/claude-env/* \
     && install -d -m 700 -o root -g root /opt/claude-secrets \

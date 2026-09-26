@@ -21,6 +21,9 @@ const (
 	FirewallFile   = Config + "/firewall.txt"            // init-firewall.sh
 	AuthorizedKeys = Config + "/authorized_keys"         // entrypoint.sh, installed for sshd
 	TTYDCredential = Config + "/secrets/ttyd_credential" // entrypoint.sh, ttyd -c
+	// SecretsEnv holds one file per secret or custom variable (#37): secrets-env.sh exports them at
+	// start, and berth's exec loader for `claude`/`run` reads them.
+	SecretsEnv = Config + "/secrets/env"
 )
 
 // What the container writes for the host to read.
