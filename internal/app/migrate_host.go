@@ -180,6 +180,8 @@ func (a *App) copyOrg(ctx context.Context, src *App, o string, dst *App, name st
 	}()
 	q := *dst
 	q.Stdin = pr
+	// restore's "Start with: berth up <org>" would name the wrong host here; migrate starts it.
+	q.Stdout = &dropLines{w: dst.Stdout, prefix: "Start with: "}
 	rerr := q.Restore(ctx, []string{"-", "--as", name, "--no-start", "--no-rehydrate"})
 	_ = pr.Close()
 	serr := <-errc
@@ -187,6 +189,30 @@ func (a *App) copyOrg(ctx context.Context, src *App, o string, dst *App, name st
 		return fmt.Errorf("reading %s: %w", o, serr)
 	}
 	return rerr
+}
+
+// dropLines passes output through, but for lines starting with prefix.
+type dropLines struct {
+	w      io.Writer
+	prefix string
+	buf    []byte
+}
+
+func (d *dropLines) Write(p []byte) (int, error) {
+	d.buf = append(d.buf, p...)
+	for {
+		i := strings.IndexByte(string(d.buf), '\n')
+		if i < 0 {
+			return len(p), nil
+		}
+		line := d.buf[:i+1]
+		if !strings.HasPrefix(string(line), d.prefix) {
+			if _, err := d.w.Write(line); err != nil {
+				return len(p), err
+			}
+		}
+		d.buf = d.buf[i+1:]
+	}
 }
 
 // removeCopy removes a stopped copy this migrate made (its sshd keys are root's, so as root).
