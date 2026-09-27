@@ -74,7 +74,8 @@ func TestMigrateHost(t *testing.T) {
 	_ = exec.Command("docker", "rmi", "-f", strings.TrimSpace(must("image-tag"))).Run() // the stub (TestRemoteLifecycle)
 
 	must("init", "t-mig", "--name", "Test User", "--email", "test@example.com")
-	ws := filepath.Join(state, "orgs", "t-mig", "workspace")
+	// In ~/.config (home-config): /workspace is swept of anything that isn't a registered repo.
+	ws := filepath.Join(state, "orgs", "t-mig", "home-config")
 	mustDo(t, os.MkdirAll(filepath.Join(ws, "notes"), 0o755))
 	mustDo(t, os.WriteFile(filepath.Join(ws, "notes", "hello.txt"), []byte("hello from here\n"), 0o644))
 	must("up", "t-mig")
@@ -102,7 +103,7 @@ func TestMigrateHost(t *testing.T) {
 		t.Errorf("the old copy wasn't kept: %v", err)
 	}
 	for f, want := range map[string]string{"hello.txt": "hello from here\n", "late.txt": "written after the rehearsal\n"} {
-		if got := docker(t, "exec", fixture, "cat", remoteOrgs+"t-mig/workspace/notes/"+f); got != want {
+		if got := docker(t, "exec", fixture, "cat", remoteOrgs+"t-mig/home-config/notes/"+f); got != want {
 			t.Errorf("%s on box: %q", f, got)
 		}
 	}
