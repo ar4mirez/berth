@@ -32,7 +32,7 @@ berth ls                                      # this machine's orgs, then each h
 - **Completion.** After an `@`, completion offers the registered hosts. It reads the registry and never connects.
 - **Not remote yet.** `backup`, `restore`, `migrate`, `secrets migrate` and `parity-check` refuse an
   `org@host`, because they read your backup key or write your files. Host-side backups are #49, and moving orgs
-  between hosts is #50. `build`, `pull` and `schedule` act on this machine.
+  between hosts is #50. `build` and `pull` act on this machine. `schedule` takes `--host` (below).
 - **`fw edit` on a host.** It opens the editor on that host, over `ssh -t`.
 
 ## Commands
@@ -102,6 +102,42 @@ It then:
 
 It never stops or deletes anything on the host: its orgs keep running there. If the host was unreachable, berth
 reminds you to remove the `berth:<name>` line by hand.
+
+## Backups on a host
+
+`berth schedule --host box1` gives a host its own nightly `backup --all` (#49). It takes the same flags as a local
+schedule (`--at`, `--keep`, `-o <dir on the host>`, `status`, `run`, `off`).
+
+`schedule --host` does the following:
+
+1. **Puts berth on the host.** For a release, that's the signed release binary for the host's architecture, verified
+   as `berth upgrade` does. It goes in `~/.local/opt/berth/<version>/`, linked from `~/.local/bin/berth` there.
+   (A development build can only be pushed to a host of its own platform, unverified, and berth says so.)
+2. **Runs the host's own `berth schedule`** with `BERTH_BACKUP_RECIPIENTS` set to your public key: the one in
+   `$BERTH_BACKUP_RECIPIENTS`, or `backup.key`'s public half. The host sets up a systemd user timer, or cron where
+   it has no systemd user manager, just as a local schedule does.
+
+Things to know:
+
+- **Only public keys reach the host.** Its backups are encrypted to your key, and your private `backup.key` never
+  leaves this machine. The host can make backups but can't read them.
+- **Upgrades keep it working.** The job calls `~/.local/bin/berth`, so upgrading berth on the host (running
+  `schedule --host` again with a newer berth, or `berth upgrade` there) keeps it running.
+- **Where backups go:** the host's `<state root>/backups/` by default, or `-o`.
+- **Logged-out runs:** with systemd, the host reports whether linger is on. Without it, runs happen only while that
+  user is logged in (`sudo loginctl enable-linger <user>` there).
+
+### Getting backups off the host
+
+A backup that stays on the host is lost with the host. Copy them somewhere else regularly. They're encrypted, so
+any storage will do:
+
+```bash
+rsync -a ops@box1.example:.local/share/berth/backups/ ~/berth-backups/box1/        # to this machine
+rclone copy ops@box1:.local/share/berth/backups remote:berth/box1                  # or object storage
+```
+
+Restore one here with `berth restore <file>`, which uses your key. Automatic pulls may come later.
 
 ## The host guard
 

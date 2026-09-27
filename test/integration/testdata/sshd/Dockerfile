@@ -3,8 +3,9 @@
 FROM docker:dind
 
 # ss (iproute2) and flock (util-linux) are what a real berth host is expected to have; git and
-# ssh-keygen are what init runs there.
-RUN apk add --no-cache openssh-server iproute2 util-linux git \
+# ssh-keygen are what init runs there. busybox-suid lets a plain user keep a crontab: with no systemd
+# here, a host's backup schedule falls back to cron.
+RUN apk add --no-cache openssh-server iproute2 util-linux git busybox-suid \
     && command -v flock && command -v ss && command -v ssh-keygen
 
 # ops: a plain user in the docker group, as on a real host (the root login stays for the host/ssh

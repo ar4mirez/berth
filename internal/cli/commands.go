@@ -391,7 +391,7 @@ func addCommands(root *cobra.Command) {
 		}),
 		// schedule parses its own arguments, as ccenv does; status reads, the rest write.
 		reads(&cobra.Command{
-			Use:   "schedule [--at HH:MM] [--keep N] [-o dir] | status | run | off",
+			Use:   "schedule [--at HH:MM] [--keep N] [-o dir] | status | run | off  [--host <name>]",
 			Short: "nightly backup --all (systemd user timer berth-backup, or cron)", DisableFlagParsing: true,
 			ValidArgsFunction: completeArgs([]string{"status", "run", "off", "--at", "--keep", "-o"}),
 			RunE:              func(cmd *cobra.Command, args []string) error { return appFor(cmd).Schedule(cmd.Context(), args) },

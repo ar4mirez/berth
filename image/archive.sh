@@ -103,7 +103,10 @@ case "${1:-}" in
     esac
     echo "$fmt" > "$DST/.ccenv-format"
     cat /tmp/head - | dec | zstd -dc | tar -xf - -C "$DST" --numeric-owner
-    # Files belong to whoever runs ccenv on this host; sshd host keys stay root-only.
+    # Files belong to whoever runs ccenv on this host; sshd host keys stay root-only. $DST itself
+    # too: tar gives it the owner it had where the backup was made, which on another machine (a
+    # different uid) leaves the restore unable to read what it just extracted.
+    chown "$uid:$gid" "$DST"
     find "$DST" -mindepth 1 -maxdepth 1 ! -name sshd -exec chown -R "$uid:$gid" {} +
     if [ -d "$DST/sshd" ]; then chown -R 0:0 "$DST/sshd"; chmod 600 "$DST"/sshd/*_key 2>/dev/null || true; fi
     ;;
