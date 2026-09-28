@@ -109,7 +109,7 @@ homebrew_casks:
     repository:
       owner: ar4mirez
       name: homebrew-tap
-      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"  # goreleaser accepts exactly this form (it failed v0.4.0's publish)
     homepage: https://ar4mirez.github.io/berth/
     description: Isolated Claude Code environments, one per organization
     license: Apache-2.0
