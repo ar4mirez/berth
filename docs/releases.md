@@ -67,6 +67,22 @@ What `berth upgrade` does:
 berth does all this itself, with no cosign or gh needed on the host. Releases before v0.3.0 were signed in cosign's older
 bundle format; install those by hand.
 
+## What a release has (#60)
+
+| File | What |
+|---|---|
+| `berth_<v>_<os>_<arch>.tar.gz` | the binary, with the README, LICENSE, man pages and completion (linux and darwin, amd64 and arm64) |
+| `berth_<v>_<arch>.deb`, `berth-<v>-1.<arch>.rpm`, `berth-<v>-1-<arch>.pkg.tar.zst` | packages for Debian and Ubuntu, Fedora and RHEL, and Arch (linux, amd64 and arm64) |
+| `berth_<v>.tar.gz` | the source, which the AUR's `berth` package builds |
+| `install.sh` | the install script ([Getting started](getting-started.md#install-berth)) |
+| `checksums.txt`, `checksums.txt.sigstore.json` | every file's SHA-256, and its signature |
+
+The release also publishes the Homebrew cask (`ar4mirez/homebrew-tap`) and the AUR packages (`berth-bin`,
+`berth`). Each is published only when the workflow has its secret: `HOMEBREW_TAP_TOKEN` (a fine-grained token
+with Contents: write on the tap repo alone) and `AUR_KEY` (the AUR account's SSH key). Once a channel publishes,
+set the repository variable `HOMEBREW_TAP` or `AUR` to `true`, and the `packages` workflow tests installing from
+it every week.
+
 ## Cutting a release (maintainers)
 
 1. `main` is green in `ci` and `integration`.

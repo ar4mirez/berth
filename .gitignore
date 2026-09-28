@@ -1,5 +1,6 @@
 /dist/
 /man/
+/completions/
 /site/
 /berth
 *.test

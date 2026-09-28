@@ -12,30 +12,88 @@
 
 ## Install berth
 
-berth ships as signed release archives on GitHub. Package managers (Homebrew, apt/rpm, AUR, mise) are planned (#60).
+Every channel installs a signed release. Pick one:
 
-```bash
-v=$(gh release view -R ar4mirez/berth --json tagName -q .tagName)    # the latest release, e.g. v0.4.0
-dl=$(mktemp -d); gh release download "$v" -R ar4mirez/berth -D "$dl"
+=== "Install script"
 
-# The signature over checksums.txt, then the archive's checksum (cosign: https://docs.sigstore.dev)
-cosign verify-blob --new-bundle-format --bundle "$dl/checksums.txt.sigstore.json" \
-  --certificate-identity "https://github.com/ar4mirez/berth/.github/workflows/release.yml@refs/tags/$v" \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com "$dl/checksums.txt"
-(cd "$dl" && sha256sum -c --ignore-missing checksums.txt)          # macOS: shasum -a 256 -c --ignore-missing
+    Download the script, read it, then run it. Don't pipe it into a shell.
 
-os=$(uname -s | tr A-Z a-z); arch=$(uname -m); case $arch in x86_64) arch=amd64 ;; aarch64) arch=arm64 ;; esac
-tar -xzf "$dl"/berth_*_"${os}_${arch}".tar.gz -C "$dl" berth
-mkdir -p ~/.local/opt/berth/"${v#v}" && install -m 0755 "$dl/berth" ~/.local/opt/berth/"${v#v}"/berth
-~/.local/opt/berth/"${v#v}"/berth install     # links ~/.local/bin/berth, with shell completion
-berth --version
-```
+    ```bash
+    curl -fsSLO https://github.com/ar4mirez/berth/releases/latest/download/install.sh
+    less install.sh
+    sh install.sh                     # or: sh install.sh --version v0.4.0 --bin-dir ~/bin
+    ```
 
-**Later upgrades:** `berth upgrade` fetches the next release, checks the same signature and checksum, and installs it
-next to the current one. It restarts nothing, and `berth upgrade --rollback` goes back.
-[Releases](releases.md) has the details.
+    It prints each step as it goes:
 
-**Man pages:** every release archive includes them (`man/berth.1` and one page per command).
+    - **Signature:** it checks the signature with `cosign`, or with `gh` (the build's provenance). With neither, it
+      stops, unless you set `BERTH_INSTALL_CHECKSUM_ONLY=1` to accept the checksum alone.
+    - **Checksum:** it then checks the archive's checksum.
+    - **Install:** it installs into `~/.local/opt/berth/<version>/`, links `~/.local/bin/berth`, and adds shell
+      completion. It needs no root.
+
+    **Upgrade:** `berth upgrade` (same checks; `berth upgrade --rollback` goes back).
+
+=== "Homebrew (macOS)"
+
+    ```bash
+    brew install --cask ar4mirez/tap/berth
+    ```
+
+    **Upgrade:** `brew upgrade berth`. Includes the man pages and completion.
+
+=== "Debian, Ubuntu"
+
+    ```bash
+    v=0.4.0; a=$(dpkg --print-architecture)          # amd64 or arm64
+    curl -fsSLO https://github.com/ar4mirez/berth/releases/download/v$v/berth_${v}_${a}.deb
+    sudo apt install ./berth_${v}_${a}.deb
+    ```
+
+    **Upgrade:** the same, with the new version. A signed apt repository is planned.
+
+=== "Fedora, RHEL"
+
+    ```bash
+    v=0.4.0; a=$(uname -m)                           # x86_64 or aarch64
+    sudo dnf install https://github.com/ar4mirez/berth/releases/download/v$v/berth-$v-1.$a.rpm
+    ```
+
+    **Upgrade:** the same, with the new version. A signed yum repository is planned.
+
+=== "Arch Linux"
+
+    From the AUR: `berth-bin` (the release binary) or `berth` (built from source), for example
+    `yay -S berth-bin`. Or the release's package:
+
+    ```bash
+    v=0.4.0; curl -fsSLO https://github.com/ar4mirez/berth/releases/download/v$v/berth-$v-1-x86_64.pkg.tar.zst
+    sudo pacman -U berth-$v-1-x86_64.pkg.tar.zst
+    ```
+
+    **Upgrade:** with your AUR helper, or `pacman -U` with the new package.
+
+=== "mise"
+
+    ```bash
+    mise use -g ubi:ar4mirez/berth
+    ```
+
+    **Upgrade:** `mise upgrade berth`. mise doesn't check berth's signature; the install script and
+    `berth upgrade` do.
+
+**Which upgrade path applies:** with a package manager, `berth upgrade` says which one installed berth and
+leaves the upgrade to it.
+
+**What's in every archive and package:** the man pages (`man berth`, `man berth-org-up`, …) and bash, zsh and fish
+completion.
+
+**Checking a download by hand:** the release's `checksums.txt` is signed and covers every archive and package
+([Releases](releases.md)).
+
+**Windows:** use WSL2 and the Linux build. berth drives Linux containers with bind mounts and SSH, so there's no
+native Windows build. To use orgs on another machine from Windows, the orgs run on a registered Linux host and
+you reach them over SSH or the browser terminal.
 
 ## Your first org
 

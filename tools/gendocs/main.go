@@ -2,6 +2,7 @@
 //
 //	go run ./tools/gendocs                 # docs/reference/commands (committed; CI checks it's current)
 //	go run ./tools/gendocs man <dir> [ver] # man pages (the release packs them)
+//	go run ./tools/gendocs completions <dir>  # bash, zsh and fish completion (the release packs them)
 package main
 
 import (
@@ -23,13 +24,15 @@ func main() {
 			v = os.Args[3] // the release's version (goreleaser's hook)
 		}
 		err = docgen.Man(cli.NewRoot(), os.Args[2], v)
+	case len(os.Args) == 3 && os.Args[1] == "completions":
+		err = docgen.Completions(cli.NewRoot(), os.Args[2])
 	case len(os.Args) == 1:
 		dir := filepath.Join("docs", docgen.RefDir)
 		if err = os.RemoveAll(dir); err == nil {
 			err = docgen.Markdown(cli.NewRoot(), dir)
 		}
 	default:
-		err = fmt.Errorf("usage: gendocs | gendocs man <dir>")
+		err = fmt.Errorf("usage: gendocs | gendocs man <dir> [version] | gendocs completions <dir>")
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gendocs:", err)

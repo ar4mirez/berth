@@ -11,6 +11,7 @@ on:
     paths:
       - .goreleaser.yaml
       - .github/workflows/release.yml
+      - install.sh
   workflow_dispatch:
 
 permissions:
@@ -143,6 +144,9 @@ jobs:
         run: goreleaser release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The Homebrew tap and the AUR (#60): each is published only when its secret is set.
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          AUR_KEY: ${{ secrets.AUR_KEY }}
 
       - name: verify, as a user would (docs/releases.md)
         run: |
@@ -176,10 +180,13 @@ jobs:
           cp /tmp/archive.orig "$archive"
           echo "signature and checksums verified; tampering is caught"
 
-      - name: build provenance (SLSA) for the archives
+      - name: build provenance (SLSA) for the archives and packages
         if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             dist/*.tar.gz
+            dist/*.deb
+            dist/*.rpm
+            dist/*.pkg.tar.zst
             dist/checksums.txt
