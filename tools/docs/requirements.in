@@ -1,0 +1,4 @@
+# The docs site's build (mkdocs.yml). Locked with hashes in requirements.txt:
+#   uv pip compile --generate-hashes tools/docs/requirements.in -o tools/docs/requirements.txt
+mkdocs==1.6.1
+mkdocs-material==9.7.7

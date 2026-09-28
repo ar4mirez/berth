@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/ar4mirez/berth/internal/docgen"
 )
 
 // The command layout (#55). berth's top-level commands are ccenv's, and stay exactly as they are:
@@ -118,7 +120,7 @@ func organize(root *cobra.Command) {
 	for _, c := range root.Commands() {
 		byName[c.Name()] = c
 	}
-	grouped := map[string]bool{}
+	grouped := map[string]string{} // top-level command -> its group spelling ("org create")
 	for _, g := range nounGroups {
 		gc := &cobra.Command{Use: g.name, Short: g.short, GroupID: placement[g.name]}
 		var lines []string
@@ -128,7 +130,9 @@ func organize(root *cobra.Command) {
 				panic("cli: no command " + v[1] + " for " + g.name + " " + v[0])
 			}
 			gc.AddCommand(copyAs(src, v[0], g.name))
-			grouped[v[1]] = true
+			if grouped[v[1]] == "" {
+				grouped[v[1]] = g.name + " " + v[0]
+			}
 			lines = append(lines, fmt.Sprintf("  berth %s %-13s = berth %s", g.name, v[0], v[1]))
 		}
 		gc.Long = g.short + ".\n\nEach is also a top-level command, as ccenv spelled it:\n" + strings.Join(lines, "\n")
@@ -138,13 +142,40 @@ func organize(root *cobra.Command) {
 	for _, c := range root.Commands() {
 		if id, ok := placement[c.Name()]; ok {
 			c.GroupID = id
-		} else if grouped[c.Name()] {
+		} else if grouped[c.Name()] != "" {
 			c.Hidden = true
 		}
 		setExample(c, c.Name())
 		for _, sub := range c.Commands() {
 			setExample(sub, c.Name()+" "+sub.Name())
 		}
+	}
+	linkDocs(root, grouped)
+	root.Long += "\n\nDocs: " + docgen.Site + "/"
+}
+
+// linkDocs ends every command's help with its page on the docs site (#56). A command hidden from
+// help links to its group spelling's page, which is the same command.
+func linkDocs(c *cobra.Command, grouped map[string]string) {
+	for _, s := range c.Commands() {
+		if s.Name() == "help" {
+			continue
+		}
+		page := s.CommandPath()
+		if s.Hidden {
+			g, ok := grouped[s.Name()]
+			if !ok || s.Parent() != c || c.Parent() != nil {
+				linkDocs(s, grouped)
+				continue
+			}
+			page = "berth " + g
+		}
+		long := s.Long
+		if long == "" {
+			long = s.Short
+		}
+		s.Long = long + "\n\nDocs: " + docgen.PageURL(page)
+		linkDocs(s, grouped)
 	}
 }
 

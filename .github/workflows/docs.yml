@@ -1,0 +1,52 @@
+name: docs
+
+# The docs site (#56): built from docs/ with MkDocs (mkdocs.yml, pinned with hashes in
+# tools/docs/requirements.txt) and published with GitHub Pages from main. --strict fails on any
+# broken link or anchor between pages. The command reference is generated from the commands' help;
+# ci's TestCommandReferenceIsCurrent fails when docs/reference/commands is stale.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths: ["docs/**", "mkdocs.yml", "tools/docs/**", ".github/workflows/docs.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: MkDocs (pinned, with hashes)
+        run: pip install --require-hashes -r tools/docs/requirements.txt
+      - name: build (strict: broken links fail)
+        run: mkdocs build --strict -d site
+      - uses: actions/upload-pages-artifact@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: site
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

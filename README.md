@@ -2,49 +2,47 @@
 
 Isolated Claude Code environments, one per organization, on your laptop, an on-prem box, or a cloud VM.
 
-Each org gets its own container with its own Claude account, git identity and key, and `~/.claude` history. A
-default-deny egress firewall and a repo allowlist are enforced in three layers. You connect over tmux, SSH, a browser
-terminal, VS Code Remote-SSH, or Claude Remote Control (claude.ai/code).
+Each org gets its own container, with its own:
 
-> **Status: pre-alpha.** berth is a Go rewrite of `ccenv`, a Bash tool that already runs this model in production. Until
-> berth reaches full parity, the reference implementation is [`legacy/ccenv`](legacy/ccenv) and its docs are in
-> [`docs/ccenv-legacy.md`](docs/ccenv-legacy.md). The roadmap is in [`docs/plan.md`](docs/plan.md).
+- Claude account;
+- git identity and key;
+- `~/.claude` history;
+- repos and toolchains.
 
-## Trying berth (read-only)
+A default-deny egress firewall and a repo allowlist are enforced in three layers. You connect over tmux, SSH, a
+browser terminal, VS Code or Cursor Remote-SSH, or Claude Remote Control (claude.ai/code).
 
-To install berth on the host next to ccenv and check it matches, follow [`docs/host-install.md`](docs/host-install.md).
-
-The command line: [`docs/cli.md`](docs/cli.md). The commands berth has so far only read ([`PARITY.md`](PARITY.md) tracks them). You can point them at an existing
-ccenv checkout without changing anything there. Get a build that CI made: every `ci` run on `main` uploads the
-linux/darwin archives, kept for 14 days. Don't use a workspace build.
+**Documentation: <https://ar4mirez.github.io/berth/>**, including [getting started](docs/getting-started.md),
+[concepts](docs/concepts.md), guides, the [command reference](docs/reference/commands/berth.md) and
+[troubleshooting](docs/troubleshooting.md). The sources are in [`docs/`](docs).
 
 ```bash
-run=$(gh run list -R ar4mirez/berth --workflow ci --branch main --status success --limit 1 --json databaseId,headSha -q '.[0]')
-gh run download "$(jq -r .databaseId <<<"$run")" -R ar4mirez/berth -n "berth-$(jq -r .headSha <<<"$run")" -D berth-dl
-cd berth-dl && sha256sum -c --ignore-missing checksums.txt    # macOS: shasum -a 256 -c --ignore-missing checksums.txt
-tar xzf berth_*_linux_amd64.tar.gz berth                       # or _linux_arm64, _darwin_amd64, _darwin_arm64
-
-./berth --read-only --home <legacy-checkout> ls                # also: info, whoami, repo ls, fw show
+berth init acme --name "Ada Lovelace" --email ada@example.com
+berth up acme
+berth auth acme                  # the org's Claude account, then Remote Control
+berth repo add acme acme/widgets
+berth attach acme                # or: berth info acme, for every other way in
 ```
 
-`--read-only` refuses every command that writes, and every file write underneath. The default state root
-(`~/.local/share/berth`) is empty on purpose, so without `--home`, berth sees no orgs.
+## Status
+
+berth is the Go successor to `ccenv`, a Bash tool that ran this model in production, and it now runs those orgs.
+
+- **Parity:** [`legacy/ccenv`](legacy/ccenv) stays in the repo as the reference. The parity suite runs both on the
+  same fixtures, and [`PARITY.md`](PARITY.md) records every intended difference.
+- **Beyond ccenv:** remote hosts, signed releases and self-upgrade.
+- **Roadmap:** [`docs/plan.md`](docs/plan.md), and the GitHub milestones.
+
+Install a signed release: [getting started](docs/getting-started.md#install-berth). Coming from ccenv:
+[install next to it](docs/host-install.md), then [cut over](docs/cutover.md).
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `cmd/berth`, `internal/` | The Go CLI: `cli` (commands), `app` (behaviour), `host` (local and ssh), `org`, `repopolicy`, `config` |
-| `test/parity` | Runs `legacy/ccenv` and berth on the same fixtures and diffs everything they do |
-| `PARITY.md` | One row per ccenv command, subcommand and flag: what it does, and whether berth matches |
-| `image/` | Container image: Dockerfile, entrypoint, firewall, repo guard, backup engine |
-| `compose.yml` | Per-org container definition |
-| `legacy/ccenv` | The Bash reference implementation (runs as-is, used by the parity harness) |
-| `docs/plan.md` | Architecture decisions, parity work items, phases |
-| `scripts/drift.sh` | Host-only: diff `image/` against a legacy checkout |
-
-## Why a rewrite
-
-berth adds remote hosts, meaning orgs that run on on-prem machines or cloud VMs you provision from the CLI. That needs
-a host abstraction (files + exec + Docker over SSH), a provider layer, and a single static binary. None of those fit
-well in Bash.
+| `cmd/berth`, `internal/` | The Go CLI: `cli` (commands), `app` (behaviour), `host` (local and ssh), `hosts` (the registry), `org`, `repopolicy`, `config` |
+| `image/`, `compose.yml` | The container image (firewall, repo guards, backup engine) and the per-org container definition |
+| `test/parity`, `PARITY.md` | ccenv and berth on the same fixtures, diffed; one row per command and flag |
+| `test/integration` | Real Docker (compose, sshd + dind hosts, backups), run in CI |
+| `docs/`, `mkdocs.yml` | The docs site; `docs/reference/commands` is generated (`go run ./tools/gendocs`) |
+| `legacy/ccenv` | The Bash reference implementation |

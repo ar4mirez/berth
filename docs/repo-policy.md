@@ -11,7 +11,7 @@ whether a repo is one of them, and they must agree exactly:
 
 Each one maps a repo reference to a **canonical form**, `host/path`, and compares it with the
 canonical forms of the registered URLs. The rules below define that form.
-[`testdata/canon.tsv`](../testdata/canon.tsv) pins them, and a Go test runs every row through all
+[`testdata/canon.tsv`](https://github.com/ar4mirez/berth/blob/main/testdata/canon.tsv) pins them, and a Go test runs every row through all
 three implementations (bash, node and Go) and fails if any of them disagrees.
 
 The guiding rule is **fail closed**. An input that doesn't fit these rules has no canonical form

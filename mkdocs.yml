@@ -1,0 +1,69 @@
+# The docs site (#56): built from docs/ by .github/workflows/docs.yml and published with GitHub Pages.
+# The command reference (docs/reference/commands) is generated: go run ./tools/gendocs.
+site_name: berth
+site_description: Isolated Claude Code environments, one per organization
+site_url: https://ar4mirez.github.io/berth/
+repo_url: https://github.com/ar4mirez/berth
+repo_name: ar4mirez/berth
+edit_uri: edit/main/docs/
+docs_dir: docs
+strict: true
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: { icon: material/brightness-7, name: Dark mode }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: { icon: material/brightness-4, name: Light mode }
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+
+validation:
+  omitted_files: info
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Concepts: concepts.md
+  - Guides:
+      - Repos: guides/repos.md
+      - The firewall: guides/firewall.md
+      - Secrets and env vars: guides/env.md
+      - Secrets as files: secrets.md
+      - Backups and restore: guides/backups.md
+      - Hosts, leases and moving orgs: hosts.md
+      - Toolchains and Claude Code: guides/tools.md
+  - Troubleshooting: troubleshooting.md
+  - Reference:
+      - The command line: cli.md
+      - Commands: reference/commands/berth.md
+      - Configuration and files: reference/config.md
+      - JSON output: json.md
+      - Repo policy (canonical form): repo-policy.md
+  - Coming from ccenv:
+      - Install next to ccenv: host-install.md
+      - Cutover: cutover.md
+      - Rolling out a new image: image-update.md
+      - ccenv's own docs: ccenv-legacy.md
+  - Project:
+      - Plan: plan.md
+      - Releases: releases.md
+      - Phase 0: phase-0.md
