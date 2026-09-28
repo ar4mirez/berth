@@ -5,7 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"slices"
+	"strings"
+	"sync"
 )
 
 // Container engines (#57). berth drives an engine through its CLI, with Docker's argv; the engine
@@ -41,7 +44,7 @@ func WithEngine(h *Host, engine string) *Host {
 	if engine == "" || engine == EngineDocker {
 		return h
 	}
-	ex := engineExec{inner: h.Exec, bin: engine}
+	ex := engineExec{inner: h.Exec, bin: engine, rootless: &rootless{}}
 	g := *h
 	g.Exec = ex
 	g.Facts = cliFacts{ExecFacts: ExecFacts{Exec: ex}, ex: ex}
@@ -50,15 +53,49 @@ func WithEngine(h *Host, engine string) *Host {
 }
 
 type engineExec struct {
-	inner Execer
-	bin   string
+	inner    Execer
+	bin      string
+	rootless *rootless
 }
 
+// rootless caches whether the engine runs rootless (asked once, on first use).
+type rootless struct {
+	once sync.Once
+	val  bool
+}
+
+func (e engineExec) isRootless(ctx context.Context) bool {
+	e.rootless.once.Do(func() {
+		var out bytes.Buffer
+		if e.inner.Run(ctx, Cmd{Args: []string{e.bin, "info", "--format", "{{.Host.Security.Rootless}}"}, Stdout: &out, Stderr: io.Discard}) == nil {
+			e.rootless.val = strings.TrimSpace(out.String()) == "true"
+		}
+	})
+	return e.rootless.val
+}
+
+// Run runs c with the engine's CLI. On a rootless Podman, every container berth starts itself
+// (docker run: the backup engine, cleanups) gets --userns=keep-id and root, as the orgs do
+// (compose.yml): the host user is the same uid inside, so what those containers write stays the
+// operator's.
 func (e engineExec) Run(ctx context.Context, c Cmd) error {
 	if len(c.Args) > 0 && c.Args[0] == EngineDocker {
-		c.Args = append([]string{e.bin}, c.Args[1:]...)
+		args := []string{e.bin}
+		if len(c.Args) > 1 && c.Args[1] == "run" && e.bin == EnginePodman && e.isRootless(ctx) {
+			args = append(args, "run", "--userns=keep-id", "--user", "0:0")
+			args = append(args, c.Args[2:]...)
+		} else {
+			args = append(args, c.Args[1:]...)
+		}
+		c.Args = args
 	}
 	return e.inner.Run(ctx, c)
+}
+
+// Rootless reports whether h's engine is a rootless Podman (#57).
+func (h *Host) Rootless(ctx context.Context) bool {
+	e, ok := h.Exec.(engineExec)
+	return ok && e.bin == EnginePodman && e.isRootless(ctx)
 }
 
 // cliFacts reads the ports published by containers from the engine's CLI (`ps --format json`),

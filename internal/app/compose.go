@@ -47,15 +47,7 @@ func (a *App) composeAssets() (assets.Set, bool, error) {
 // rootlessPodman reports whether a's host runs a rootless Podman (#57): its orgs then run with
 // --userns=keep-id. Asked once per App.
 func (a *App) rootlessPodman(ctx context.Context) bool {
-	if a.Host.EngineName() != host.EnginePodman {
-		return false
-	}
-	if a.rootless == nil {
-		out, _ := a.capture(ctx, true, "docker", "info", "--format", "{{.Host.Security.Rootless}}")
-		r := strings.TrimSpace(out) == "true"
-		a.rootless = &r
-	}
-	return *a.rootless
+	return a.Host.Rootless(ctx)
 }
 
 // compose is ccenv's compose(): create the bind-mount sources Docker would otherwise create

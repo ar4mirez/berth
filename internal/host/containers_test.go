@@ -42,3 +42,41 @@ func TestParsePodmanPorts(t *testing.T) {
 		t.Errorf("empty: %v %v", got, err)
 	}
 }
+
+// infoExec answers `podman info` with rootless, and records the rest.
+type infoExec struct {
+	rootless string
+	calls    [][]string
+}
+
+func (r *infoExec) Run(_ context.Context, c Cmd) error {
+	if len(c.Args) > 1 && c.Args[1] == "info" {
+		_, _ = c.Stdout.Write([]byte(r.rootless + "\n"))
+		return nil
+	}
+	r.calls = append(r.calls, c.Args)
+	return nil
+}
+
+func TestRootlessPodmanRun(t *testing.T) {
+	ctx := context.Background()
+	for _, rl := range []string{"true", "false"} {
+		rec := &infoExec{rootless: rl}
+		p := WithEngine(New("local", nil, rec, nil, nil, nil), EnginePodman)
+		_ = p.Exec.Run(ctx, Cmd{Args: []string{"docker", "run", "--rm", "img", "true"}})
+		_ = p.Exec.Run(ctx, Cmd{Args: []string{"docker", "exec", "c", "true"}})
+		want := []string{"podman", "run", "--rm", "img", "true"}
+		if rl == "true" {
+			want = []string{"podman", "run", "--userns=keep-id", "--user", "0:0", "--rm", "img", "true"}
+		}
+		if !slices.Equal(rec.calls[0], want) || !slices.Equal(rec.calls[1], []string{"podman", "exec", "c", "true"}) {
+			t.Errorf("rootless=%s: %v", rl, rec.calls)
+		}
+		if p.Rootless(ctx) != (rl == "true") {
+			t.Errorf("Rootless() with %s", rl)
+		}
+	}
+	if New("local", nil, &infoExec{rootless: "true"}, nil, nil, nil).Rootless(ctx) {
+		t.Error("Docker is never rootless Podman")
+	}
+}
