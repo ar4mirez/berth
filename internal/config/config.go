@@ -116,6 +116,21 @@ func Resolve(in Inputs) (Home, error) {
 // through to the default root.
 type File struct {
 	Home string `yaml:"home"`
+	// Engine is this machine's container engine: docker (the default) or podman (#57).
+	Engine string `yaml:"engine"`
+}
+
+// ResolveEngine is this machine's container engine: $BERTH_ENGINE, else engine: in config.yaml,
+// else "" (Docker). The caller checks the name.
+func ResolveEngine(in Inputs) (string, error) {
+	if v := in.Getenv("BERTH_ENGINE"); v != "" {
+		return v, nil
+	}
+	fc, err := readFile(ConfigPath(in))
+	if err != nil {
+		return "", err
+	}
+	return fc.Engine, nil
 }
 
 func readFile(path string) (File, error) {

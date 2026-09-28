@@ -57,6 +57,7 @@ type App struct {
 	OpenTTY func() (*os.File, error)
 
 	umaskVal *fs.FileMode // cached by umask()
+	rootless *bool        // cached by rootlessPodman()
 
 	lockHeld  host.Unlocker // the state root's lock, while held (lock.go)
 	lockDepth int

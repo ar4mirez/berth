@@ -49,6 +49,8 @@ type Entry struct {
 	Home string `yaml:"home"`
 	// Key is berth's private key for the host, on the operator's machine.
 	Key string `yaml:"key,omitempty"`
+	// Engine is the host's container engine: docker ("", the default) or podman (#57).
+	Engine string `yaml:"engine,omitempty"`
 }
 
 // Address is user@host:port, as shown to the operator.
@@ -128,6 +130,9 @@ func Load(fsys host.FS, p Paths) (*Registry, error) {
 			return nil, fmt.Errorf("%s: host %q is listed twice", p.File(), e.Name)
 		}
 		seen[e.Name] = true
+		if err := host.CheckEngine(e.Engine); err != nil {
+			return nil, fmt.Errorf("%s: host %q: %w", p.File(), e.Name, err)
+		}
 		if e.Kind != KindSSH || e.User == "" || e.Addr == "" || !path.IsAbs(e.Home) || e.Key == "" {
 			return nil, fmt.Errorf("%s: host %q is incomplete (kind ssh, user, addr, an absolute home and key are required)", p.File(), e.Name)
 		}

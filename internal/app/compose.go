@@ -44,6 +44,20 @@ func (a *App) composeAssets() (assets.Set, bool, error) {
 	return set, true, nil
 }
 
+// rootlessPodman reports whether a's host runs a rootless Podman (#57): its orgs then run with
+// --userns=keep-id. Asked once per App.
+func (a *App) rootlessPodman(ctx context.Context) bool {
+	if a.Host.EngineName() != host.EnginePodman {
+		return false
+	}
+	if a.rootless == nil {
+		out, _ := a.capture(ctx, true, "docker", "info", "--format", "{{.Host.Security.Rootless}}")
+		r := strings.TrimSpace(out) == "true"
+		a.rootless = &r
+	}
+	return *a.rootless
+}
+
 // compose is ccenv's compose(): create the bind-mount sources Docker would otherwise create
 // root-owned (home-config, quarantine: 0700), then run `docker compose -f <compose.yml> --env-file
 // <org.env> args...` with BIND_ADDR, ORG, ORG_DIR, HOST_UID and HOST_GID set, on berth's stdio.
@@ -75,6 +89,9 @@ func (a *App) compose(ctx context.Context, o string, args ...string) error {
 	uid, _ := a.capture(ctx, false, "id", "-u")
 	gid, _ := a.capture(ctx, false, "id", "-g")
 	env := []string{"BIND_ADDR=" + bind, "ORG=" + o, "ORG_DIR=" + dir, "HOST_UID=" + uid, "HOST_GID=" + gid}
+	if a.rootlessPodman(ctx) {
+		env = append(env, "BERTH_USERNS=keep-id")
+	}
 	if own {
 		repo, tag, _ := strings.Cut(set.Tag, ":")
 		env = append(env, "CLAUDE_ENV_IMAGE="+repo, "IMAGE_TAG="+tag, "CLAUDE_ENV_IMAGE_DIR="+set.ImageDir)

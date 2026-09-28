@@ -63,7 +63,7 @@ jobs:
           - {image: "archlinux:latest", install: "pacman -Sy --noconfirm --needed man-db && pacman -U --noconfirm ./pkgs/berth-*-x86_64.pkg.tar.zst"}
     container: ${{ matrix.image }}
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: packages
           path: pkgs
@@ -90,7 +90,7 @@ jobs:
     timeout-minutes: 10
     container: archlinux:latest
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: packages
           path: pkgs

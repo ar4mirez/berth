@@ -78,6 +78,8 @@ type HostStatus struct {
 	// Home is the state root on that host.
 	Home      string `json:"home"`
 	Reachable bool   `json:"reachable"`
+	// Engine is the host's container engine: docker or podman (#57).
+	Engine string `json:"engine"`
 	// Docker is the engine's version ("" when unknown).
 	Docker string `json:"docker"`
 	// Orgs is the number of orgs there (null when unknown).

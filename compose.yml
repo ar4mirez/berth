@@ -16,6 +16,9 @@ services:
     hostname: ${ORG}
     restart: unless-stopped
     init: false            # tini is the image entrypoint
+    # Rootless Podman (#57): berth sets keep-id, so the container user is the host user and files in
+    # the bind mounts stay theirs. Empty (the engine's default) for Docker and rootful Podman.
+    userns_mode: ${BERTH_USERNS:-}
     cap_add: [NET_ADMIN, NET_RAW]   # for the egress firewall only
     env_file: ${ORG_DIR}/org.env
     environment:

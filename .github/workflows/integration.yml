@@ -38,3 +38,45 @@ jobs:
           "$RUNNER_TEMP/berth" --version
       - name: integration tests (compose lifecycle, ssh host and remote lifecycle against sshd + dind, backup matrix)
         run: BERTH_BIN="$RUNNER_TEMP/berth" go test -tags integration -count=1 -v ./test/integration/...
+
+  # Podman (#57): the org lifecycle and backups on Podman, rootless (this user) and rootful (root).
+  # `podman compose` runs Docker's compose against Podman's API socket, which is started here.
+  podman:
+    name: podman (${{ matrix.mode }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [rootless, rootful]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+      - name: build berth and the test binary
+        run: |
+          CGO_ENABLED=0 go build -o "$RUNNER_TEMP/berth" ./cmd/berth
+          go test -c -tags integration -o "$RUNNER_TEMP/itest" ./test/integration
+      - name: podman, and its API socket
+        run: |
+          podman version
+          echo "PODMAN_COMPOSE_PROVIDER=/usr/libexec/docker/cli-plugins/docker-compose" >> "$GITHUB_ENV"
+          echo "PODMAN_COMPOSE_WARNING_LOGS=false" >> "$GITHUB_ENV"
+          if [ "${{ matrix.mode }}" = rootless ]; then
+            mkdir -p "$XDG_RUNTIME_DIR/podman"
+            (podman system service --time=0 "unix://$XDG_RUNTIME_DIR/podman/podman.sock" &)
+            podman info --format 'rootless={{.Host.Security.Rootless}} cgroups={{.Host.CgroupsVersion}} network={{.Host.NetworkBackend}}'
+          else
+            (sudo podman system service --time=0 unix:///run/podman/podman.sock &)
+            sudo podman info --format 'rootless={{.Host.Security.Rootless}} cgroups={{.Host.CgroupsVersion}} network={{.Host.NetworkBackend}}'
+          fi
+          sleep 2
+      - name: the lifecycle on podman (${{ matrix.mode }})
+        run: |
+          cd test/integration
+          export BERTH_BIN="$RUNNER_TEMP/berth" BERTH_ENGINE=podman
+          if [ "${{ matrix.mode }}" = rootless ]; then
+            "$RUNNER_TEMP/itest" -test.run 'TestEngineLifecycle' -test.v -test.count=1
+          else
+            sudo --preserve-env=BERTH_BIN,BERTH_ENGINE,PODMAN_COMPOSE_PROVIDER,PODMAN_COMPOSE_WARNING_LOGS,PATH \
+              "$RUNNER_TEMP/itest" -test.run 'TestEngineLifecycle' -test.v -test.count=1
+          fi

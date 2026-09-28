@@ -30,6 +30,7 @@ type Host struct {
 	Docker Docker
 	Facts  Facter
 	close  func() error
+	engine string // WithEngine: the container engine ("" is Docker)
 }
 
 // New assembles a Host. closeFn may be nil.

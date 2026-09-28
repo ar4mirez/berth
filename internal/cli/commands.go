@@ -11,12 +11,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ar4mirez/berth/internal/app"
+	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/host/local"
 )
 
 // appFor builds the App a command runs against: the resolved state, on the local host.
 func appFor(cmd *cobra.Command) *app.App {
-	a := app.New(stateFrom(cmd.Context()), local.New(), cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), os.Getenv)
+	st := stateFrom(cmd.Context())
+	a := app.New(st, host.WithEngine(local.New(), st.Engine), cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), os.Getenv)
 	a.OpenTTY = local.OpenTTY
 	a.Self, _ = os.Executable()
 	a.Invoked = invokedPath()
