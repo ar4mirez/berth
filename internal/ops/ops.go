@@ -138,10 +138,33 @@ var Catalog = map[string]Op{
 		"guard": {Access: BySub, Subs: map[string]Op{"": read, "status": read, "on": write, "off": write}},
 	}},
 
+	// The default org (#55): showing it reads; setting or clearing it writes the operator's config.
+	"use": {Access: BySub, Subs: map[string]Op{"": read, "<org>": write, "--clear": write}},
+
 	// Cutover and install.
 	"takeover": write, // MANAGER=berth only; the container keeps running
 	"handback": write,
 	"install":  write,
+}
+
+// Groups (#55): each verb is a top-level command under another name (internal/cli/help.go).
+var groups = map[string]map[string]string{
+	"org": {"ls": "ls", "create": "init", "info": "info", "up": "up", "down": "down", "restart": "restart",
+		"attach": "attach", "shell": "shell", "logs": "logs", "claude": "claude", "run": "run", "whoami": "whoami",
+		"rehydrate": "rehydrate", "migrate": "migrate", "password": "password", "remote": "remote",
+		"takeover": "takeover", "handback": "handback"},
+	"account": {"signin": "auth", "token": "token", "login": "login", "logout": "logout", "gh": "gh-login", "whoami": "whoami"},
+	"system":  {"install": "install", "upgrade": "upgrade", "pull": "pull", "build": "build", "completion": "completion", "parity-check": "parity-check"},
+}
+
+func init() {
+	for g, verbs := range groups {
+		op := Op{Access: BySub, Subs: map[string]Op{}}
+		for verb, cmd := range verbs {
+			op.Subs[verb] = Catalog[cmd]
+		}
+		Catalog[g] = op
+	}
 }
 
 // Lookup returns the operation for a command and its subcommand ("" for none). A nested

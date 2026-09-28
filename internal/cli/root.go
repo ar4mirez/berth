@@ -51,6 +51,7 @@ func NewRoot() *cobra.Command {
 	root.SetVersionTemplate("berth {{.Version}}\n")
 	addGlobalFlags(root)
 	addCommands(root)
+	organize(root)
 	return root
 }
 

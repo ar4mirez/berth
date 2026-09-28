@@ -106,10 +106,30 @@ func hostCmd() *cobra.Command {
 // host (#45), with the bare org in its place; a bare org, or org@local, stays on this machine.
 // pick returns -1 when there's no org argument.
 func onOrg(pick func([]string) int, fn func(a *app.App, cmd *cobra.Command, args []string) error) func(*cobra.Command, []string) error {
+	return onOrgV(pick, nil, fn)
+}
+
+// onOrgV is onOrg for a command with verbs of its own after the org (fw <org> allow …): with a
+// default org (berth use, #55) and the org left out, the default goes in its place. "Left out" is
+// app.OrgMissing: a mistyped org is an error, never replaced by the default.
+func onOrgV(pick func([]string) int, verbs []string, fn func(a *app.App, cmd *cobra.Command, args []string) error) func(*cobra.Command, []string) error {
+	return orgArgs(pick, verbs, true, fn)
+}
+
+func orgArgs(pick func([]string) int, verbs []string, useContext bool, fn func(a *app.App, cmd *cobra.Command, args []string) error) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		a := appFor(cmd)
 		i := pick(args)
-		if i < 0 || i >= len(args) {
+		present := i >= 0 && i < len(args)
+		if useContext && app.OrgMissing(arg(args, max(i, 0)), present, verbs) {
+			if def := a.ContextOrg(); def != "" {
+				at := min(max(i, 0), len(args))
+				args = slices.Insert(slices.Clone(args), at, def)
+				i, present = at, true
+				fmt.Fprintf(cmd.ErrOrStderr(), "(%s, the default org: berth use)\n", def)
+			}
+		}
+		if !present {
 			return fn(a, cmd, args)
 		}
 		b, o, done, err := a.At(cmd.Context(), args[i])
@@ -164,6 +184,9 @@ func localOnly(name string, pick func([]string) int, run func(*cobra.Command, []
 	}
 }
 
+// fwVerbs are fw's subcommands, which can't be taken for an org.
+var fwVerbs = []string{"show", "allow", "add", "deny", "remove", "rm", "on", "off", "edit", "reload", "presets", "test"}
+
 // nthArg picks the nth argument; allArgs picks none, meaning every argument (localOnly).
 func nthArg(n int) func([]string) int { return func([]string) int { return n } }
 
@@ -183,6 +206,20 @@ func tokenOrg(args []string) int {
 		}
 	}
 	return i
+}
+
+// useCmd is `berth use [<org>[@host]] | --clear` (#55).
+func useCmd() *cobra.Command {
+	return reads(&cobra.Command{
+		Use:   "use [<org>[@host]] | --clear",
+		Short: "a default org, for org commands that leave it out (berth up, berth fw show, …)",
+		Long: "Saves a default org (on this machine, or on a registered host). Org commands take it when their org is\n" +
+			"left out: berth up, berth fw show, berth repo add owner/repo. A mistyped org is an error, never replaced by the\n" +
+			"default. With no argument, shows it.",
+		DisableFlagParsing: true,
+		ValidArgsFunction:  completeArgs(orgArg),
+		RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).Use(cmd.Context(), args) },
+	})
 }
 
 // arg is ccenv's "${n:-}": the nth positional argument, or "". Like ccenv, extra arguments are
@@ -208,7 +245,7 @@ func addCommands(root *cobra.Command) {
 	repo := reads(&cobra.Command{
 		Use: "repo <add|new|publish|ls|rm|adopt|sync|audit|policy> <org> ...", Short: "the repos allowed in an org's /workspace", DisableFlagParsing: true,
 		ValidArgsFunction: completeArgs(repoSubsShown, orgArg, nil),
-		RunE: onOrg(nthArg(1), func(a *app.App, cmd *cobra.Command, args []string) error {
+		RunE: onOrgV(nthArg(1), nil, func(a *app.App, cmd *cobra.Command, args []string) error {
 			return a.Repo(cmd.Context(), arg(args, 0), arg(args, 1), rest(args, 2))
 		}),
 	})
@@ -257,24 +294,24 @@ func addCommands(root *cobra.Command) {
 		// --no-restart only as the 4th argument.
 		writes(&cobra.Command{
 			Use: "init <org> [--name N --email E]", Short: "scaffold a new org (berth's own: MANAGER=berth)", DisableFlagParsing: true,
-			RunE: onOrg(nthArg(0), func(a *app.App, cmd *cobra.Command, args []string) error { return a.Init(cmd.Context(), args) }),
+			RunE: orgArgs(nthArg(0), nil, false, func(a *app.App, cmd *cobra.Command, args []string) error { return a.Init(cmd.Context(), args) }),
 		}),
 		reads(&cobra.Command{
 			Use: "env <org> [ls | set KEY | unset KEY] [--no-restart]", Short: "custom env vars for the container", DisableFlagParsing: true,
 			ValidArgsFunction: completeArgs(orgArg, []string{"ls", "set", "unset"}),
-			RunE:              onOrg(nthArg(0), func(a *app.App, cmd *cobra.Command, args []string) error { return a.Env(cmd.Context(), args) }),
+			RunE:              onOrgV(nthArg(0), []string{"ls", "list", "set", "unset", "rm"}, func(a *app.App, cmd *cobra.Command, args []string) error { return a.Env(cmd.Context(), args) }),
 		}),
 		reads(&cobra.Command{
 			Use: "password <org> [show|rotate]", Short: "browser-terminal password", Args: cobra.ArbitraryArgs,
 			ValidArgsFunction: completeArgs(orgArg, []string{"show", "rotate"}),
-			RunE: onOrg(nthArg(0), func(a *app.App, cmd *cobra.Command, args []string) error {
+			RunE: onOrgV(nthArg(0), []string{"show", "rotate"}, func(a *app.App, cmd *cobra.Command, args []string) error {
 				return a.Password(cmd.Context(), arg(args, 0), arg(args, 1))
 			}),
 		}),
 		reads(&cobra.Command{
 			Use: "remote <org> [status|logs|restart]", Short: "the Remote Control service", Args: cobra.ArbitraryArgs,
 			ValidArgsFunction: completeArgs(orgArg, []string{"status", "logs", "restart"}),
-			RunE: onOrg(nthArg(0), func(a *app.App, cmd *cobra.Command, args []string) error {
+			RunE: onOrgV(nthArg(0), []string{"status", "logs", "restart"}, func(a *app.App, cmd *cobra.Command, args []string) error {
 				return a.Remote(cmd.Context(), arg(args, 0), arg(args, 1))
 			}),
 		}),
@@ -374,6 +411,7 @@ func addCommands(root *cobra.Command) {
 		}),
 		secretsCmd(),
 		hostCmd(),
+		useCmd(),
 		// restore and migrate parse their own arguments, as ccenv does.
 		writes(&cobra.Command{
 			Use:   "restore <file|-> [--as name] [--identity|-i key] [--force] [--no-start] [--no-rehydrate]",
@@ -418,7 +456,7 @@ func addCommands(root *cobra.Command) {
 			Use: "fw <org> [show|allow|deny|on|off|edit|reload|presets|test] [entries...]", Short: "the egress allowlist (changes apply live)",
 			DisableFlagParsing: true, // entries are positional, as in ccenv
 			ValidArgsFunction:  completeFw,
-			RunE: onOrg(nthArg(0), func(a *app.App, cmd *cobra.Command, args []string) error {
+			RunE: onOrgV(nthArg(0), fwVerbs, func(a *app.App, cmd *cobra.Command, args []string) error {
 				if len(args) == 0 {
 					return a.Fw(cmd.Context(), "", nil)
 				}
