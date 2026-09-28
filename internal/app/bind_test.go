@@ -95,6 +95,9 @@ func TestBindModes(t *testing.T) {
 		if bind == "iface:wg0" && !strings.Contains(out.String(), "node@10.8.0.2") {
 			t.Errorf("info with iface:wg0 doesn't use its address:\n%s", out.String())
 		}
+		if bind == "localhost" && (!strings.Contains(out.String(), "node@127.0.0.1 tmux") || !strings.Contains(out.String(), "http://127.0.0.1:7701 ")) {
+			t.Errorf("info with localhost: the address must stay usable in its commands:\n%s", out.String())
+		}
 	}
 
 	// 0.0.0.0 warns; the others don't.

@@ -190,7 +190,8 @@ func (a *App) hostAddr(ctx context.Context, o string) string {
 	switch b {
 	case "127.0.0.1":
 		if a.env(o, "BIND_ADDR") == BindLocalhost || a.HostName != "" {
-			return "127.0.0.1 (through an SSH tunnel: see below)"
+			// Plain: info puts the address in commands and URLs; its tunnel section explains.
+			return "127.0.0.1"
 		}
 		return "127.0.0.1 (local only; set BIND_ADDR=tailscale)"
 	case "0.0.0.0":
