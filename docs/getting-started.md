@@ -3,8 +3,8 @@
 ## What you need
 
 - **An OS:** Linux (amd64 or arm64), or macOS (Apple silicon or Intel).
-- **Docker** with the compose plugin (`docker compose version`). On macOS, Docker Desktop or any engine that provides
-  the Docker API and `docker compose`.
+- **Docker** with the compose plugin (`docker compose version`); on macOS, Docker Desktop or any engine that provides
+  the Docker API and `docker compose`. **Or Podman**, rootful or rootless ([Container engines](engines.md)).
 - **Optional: [Tailscale](https://tailscale.com).** With it, each org's SSH and browser terminal are bound to this
   machine's Tailscale address, so you can reach them from your other devices and nobody else can. Without it, they're
   bound to `127.0.0.1`.

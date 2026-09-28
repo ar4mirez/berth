@@ -52,6 +52,7 @@ nav:
       - Secrets as files: secrets.md
       - Backups and restore: guides/backups.md
       - Hosts, leases and moving orgs: hosts.md
+      - Container engines (Docker, Podman): engines.md
       - Toolchains and Claude Code: guides/tools.md
   - Troubleshooting: troubleshooting.md
   - Reference:

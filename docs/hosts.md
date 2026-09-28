@@ -39,6 +39,7 @@ berth ls                                      # this machine's orgs, then each h
 
 ```bash
 berth host add box1 ops@box1.example           # [user@]host[:port]; the user defaults to $USER, the port to 22
+berth host add box2 box2.example --engine podman   # the engine is detected (Docker, else Podman) unless given
 berth host ls                                  # every host: reachable, Docker version, number of orgs
 berth --output json host ls                    # the same, as berth.hosts/v1 (docs/json.md)
 berth host rotate-access box1                  # replace berth's key on box1

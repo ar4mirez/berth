@@ -17,6 +17,9 @@ import (
 
 // installGuard (re)starts the guard on b's host and applies its rules once, now.
 func (a *App) installGuard(ctx context.Context, b *App) error {
+	if e := b.Host.EngineName(); e != host.EngineDocker {
+		return fmt.Errorf("the host guard works on Docker's DOCKER-USER chain; it isn't available with %s yet (docs/engines.md)", e)
+	}
 	fmt.Fprintf(a.Stdout, "Installing the host guard (%s): org containers can't reach the host or 169.254.0.0/16…\n", hosts.GuardContainer)
 	if !b.imageFromRelease(ctx) {
 		if err := b.Build(ctx, nil); err != nil {

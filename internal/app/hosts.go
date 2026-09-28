@@ -49,10 +49,14 @@ func (a *App) lockHosts(ctx context.Context) (func(), error) {
 
 // dialHost connects to a registered host with berth's own key for it, and nothing else.
 func (a *App) dialHost(ctx context.Context, e hosts.Entry, key string) (*host.Host, error) {
-	return sshhost.Dial(ctx, sshhost.Config{
+	h, err := sshhost.Dial(ctx, sshhost.Config{
 		Addr: e.Addr, User: e.User, KnownHosts: a.hostPaths().KnownHosts(),
 		IdentityFiles: []string{key}, NoAgent: true, Timeout: hostTimeout,
 	}, a.Operator)
+	if err != nil {
+		return nil, err
+	}
+	return host.WithEngine(h, e.Engine), nil
 }
 
 // remoteOut runs args on h and returns its trimmed stdout; a failure carries its stderr.
@@ -75,9 +79,24 @@ func firstLineOf(s string) string {
 	return l
 }
 
-// dockerVersion is the engine's version on h, which also proves this user may use it.
+// dockerVersion is the engine's version on h, which also proves this user may use it. (Podman
+// run locally has no Server part in its version.)
 func dockerVersion(ctx context.Context, h *host.Host) (string, error) {
+	if h.EngineName() == host.EnginePodman {
+		return remoteOut(ctx, h, "docker", "version", "--format", "{{.Client.Version}}")
+	}
 	return remoteOut(ctx, h, "docker", "version", "--format", "{{.Server.Version}}")
+}
+
+// detectEngine is the engine a new host runs: Docker if its CLI answers, else Podman.
+func detectEngine(ctx context.Context, h *host.Host) string {
+	if _, err := dockerVersion(ctx, h); err == nil {
+		return host.EngineDocker
+	}
+	if _, err := dockerVersion(ctx, host.WithEngine(h, host.EnginePodman)); err == nil {
+		return host.EnginePodman
+	}
+	return host.EngineDocker // for the error that follows
 }
 
 // orgsOn lists the orgs under home on h (directories with an org.env).
@@ -151,13 +170,13 @@ func (a *App) removeKey(file string) {
 // HostAdd is `berth host add <name> <[user@]host[:port]> [--home <dir>] [--identity <file>]...
 // [--fingerprint SHA256:…] [--accept-new-host-key]`.
 func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
-	usage := fmt.Errorf("usage: %s host add <name> <[user@]host[:port]> [--home <remote state root>] [--identity <key file>] [--fingerprint SHA256:…] [--accept-new-host-key] [--no-guard]", Tool)
+	usage := fmt.Errorf("usage: %s host add <name> <[user@]host[:port]> [--home <remote state root>] [--identity <key file>] [--fingerprint SHA256:…] [--accept-new-host-key] [--engine docker|podman] [--no-guard]", Tool)
 	var pos, identities []string
-	var home, fingerprint string
+	var home, fingerprint, engine string
 	acceptNew, guard := false, true
 	for i := 0; i < len(args); i++ {
 		switch x := args[i]; x {
-		case "--home", "--identity", "--fingerprint":
+		case "--home", "--identity", "--fingerprint", "--engine":
 			if i+1 >= len(args) {
 				return usage
 			}
@@ -167,6 +186,8 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 				home = v
 			case "--identity":
 				identities = append(identities, v)
+			case "--engine":
+				engine = v
 			default:
 				fingerprint = v
 			}
@@ -193,6 +214,9 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 	}
 	if home != "" && !path.IsAbs(home) {
 		return fmt.Errorf("--home %s: must be an absolute path on the host", home)
+	}
+	if err := host.CheckEngine(engine); err != nil {
+		return err
 	}
 	if fingerprint != "" && !strings.HasPrefix(fingerprint, "SHA256:") {
 		return fmt.Errorf("--fingerprint %s: expected SHA256:… (as ssh-keygen -lf prints it)", fingerprint)
@@ -261,14 +285,22 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 	}
 	defer func() { _ = h.Close() }()
 
-	// Check it can run orgs.
+	// Check it can run orgs, with its engine (--engine, else the one it has: Docker, else Podman).
+	if engine == "" {
+		engine = detectEngine(ctx, h)
+	}
+	h = host.WithEngine(h, engine)
 	dv, err := dockerVersion(ctx, h)
 	if err != nil {
-		return fmt.Errorf("docker on %s: %w (is %s in the docker group?)", name, err, user)
+		hint := "is " + user + " in the docker group?"
+		if engine == host.EnginePodman {
+			hint = "does podman work for " + user + "?"
+		}
+		return fmt.Errorf("%s on %s: %w (%s)", engine, name, err, hint)
 	}
 	cv, err := remoteOut(ctx, h, "docker", "compose", "version", "--short")
 	if err != nil {
-		return fmt.Errorf("docker compose on %s: %w", name, err)
+		return fmt.Errorf("%s compose on %s: %w", engine, name, err)
 	}
 	facts, err := h.Facts.Facts(ctx)
 	if err != nil {
@@ -289,6 +321,9 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 
 	// berth's own key for this host, so its access can be rotated and revoked on its own.
 	e := hosts.Entry{Name: name, Kind: hosts.KindSSH, User: user, Addr: addr, Home: home, Key: p.Key(name)}
+	if engine != host.EngineDocker {
+		e.Engine = engine
+	}
 	k, err := hosts.NewKey(hosts.Comment(name))
 	if err != nil {
 		return err
@@ -310,7 +345,9 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 
 	// The host guard (#48), unless the operator opted out.
 	guarded := "off (--no-guard)"
-	if guard {
+	if guard && engine != host.EngineDocker {
+		guarded = "not available with " + engine + " yet (it works on Docker's DOCKER-USER chain; docs/engines.md)"
+	} else if guard {
 		b := a.On(name, h, home)
 		if err := a.installGuard(ctx, b); err != nil {
 			_ = a.removeGuard(context.WithoutCancel(ctx), b)
@@ -336,7 +373,7 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 	} else {
 		fmt.Fprintf(w, "  host key\tpinned in %s\n", p.KnownHosts())
 	}
-	fmt.Fprintf(w, "  docker\t%s, compose %s\n", dv, cv)
+	fmt.Fprintf(w, "  engine\t%s %s, compose %s\n", engine, dv, cv)
 	fmt.Fprintf(w, "  user\tuid %d, gid %d, %s\n", facts.UID, facts.GID, facts.Arch)
 	fmt.Fprintf(w, "  tailscale\t%s\n", ts)
 	fmt.Fprintf(w, "  ports in use\t%d\n", len(ports))
@@ -390,11 +427,15 @@ func (a *App) HostLs(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	res := ops.Hosts{Schema: "berth.hosts/v1", Hosts: []ops.HostStatus{a.statusOf(ctx, a.Operator, hosts.Entry{Name: hosts.Local, Kind: hosts.KindLocal, Home: a.State.Home.Path})}}
+	res := ops.Hosts{Schema: "berth.hosts/v1", Hosts: []ops.HostStatus{a.statusOf(ctx, a.Operator, hosts.Entry{Name: hosts.Local, Kind: hosts.KindLocal, Home: a.State.Home.Path, Engine: a.State.Engine})}}
 	for _, e := range reg.Hosts {
 		h, err := a.dialHost(ctx, e, e.Key)
 		if err != nil {
-			res.Hosts = append(res.Hosts, ops.HostStatus{Name: e.Name, Kind: e.Kind, Address: e.Address(), Home: e.Home, Error: err.Error()})
+			eng := e.Engine
+			if eng == "" {
+				eng = host.EngineDocker
+			}
+			res.Hosts = append(res.Hosts, ops.HostStatus{Name: e.Name, Kind: e.Kind, Address: e.Address(), Home: e.Home, Engine: eng, Error: err.Error()})
 			continue
 		}
 		res.Hosts = append(res.Hosts, a.statusOf(ctx, h, e))
@@ -404,7 +445,7 @@ func (a *App) HostLs(ctx context.Context, args []string) error {
 		return a.writeJSON(res)
 	}
 	w := tabwriter.NewWriter(a.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tKIND\tADDRESS\tREACHABLE\tDOCKER\tORGS")
+	fmt.Fprintln(w, "NAME\tKIND\tADDRESS\tREACHABLE\tENGINE\tORGS")
 	var problems []string
 	for _, s := range res.Hosts {
 		addr, reach, dv, orgs := s.Address, "yes", s.Docker, "-"
@@ -417,6 +458,7 @@ func (a *App) HostLs(ctx context.Context, args []string) error {
 		if dv == "" {
 			dv = "-"
 		}
+		dv = s.Engine + " " + dv
 		if s.Orgs != nil {
 			orgs = fmt.Sprint(*s.Orgs)
 		}
@@ -435,7 +477,7 @@ func (a *App) HostLs(ctx context.Context, args []string) error {
 }
 
 func (a *App) statusOf(ctx context.Context, h *host.Host, e hosts.Entry) ops.HostStatus {
-	s := ops.HostStatus{Name: e.Name, Kind: e.Kind, Address: e.Address(), Home: e.Home, Reachable: true}
+	s := ops.HostStatus{Name: e.Name, Kind: e.Kind, Address: e.Address(), Home: e.Home, Reachable: true, Engine: h.EngineName()}
 	var errs []string
 	if v, err := dockerVersion(ctx, h); err == nil {
 		s.Docker = v

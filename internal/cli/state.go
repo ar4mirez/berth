@@ -9,6 +9,7 @@ import (
 
 	"github.com/ar4mirez/berth/internal/app"
 	"github.com/ar4mirez/berth/internal/config"
+	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/ops"
 )
 
@@ -123,6 +124,12 @@ func addGlobalFlags(root *cobra.Command) {
 			return err
 		}
 		if st.Home, err = config.Resolve(in); err != nil {
+			return err
+		}
+		if st.Engine, err = config.ResolveEngine(in); err != nil {
+			return err
+		}
+		if err := host.CheckEngine(st.Engine); err != nil {
 			return err
 		}
 		cmd.SetContext(context.WithValue(cmd.Context(), stateKey{}, st))

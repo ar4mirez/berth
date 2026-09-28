@@ -12,6 +12,8 @@ var ErrReadOnly = errors.New("read-only mode")
 type State struct {
 	Home     Home
 	ReadOnly bool
+	// Engine is this machine's container engine ("" is Docker; #57).
+	Engine string
 }
 
 // Writable returns nil when mutations are allowed, else an ErrReadOnly naming op
