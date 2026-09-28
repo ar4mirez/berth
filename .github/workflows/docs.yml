@@ -29,7 +29,7 @@ jobs:
           python-version: "3.12"
       - name: MkDocs (pinned, with hashes)
         run: pip install --require-hashes -r tools/docs/requirements.txt
-      - name: build (strict: broken links fail)
+      - name: "build (--strict: a broken link fails it)"
         run: mkdocs build --strict -d site
       - uses: actions/upload-pages-artifact@v4
         if: github.ref == 'refs/heads/main'
