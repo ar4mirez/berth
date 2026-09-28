@@ -123,6 +123,6 @@ public key. See [Backups](guides/backups.md).
 
 ## Coming later
 
-- **Container engines** other than Docker: Podman first, then Apple `container` (#57).
+- **Apple `container`** as an engine: Docker and Podman are supported today ([Container engines](engines.md)).
 - **Network-agnostic access**, over any VPN, interface or SSH tunnel, not only Tailscale (#58).
 - **Cloud hosts** provisioned from the CLI.

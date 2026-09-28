@@ -20,6 +20,7 @@ using `~/.config/ccenv/backup.key` until berth has its own.
 
 ```yaml
 home: ~/Work/claude-envs     # the state root; absolute, or starting with ~/
+engine: podman               # this machine's container engine: docker (the default) or podman
 ```
 
 ## The state root
@@ -37,6 +38,7 @@ It's resolved from `--home`, then `$BERTH_HOME`, then `home:` in `config.yaml`, 
 | Variable | Effect |
 |---|---|
 | `BERTH_HOME` | the state root (after `--home`) |
+| `BERTH_ENGINE` | this machine's container engine, `docker` or `podman` (before `engine:` in `config.yaml`) |
 | `BERTH_BACKUP_DIR` | where backups go by default |
 | `BERTH_BACKUP_KEY` | the age identity for backups and restores (default `~/.config/berth/backup.key`) |
 | `BERTH_BACKUP_RECIPIENTS` | public keys backups encrypt to (`age1…` or `ssh-…`, separated by spaces or commas) |
