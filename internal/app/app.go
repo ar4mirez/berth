@@ -34,6 +34,9 @@ type App struct {
 	Operator *host.Host
 	// HostName is the registered host an org@host resolved to ("" for this machine).
 	HostName string
+	// DefaultBind is BIND_ADDR for new orgs here ("": ccenv's default, tailscale when it's
+	// installed, else 127.0.0.1): bind: in config.yaml, or a registered host's (#58).
+	DefaultBind string
 	// TakeLease lets up and restart move the org's active-host lease here (--take-lease, #47).
 	TakeLease bool
 	// HostAppFn, when set, replaces how an App for another host is made (tests).

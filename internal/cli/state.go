@@ -132,6 +132,12 @@ func addGlobalFlags(root *cobra.Command) {
 		if err := host.CheckEngine(st.Engine); err != nil {
 			return err
 		}
+		if st.Bind, err = config.ResolveBind(in); err != nil {
+			return err
+		}
+		if err := app.CheckBind(st.Bind); err != nil {
+			return err
+		}
 		cmd.SetContext(context.WithValue(cmd.Context(), stateKey{}, st))
 		return nil
 	}

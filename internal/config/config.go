@@ -118,6 +118,20 @@ type File struct {
 	Home string `yaml:"home"`
 	// Engine is this machine's container engine: docker (the default) or podman (#57).
 	Engine string `yaml:"engine"`
+	// Bind is BIND_ADDR for new orgs on this machine (#58); "" keeps ccenv's default.
+	Bind string `yaml:"bind"`
+}
+
+// ResolveBind is this machine's default bind for new orgs: $BERTH_BIND, else bind: in config.yaml.
+func ResolveBind(in Inputs) (string, error) {
+	if v := in.Getenv("BERTH_BIND"); v != "" {
+		return v, nil
+	}
+	fc, err := readFile(ConfigPath(in))
+	if err != nil {
+		return "", err
+	}
+	return fc.Bind, nil
 }
 
 // ResolveEngine is this machine's container engine: $BERTH_ENGINE, else engine: in config.yaml,

@@ -72,7 +72,9 @@ func (a *App) At(ctx context.Context, arg string) (b *App, org string, done func
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("host %s: %w", name, err)
 	}
-	return a.On(name, h, e.Home), org, func() { _ = h.Close() }, nil
+	b = a.On(name, h, e.Home)
+	b.DefaultBind = e.Bind
+	return b, org, func() { _ = h.Close() }, nil
 }
 
 // hostLabel names the host a's orgs are on: "local" or the registered name.

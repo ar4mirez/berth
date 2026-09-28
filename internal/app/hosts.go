@@ -170,13 +170,13 @@ func (a *App) removeKey(file string) {
 // HostAdd is `berth host add <name> <[user@]host[:port]> [--home <dir>] [--identity <file>]...
 // [--fingerprint SHA256:…] [--accept-new-host-key]`.
 func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
-	usage := fmt.Errorf("usage: %s host add <name> <[user@]host[:port]> [--home <remote state root>] [--identity <key file>] [--fingerprint SHA256:…] [--accept-new-host-key] [--engine docker|podman] [--no-guard]", Tool)
+	usage := fmt.Errorf("usage: %s host add <name> <[user@]host[:port]> [--home <remote state root>] [--identity <key file>] [--fingerprint SHA256:…] [--accept-new-host-key] [--engine docker|podman] [--bind <mode>] [--no-guard]", Tool)
 	var pos, identities []string
-	var home, fingerprint, engine string
+	var home, fingerprint, engine, bind string
 	acceptNew, guard := false, true
 	for i := 0; i < len(args); i++ {
 		switch x := args[i]; x {
-		case "--home", "--identity", "--fingerprint", "--engine":
+		case "--home", "--identity", "--fingerprint", "--engine", "--bind":
 			if i+1 >= len(args) {
 				return usage
 			}
@@ -188,6 +188,8 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 				identities = append(identities, v)
 			case "--engine":
 				engine = v
+			case "--bind":
+				bind = v
 			default:
 				fingerprint = v
 			}
@@ -216,6 +218,9 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 		return fmt.Errorf("--home %s: must be an absolute path on the host", home)
 	}
 	if err := host.CheckEngine(engine); err != nil {
+		return err
+	}
+	if err := CheckBind(bind); err != nil {
 		return err
 	}
 	if fingerprint != "" && !strings.HasPrefix(fingerprint, "SHA256:") {
@@ -324,6 +329,7 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 	if engine != host.EngineDocker {
 		e.Engine = engine
 	}
+	e.Bind = bind
 	k, err := hosts.NewKey(hosts.Comment(name))
 	if err != nil {
 		return err

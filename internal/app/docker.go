@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"regexp"
 	"strings"
 
 	"github.com/ar4mirez/berth/internal/contract"
@@ -88,20 +90,87 @@ func (a *App) rcURL(ctx context.Context, o string) string {
 var errBindTailscale = errors.New("BIND_ADDR=tailscale but tailscale is not up on this host")
 
 // resolveBind is resolve_bind: BIND_ADDR, with "tailscale" meaning this host's current Tailscale
-// IPv4 (`tailscale ip -4 2>/dev/null | head -1`), and 127.0.0.1 when unset.
+// IPv4 (`tailscale ip -4 2>/dev/null | head -1`), and 127.0.0.1 when unset. berth's own modes
+// (#58, docs/networking.md): iface:<name> is that interface's IPv4 now (a WireGuard, ZeroTier,
+// Netbird… interface), ip:<addr> is that address, and localhost is 127.0.0.1 (reached through an
+// SSH tunnel: berth connect). Anything else is used as it is, as ccenv does.
 func (a *App) resolveBind(ctx context.Context, o string) (string, error) {
 	b := a.env(o, "BIND_ADDR")
-	if b == "tailscale" {
+	switch {
+	case b == "tailscale":
 		out, _ := a.capture(ctx, true, "tailscale", "ip", "-4")
 		b, _, _ = strings.Cut(out, "\n")
 		if b == "" {
 			return "", errBindTailscale
 		}
+	case b == BindLocalhost:
+		b = "127.0.0.1"
+	case strings.HasPrefix(b, "iface:"):
+		name := strings.TrimPrefix(b, "iface:")
+		ip := a.ifaceIPv4(ctx, name)
+		if ip == "" {
+			return "", fmt.Errorf("BIND_ADDR=%s but %s has no IPv4 address on this host", b, name)
+		}
+		b = ip
+	case strings.HasPrefix(b, "ip:"):
+		b = strings.TrimPrefix(b, "ip:")
 	}
 	if b == "" {
 		b = "127.0.0.1"
 	}
 	return b, nil
+}
+
+// BindLocalhost is the bind mode for orgs reached only through an SSH tunnel (berth connect).
+const BindLocalhost = "localhost"
+
+var ifaceName = regexp.MustCompile(`^[A-Za-z0-9_.:@-]{1,15}$`)
+
+// ifaceIPv4 is the first IPv4 address of a network interface ("" if none): ip on Linux, ifconfig
+// elsewhere (macOS).
+func (a *App) ifaceIPv4(ctx context.Context, name string) string {
+	if !ifaceName.MatchString(name) {
+		return ""
+	}
+	if out, err := a.capture(ctx, true, "ip", "-4", "-o", "addr", "show", "dev", name); err == nil {
+		return firstInet(out, true)
+	}
+	out, _ := a.capture(ctx, true, "ifconfig", name)
+	return firstInet(out, false)
+}
+
+// firstInet finds the first "inet <addr>" in ip's (addr/prefix) or ifconfig's output.
+func firstInet(out string, withPrefix bool) string {
+	f := strings.Fields(out)
+	for i := 0; i+1 < len(f); i++ {
+		if f[i] == "inet" {
+			addr := f[i+1]
+			if withPrefix {
+				addr, _, _ = strings.Cut(addr, "/")
+			}
+			addr = strings.TrimPrefix(addr, "addr:") // older Linux ifconfig
+			if ip := net.ParseIP(addr); ip != nil && ip.To4() != nil {
+				return addr
+			}
+		}
+	}
+	return ""
+}
+
+// CheckBind refuses a bind mode berth doesn't know, for the places that set one (config.yaml,
+// host add --bind). org.env takes anything, as ccenv's does.
+func CheckBind(b string) error {
+	switch {
+	case b == "", b == "tailscale", b == BindLocalhost, b == "0.0.0.0":
+		return nil
+	case strings.HasPrefix(b, "iface:") && ifaceName.MatchString(strings.TrimPrefix(b, "iface:")):
+		return nil
+	case strings.HasPrefix(b, "ip:") && net.ParseIP(strings.TrimPrefix(b, "ip:")) != nil:
+		return nil
+	case net.ParseIP(b) != nil:
+		return nil
+	}
+	return fmt.Errorf("unknown bind mode %q (tailscale, iface:<name>, ip:<addr>, localhost, 0.0.0.0, or an address)", b)
 }
 
 // bindOrWarn is `$(resolve_bind …)` as ccenv uses it: inside a command substitution, where bash
@@ -120,6 +189,10 @@ func (a *App) hostAddr(ctx context.Context, o string) string {
 	b := a.bindOrWarn(ctx, o)
 	switch b {
 	case "127.0.0.1":
+		if a.env(o, "BIND_ADDR") == BindLocalhost || a.HostName != "" {
+			// Plain: info puts the address in commands and URLs; its tunnel section explains.
+			return "127.0.0.1"
+		}
 		return "127.0.0.1 (local only; set BIND_ADDR=tailscale)"
 	case "0.0.0.0":
 		for _, k := range []string{"BERTH_HOST", "CCENV_HOST"} { // CCENV_HOST: ccenv's name, still honoured

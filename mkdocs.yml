@@ -51,6 +51,7 @@ nav:
       - Secrets and env vars: guides/env.md
       - Secrets as files: secrets.md
       - Backups and restore: guides/backups.md
+      - Networking (Tailscale, VPNs, tunnels): networking.md
       - Hosts, leases and moving orgs: hosts.md
       - Container engines (Docker, Podman): engines.md
       - Toolchains and Claude Code: guides/tools.md

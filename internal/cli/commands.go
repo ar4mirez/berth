@@ -20,6 +20,7 @@ func appFor(cmd *cobra.Command) *app.App {
 	st := stateFrom(cmd.Context())
 	a := app.New(st, host.WithEngine(local.New(), st.Engine), cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr(), os.Getenv)
 	a.OpenTTY = local.OpenTTY
+	a.DefaultBind = st.Bind
 	a.Self, _ = os.Executable()
 	a.Invoked = invokedPath()
 	a.Output = outputFrom(cmd.Context())
@@ -463,6 +464,13 @@ func addCommands(root *cobra.Command) {
 					return a.Fw(cmd.Context(), "", nil)
 				}
 				return a.Fw(cmd.Context(), args[0], args[1:])
+			}),
+		}),
+		reads(&cobra.Command{
+			Use: "connect <org>[@host]", Short: "an SSH tunnel to an org on a registered host: its SSH and browser terminal on 127.0.0.1 here",
+			Args: cobra.ArbitraryArgs, ValidArgsFunction: completeArgs(orgArg),
+			RunE: onOrg(nthArg(0), func(a *app.App, cmd *cobra.Command, args []string) error {
+				return a.Connect(cmd.Context(), arg(args, 0))
 			}),
 		}),
 		reads(&cobra.Command{

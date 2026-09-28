@@ -21,6 +21,7 @@ using `~/.config/ccenv/backup.key` until berth has its own.
 ```yaml
 home: ~/Work/claude-envs     # the state root; absolute, or starting with ~/
 engine: podman               # this machine's container engine: docker (the default) or podman
+bind: iface:wg0              # BIND_ADDR for new orgs here (docs/networking.md); unset: tailscale if installed, else 127.0.0.1
 ```
 
 ## The state root
@@ -38,6 +39,7 @@ It's resolved from `--home`, then `$BERTH_HOME`, then `home:` in `config.yaml`, 
 | Variable | Effect |
 |---|---|
 | `BERTH_HOME` | the state root (after `--home`) |
+| `BERTH_BIND` | BIND_ADDR for new orgs on this machine (before `bind:` in `config.yaml`) |
 | `BERTH_ENGINE` | this machine's container engine, `docker` or `podman` (before `engine:` in `config.yaml`) |
 | `BERTH_BACKUP_DIR` | where backups go by default |
 | `BERTH_BACKUP_KEY` | the age identity for backups and restores (default `~/.config/berth/backup.key`) |
@@ -63,7 +65,7 @@ Each org's settings, in `orgs/<org>/org.env` (0600). `berth init` writes it with
 | `ANTHROPIC_API_KEY` | instead of the token: API (Console) billing |
 | `GIT_USER_NAME`, `GIT_USER_EMAIL` | the org's git identity |
 | `GH_TOKEN` | optional: `gh` and HTTPS git for this org |
-| `BIND_ADDR` | where the ports listen: `tailscale` (this machine's Tailscale IP), `127.0.0.1`, or `0.0.0.0` (not recommended) |
+| `BIND_ADDR` | where SSH and the browser terminal listen: `tailscale`, `iface:<name>`, `ip:<addr>` or an address, `localhost` (with `berth connect`), `127.0.0.1`, or `0.0.0.0` (berth warns) ([Networking](../networking.md)) |
 | `SSH_PORT`, `TTYD_PORT` | this org's SSH and browser-terminal ports on the host |
 | `REMOTE_CONTROL` | `1` runs the Remote Control service; `0` turns it off |
 | `REMOTE_CAPACITY` | how many Remote Control sessions may run at once (default 8) |
