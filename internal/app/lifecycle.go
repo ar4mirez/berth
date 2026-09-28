@@ -43,6 +43,13 @@ func (a *App) Down(ctx context.Context, o string) error {
 	return a.compose(ctx, o, "down")
 }
 
+// warnOpenBind says so when an org listens on every interface (#58).
+func (a *App) warnOpenBind(o string) {
+	if a.env(o, "BIND_ADDR") == "0.0.0.0" {
+		fmt.Fprintf(a.Stderr, "%s: warning: BIND_ADDR=0.0.0.0: %s's SSH and browser terminal listen on every interface of this host, so anyone who can reach it can try them. Prefer tailscale, iface:<vpn>, or localhost with %s connect (docs/networking.md).\n", Tool, o, Tool)
+	}
+}
+
 // Restart is `ccenv restart <org>`: recreate the container.
 func (a *App) Restart(ctx context.Context, o string) error {
 	if err := a.needOwnedOrg(o); err != nil {
@@ -51,6 +58,7 @@ func (a *App) Restart(ctx context.Context, o string) error {
 	if err := a.checkLease(ctx, o); err != nil {
 		return err
 	}
+	a.warnOpenBind(o)
 	a.imageFromRelease(ctx) // a release pulls its image here; otherwise compose builds it if missing
 	if err := a.compose(ctx, o, "up", "-d", "--force-recreate"); err != nil {
 		return err
@@ -121,6 +129,7 @@ func (a *App) Up(ctx context.Context, o string) error {
 	if err := a.checkLease(ctx, o); err != nil {
 		return err
 	}
+	a.warnOpenBind(o)
 	// ccenv's up always builds (--build). A release that pulled its image doesn't: building would
 	// replace the pulled image with a local build of the same image/.
 	args := []string{"up", "-d", "--build", "--force-recreate"}

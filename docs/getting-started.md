@@ -7,7 +7,7 @@
   the Docker API and `docker compose`. **Or Podman**, rootful or rootless ([Container engines](engines.md)).
 - **Optional: [Tailscale](https://tailscale.com).** With it, each org's SSH and browser terminal are bound to this
   machine's Tailscale address, so you can reach them from your other devices and nobody else can. Without it, they're
-  bound to `127.0.0.1`.
+  bound to `127.0.0.1`. Another VPN, or only SSH, works too ([Networking](networking.md)).
 - **Optional: `gh`,** signed in on this machine. `berth repo new` uses it to create repos on GitHub.
 
 ## Install berth

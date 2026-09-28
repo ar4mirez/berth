@@ -110,6 +110,9 @@ func (a *App) Init(ctx context.Context, args []string) error {
 	if _, err := a.capture(ctx, true, "sh", "-c", "command -v tailscale"); err == nil {
 		bind = "tailscale"
 	}
+	if a.DefaultBind != "" { // this machine's or this host's default (#58): bind: in config.yaml, host add --bind
+		bind = a.DefaultBind
+	}
 	// Port allocation and org.env run under the state root's lock, so two inits can't pick the
 	// same ports (#46).
 	unlock, err := a.lock(ctx)

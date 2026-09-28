@@ -31,7 +31,7 @@ var sections = []*cobra.Group{
 // placement is each top-level command's section; hidden ones live in a noun group now.
 var placement = map[string]string{
 	"org": "orgs", "ls": "orgs", "up": "orgs", "down": "orgs", "restart": "orgs", "attach": "orgs",
-	"shell": "orgs", "claude": "orgs", "run": "orgs", "logs": "orgs", "info": "orgs",
+	"shell": "orgs", "claude": "orgs", "run": "orgs", "logs": "orgs", "info": "orgs", "connect": "orgs",
 	"repo": "inside", "clone": "inside", "fw": "inside", "env": "inside", "secrets": "inside",
 	"account": "account",
 	"backup":  "backups", "restore": "backups", "schedule": "backups", "keygen": "backups",
@@ -49,7 +49,7 @@ var nounGroups = []struct {
 		{"ls", "ls"}, {"create", "init"}, {"info", "info"}, {"up", "up"}, {"down", "down"}, {"restart", "restart"},
 		{"attach", "attach"}, {"shell", "shell"}, {"logs", "logs"}, {"claude", "claude"}, {"run", "run"},
 		{"whoami", "whoami"}, {"rehydrate", "rehydrate"}, {"migrate", "migrate"}, {"password", "password"},
-		{"remote", "remote"}, {"takeover", "takeover"}, {"handback", "handback"},
+		{"remote", "remote"}, {"takeover", "takeover"}, {"handback", "handback"}, {"connect", "connect"},
 	}},
 	{"account", "sign an org in and out: Claude, Remote Control, GitHub", [][2]string{
 		{"signin", "auth"}, {"token", "token"}, {"login", "login"}, {"logout", "logout"}, {"gh", "gh-login"}, {"whoami", "whoami"},
@@ -65,6 +65,7 @@ var examples = map[string][]string{
 	"ls":                 {"berth ls", "berth --output json ls"},
 	"init":               {`berth init acme --name "Ada Lovelace" --email ada@example.com`, "berth init acme@box1"},
 	"info":               {"berth info acme"},
+	"connect":            {"berth connect acme@box1", "berth connect acme"},
 	"up":                 {"berth up acme", "berth up acme@box1 --take-lease"},
 	"down":               {"berth down acme"},
 	"restart":            {"berth restart acme"},

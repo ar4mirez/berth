@@ -210,6 +210,14 @@ func (a *App) Restore(ctx context.Context, args []string) error {
 			return err
 		}
 		fmt.Fprintln(a.Stdout, "Tailscale not up on this host: bound to 127.0.0.1 (set BIND_ADDR=tailscale later)")
+	} else if b := a.env(name, "BIND_ADDR"); strings.HasPrefix(b, "iface:") {
+		// berth's other mode that depends on the host (#58): the interface may not exist here.
+		if _, err := a.resolveBind(ctx, name); err != nil {
+			if err := a.Orgs.Set(name, "BIND_ADDR", "127.0.0.1"); err != nil {
+				return err
+			}
+			fmt.Fprintf(a.Stdout, "%s isn't up on this host: bound to 127.0.0.1 (set BIND_ADDR=%s later)\n", strings.TrimPrefix(b, "iface:"), b)
+		}
 	}
 
 	unlockPorts()

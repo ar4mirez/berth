@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"net"
 	"path"
 	"strconv"
 
@@ -151,5 +152,45 @@ Host claude-%[1]s
 
 Git public key:  %[8]s
 `, o, state, url, Tool, sp, h, tp, pub)
+	a.tunnelHint(ctx, o, sp, tp)
 	return nil
+}
+
+// sshTarget is "[-p port ]user@host" for ssh's command line, from host:port.
+func sshTarget(user, addr string) string {
+	h, p, err := net.SplitHostPort(addr)
+	if err != nil {
+		return user + "@" + addr
+	}
+	if p != "22" {
+		return "-p " + p + " " + user + "@" + h
+	}
+	return user + "@" + h
+}
+
+// tunnelHint is info's last section for an org reached through an SSH tunnel (#58): bound to
+// localhost, or to 127.0.0.1 on a registered host. ccenv's sheet is unchanged otherwise.
+func (a *App) tunnelHint(ctx context.Context, o, sp, tp string) {
+	// Only these can need a tunnel, and only they resolve the bind again (ccenv's sheet makes no
+	// other calls: the parity suite checks it).
+	if a.env(o, "BIND_ADDR") != BindLocalhost && a.HostName == "" {
+		return
+	}
+	if b, err := a.resolveBind(ctx, o); err != nil || b != "127.0.0.1" {
+		return
+	}
+	target, via := "", o
+	if a.HostName != "" {
+		if e, err := a.base().registered(a.HostName); err == nil {
+			target = sshTarget(e.User, e.Addr)
+		}
+		via = o + "@" + a.HostName
+	} else {
+		h, _ := a.capture(ctx, true, "hostname")
+		target = a.Getenv("USER") + "@" + h
+	}
+	fmt.Fprintf(a.Stdout, "\nSSH tunnel              %s connect %s   (then SSH and the browser terminal above, on 127.0.0.1)\n", Tool, via)
+	if target != "" {
+		fmt.Fprintf(a.Stdout, "                        or by hand: ssh -N -L %s:127.0.0.1:%s -L %s:127.0.0.1:%s %s\n", sp, sp, tp, tp, target)
+	}
 }

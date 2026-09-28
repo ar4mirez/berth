@@ -51,6 +51,8 @@ type Entry struct {
 	Key string `yaml:"key,omitempty"`
 	// Engine is the host's container engine: docker ("", the default) or podman (#57).
 	Engine string `yaml:"engine,omitempty"`
+	// Bind is BIND_ADDR for new orgs on the host ("": ccenv's default; #58).
+	Bind string `yaml:"bind,omitempty"`
 }
 
 // Address is user@host:port, as shown to the operator.

@@ -62,6 +62,7 @@ var Catalog = map[string]Op{
 	"logs":         read,
 	"completion":   read,
 	"parity-check": read,
+	"connect":      read, // an SSH tunnel from this machine; changes nothing (#58)
 
 	// Lifecycle.
 	"init":      write,
@@ -152,7 +153,7 @@ var groups = map[string]map[string]string{
 	"org": {"ls": "ls", "create": "init", "info": "info", "up": "up", "down": "down", "restart": "restart",
 		"attach": "attach", "shell": "shell", "logs": "logs", "claude": "claude", "run": "run", "whoami": "whoami",
 		"rehydrate": "rehydrate", "migrate": "migrate", "password": "password", "remote": "remote",
-		"takeover": "takeover", "handback": "handback"},
+		"takeover": "takeover", "handback": "handback", "connect": "connect"},
 	"account": {"signin": "auth", "token": "token", "login": "login", "logout": "logout", "gh": "gh-login", "whoami": "whoami"},
 	"system":  {"install": "install", "upgrade": "upgrade", "pull": "pull", "build": "build", "completion": "completion", "parity-check": "parity-check"},
 }

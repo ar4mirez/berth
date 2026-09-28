@@ -14,6 +14,8 @@ type State struct {
 	ReadOnly bool
 	// Engine is this machine's container engine ("" is Docker; #57).
 	Engine string
+	// Bind is this machine's default BIND_ADDR for new orgs ("": ccenv's default; #58).
+	Bind string
 }
 
 // Writable returns nil when mutations are allowed, else an ErrReadOnly naming op

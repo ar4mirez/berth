@@ -104,7 +104,8 @@ reference is matched, [Repo policy](repo-policy.md).
 - **Tokens and custom variables** can be kept as files that are mounted read-only, instead of in the container's
   environment, so `docker inspect` can't show them ([Secrets](secrets.md)).
 - **SSH is key-only.** The browser terminal has a random 32-character password, kept in a 0600 file.
-- **Ports bind to your tailnet** (or `127.0.0.1`), never to the public internet by default.
+- **Ports bind to your tailnet** (or `127.0.0.1`), never to the public internet by default. Other VPNs and SSH tunnels
+  work too ([Networking](networking.md)).
 - **Tenancy.** Anyone who can run Docker on a host can read what its containers hold. An org is isolated from other
   orgs, not from the host's administrators. Run orgs for different clients on hosts you control.
 
@@ -124,5 +125,4 @@ public key. See [Backups](guides/backups.md).
 ## Coming later
 
 - **Apple `container`** as an engine: Docker and Podman are supported today ([Container engines](engines.md)).
-- **Network-agnostic access**, over any VPN, interface or SSH tunnel, not only Tailscale (#58).
 - **Cloud hosts** provisioned from the CLI.
