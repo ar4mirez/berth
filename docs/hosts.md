@@ -30,9 +30,9 @@ berth ls                                      # this machine's orgs, then each h
     `--output json` lists it under `unreachable`.
   - With no hosts registered, its output is exactly as before.
 - **Completion.** After an `@`, completion offers the registered hosts. It reads the registry and never connects.
-- **Not remote yet.** `backup`, `restore`, `migrate`, `secrets migrate` and `parity-check` refuse an
-  `org@host`, because they read your backup key or write your files. Host-side backups are #49, and moving orgs
-  between hosts is #50. `build` and `pull` act on this machine. `schedule` takes `--host` (below).
+- **Not remote yet.** `backup`, `restore`, `secrets migrate` and `parity-check` refuse an
+  `org@host`, because they read your backup key or write your files. For those, use `schedule --host` and `migrate`
+  (below). `build` and `pull` act on this machine. `schedule` takes `--host` (below).
 - **`fw edit` on a host.** It opens the editor on that host, over `ssh -t`.
 
 ## Commands
@@ -102,6 +102,46 @@ It then:
 
 It never stops or deletes anything on the host: its orgs keep running there. If the host was unreachable, berth
 reminds you to remove the `berth:<name>` line by hand.
+
+## Moving an org between hosts
+
+`berth migrate acme box1` moves `acme` from this machine to `box1`. `berth migrate acme@box1 local` moves it back,
+and `acme@box1 box2` moves it between hosts (#50). There are two stages.
+
+**1. Rehearsal (no downtime).**
+
+- The org is streamed into a **stopped** copy on the target, while it keeps running where it is. The stream is
+  the backup format, unencrypted, over berth's SSH connections.
+- The copy's ports and bind address are fitted to the target, as `restore` does.
+- The copy is then checked: `org.env` (except what `restore` adjusts), every file under `config/`, and every
+  file's path and size except the regenerable data backups skip. Files that changed while the org ran are
+  reported, not counted against it.
+
+**2. Switch (an announced restart).**
+
+- berth asks first. It says the org will stop where it is, and how long the rehearsal took (the final copy takes
+  about as long).
+- Then it:
+  1. stops the org;
+  2. copies it again, so nothing written since the rehearsal is lost;
+  3. checks this copy **exactly**;
+  4. moves the lease;
+  5. starts the org on the target, and rehydrates it there.
+- **Without a terminal:** `--yes` gives the go-ahead. With neither a terminal nor `--yes`, berth stops after the
+  rehearsal. `--no-switch` always stops there. Run it again with `--yes` to switch; the earlier copy is replaced.
+
+**If anything fails:**
+
+- **Before the stop:** nothing changes where the org runs.
+- **After it:** berth starts the org where it was again, with its lease.
+
+**The old copy stays**, stopped, where it was, until you remove it. `up` refuses to start it there, because the
+target holds the lease.
+
+**`--as <name>`** gives the copy another name.
+
+**The older form still works:** `migrate <org> <[user@]host>`, ccenv's stream to berth on any SSH host. It's used
+when the target isn't a registered host.
 
 ## Backups on a host
 
@@ -196,9 +236,7 @@ that names the one host allowed to run it (#47).
   `<state root>/berth/lease/<org>`.
 - **No registered hosts:** there are no leases at all. Nothing is read or written, and `up` behaves exactly as before.
 
-`migrate` still leaves both copies running, as ccenv's does. With a registered target, finish with
-`berth up acme@<target> --take-lease`. That stops the old copy and moves the lease in one step. Moving orgs over the
-registry, with the lease handed over at the end, is #50.
+To move an org to another host, use `migrate` (below). It hands the lease over as its last step.
 
 ## Files
 

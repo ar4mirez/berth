@@ -35,9 +35,9 @@ func (a *App) Restore(ctx context.Context, args []string) error {
 			}
 			i++
 			if x == "--as" {
-				as = args[i]
+				as = nth(args, i)
 			} else {
-				ident = args[i]
+				ident = nth(args, i)
 			}
 		case x == "--force":
 			force = true
@@ -338,6 +338,27 @@ func (a *App) Migrate(ctx context.Context, args []string) error {
 	if len(args) >= 2 {
 		flags = args[2:]
 	}
+	// A registered target (#50): the guided move, with its own flags.
+	if target != "" && a.isRegisteredTarget(target) {
+		yes, noSwitch := false, false
+		for i := 0; i < len(flags); i++ {
+			switch x := flags[i]; x {
+			case "--as":
+				if i+1 >= len(flags) {
+					return fmt.Errorf("%s needs a value", x)
+				}
+				i++
+				as = flags[i]
+			case "--yes", "-y":
+				yes = true
+			case "--no-switch":
+				noSwitch = true
+			default:
+				return fmt.Errorf("unknown flag %s (to a registered host: [--as name] [--yes | --no-switch])", x)
+			}
+		}
+		return a.migrateToHost(ctx, o, target, as, yes, noSwitch)
+	}
 	for i := 0; i < len(flags); i++ {
 		switch x := flags[i]; x {
 		case "--as", "--remote-dir":
@@ -359,6 +380,9 @@ func (a *App) Migrate(ctx context.Context, args []string) error {
 	}
 	if target == "" {
 		return fmt.Errorf("usage: %s migrate <org> <[user@]host> [--as name] [--remote-dir dir]", Tool)
+	}
+	if a.HostName != "" {
+		return fmt.Errorf("an org on a host moves to a registered host (%s migrate %s@%s <host>), not to %s", Tool, o, a.HostName, target)
 	}
 	if a.passthrough(ctx, false, "ssh", target, "docker info >/dev/null 2>&1") != nil {
 		return fmt.Errorf("%s: docker not reachable over ssh (is it installed, and is the user in the docker group?)", target)

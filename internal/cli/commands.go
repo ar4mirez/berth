@@ -384,10 +384,10 @@ func addCommands(root *cobra.Command) {
 			return a.Rehydrate(c.Context(), o)
 		}),
 		writes(&cobra.Command{
-			Use:   "migrate <org> <[user@]host> [--as name] [--remote-dir dir]",
-			Short: "stream an org to berth on another host over ssh", DisableFlagParsing: true,
+			Use:   "migrate <org>[@host] <host> [--as name] [--yes|--no-switch] | <org> <[user@]host> [--as name] [--remote-dir dir]",
+			Short: "move an org to a registered host (rehearsal, then an announced switch), or stream it to berth over ssh", DisableFlagParsing: true,
 			ValidArgsFunction: completeArgs(orgArg),
-			RunE:              localOnly("migrate", nthArg(0), func(cmd *cobra.Command, args []string) error { return appFor(cmd).Migrate(cmd.Context(), args) }),
+			RunE:              onOrg(nthArg(0), func(a *app.App, cmd *cobra.Command, args []string) error { return a.Migrate(cmd.Context(), args) }),
 		}),
 		// schedule parses its own arguments, as ccenv does; status reads, the rest write.
 		reads(&cobra.Command{

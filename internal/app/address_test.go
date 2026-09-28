@@ -107,3 +107,16 @@ func TestAddressLocal(t *testing.T) {
 		t.Errorf("ls json: %+v", res)
 	}
 }
+
+func TestDropLines(t *testing.T) {
+	var out bytes.Buffer
+	d := &dropLines{w: &out, prefix: "Start with: "}
+	for _, chunk := range []string{"Restored to /x\nStart w", "ith: berth up acme\n", "done\n"} {
+		if _, err := d.Write([]byte(chunk)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out.String() != "Restored to /x\ndone\n" {
+		t.Errorf("%q", out.String())
+	}
+}
