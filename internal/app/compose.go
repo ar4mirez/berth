@@ -90,7 +90,7 @@ func (a *App) compose(ctx context.Context, o string, args ...string) error {
 	gid, _ := a.capture(ctx, false, "id", "-g")
 	env := []string{"BIND_ADDR=" + bind, "ORG=" + o, "ORG_DIR=" + dir, "HOST_UID=" + uid, "HOST_GID=" + gid}
 	if a.rootlessPodman(ctx) {
-		env = append(env, "BERTH_USERNS=keep-id")
+		env = append(env, "BERTH_USERNS=keep-id", "BERTH_USER=0:0")
 	}
 	if own {
 		repo, tag, _ := strings.Cut(set.Tag, ":")
