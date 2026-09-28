@@ -11,6 +11,11 @@ updates:
     directory: /
     schedule: {interval: weekly}
     labels: [dependencies, area:release]
+  # The docs site's toolchain (tools/docs/requirements.txt, locked with hashes).
+  - package-ecosystem: pip
+    directory: /tools/docs
+    schedule: {interval: weekly}
+    labels: [dependencies, area:docs]
   # The base image's digest in image/Dockerfile. An image change: it reaches a live org only at its
   # next restart, which is announced per org.
   - package-ecosystem: docker

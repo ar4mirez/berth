@@ -2,6 +2,11 @@
 version: 2
 project_name: berth
 
+# Man pages (#56), generated from the commands' help and packed into every archive.
+before:
+  hooks:
+    - go run ./tools/gendocs man man {{ .Version }}
+
 builds:
   - id: berth
     main: ./cmd/berth
@@ -27,6 +32,7 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - README.md
+      - man/*.1
 
 checksum:
   name_template: checksums.txt

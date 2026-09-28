@@ -1,4 +1,6 @@
 /dist/
+/man/
+/site/
 /berth
 *.test
 *.out
