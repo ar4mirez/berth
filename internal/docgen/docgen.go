@@ -53,3 +53,29 @@ func Man(root *cobra.Command, dir, version string) error {
 	}
 	return doc.GenManTree(root, &doc.GenManHeader{Title: "BERTH", Section: "1", Source: "berth " + version, Manual: "berth manual"}, dir)
 }
+
+// Completions writes the shell completion scripts packages install: berth.bash, _berth (zsh) and
+// berth.fish.
+func Completions(root *cobra.Command, dir string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:forbidigo,gosec // release files (world-readable), not org state
+		return err
+	}
+	for name, gen := range map[string]func(*os.File) error{
+		"berth.bash": func(f *os.File) error { return root.GenBashCompletionV2(f, true) },
+		"_berth":     func(f *os.File) error { return root.GenZshCompletion(f) },
+		"berth.fish": func(f *os.File) error { return root.GenFishCompletion(f, true) },
+	} {
+		f, err := os.Create(filepath.Join(dir, name)) //nolint:forbidigo,gosec // as above
+		if err != nil {
+			return err
+		}
+		if err := gen(f); err != nil {
+			_ = f.Close()
+			return err
+		}
+		if err := f.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}

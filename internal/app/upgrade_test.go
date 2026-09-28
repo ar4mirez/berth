@@ -113,3 +113,18 @@ func TestUpgrade(t *testing.T) {
 		t.Errorf("--read-only: %v", err)
 	}
 }
+
+func TestPackageManager(t *testing.T) {
+	for self, want := range map[string]string{
+		"/opt/homebrew/Caskroom/berth/0.4.0/berth":                           "Homebrew",
+		"/home/linuxbrew/.linuxbrew/Cellar/berth/0.4.0/bin/berth":            "Homebrew",
+		"/home/op/.local/share/mise/installs/ubi-ar4mirez-berth/0.4.0/berth": "mise",
+		"/usr/bin/berth":                        "your system's package manager",
+		"/home/op/.local/opt/berth/0.4.0/berth": "",
+		"/usr/local/bin/berth":                  "",
+	} {
+		if got, _ := PackageManager(self); got != want {
+			t.Errorf("%s: %q, want %q", self, got, want)
+		}
+	}
+}

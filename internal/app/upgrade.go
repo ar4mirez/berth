@@ -48,6 +48,9 @@ func (a *App) Upgrade(ctx context.Context, args []string) error {
 	if a.Self == "" {
 		return fmt.Errorf("can't tell where the %s binary is", Tool)
 	}
+	if pm, how := PackageManager(a.Self); pm != "" {
+		return fmt.Errorf("%s was installed by %s (%s): upgrade it there: %s", Tool, pm, a.Self, how)
+	}
 	opt := a.optDir()
 	prevFile := path.Join(opt, ".previous")
 	if rollback {
@@ -112,6 +115,21 @@ func (a *App) Upgrade(ctx context.Context, args []string) error {
 	fmt.Fprintf(a.Stdout, "Upgraded to %s (%s). The previous version stays; undo with: %s upgrade --rollback\n", rel.Tag, dst, Tool)
 	a.imageNote(ctx, dst)
 	return nil
+}
+
+// PackageManager names the package manager that owns a berth binary at self (symlinks resolved),
+// and how to upgrade with it; "" when berth installed itself (install.sh, berth install/upgrade).
+// berth upgrade leaves a package manager's install alone (#60).
+func PackageManager(self string) (name, how string) {
+	switch {
+	case strings.Contains(self, "/Caskroom/") || strings.Contains(self, "/Cellar/") || strings.Contains(self, "/homebrew/") || strings.Contains(self, "/linuxbrew/"):
+		return "Homebrew", "brew upgrade berth"
+	case strings.Contains(self, "/mise/installs/"):
+		return "mise", "mise upgrade berth (or: mise use -g ubi:ar4mirez/berth@latest)"
+	case strings.HasPrefix(self, "/usr/bin/") || strings.HasPrefix(self, "/usr/sbin/"):
+		return "your system's package manager", "apt install ./berth_<v>_linux_<arch>.deb, dnf install ./….rpm, pacman -U ./….pkg.tar.zst, or the AUR (docs: getting started)"
+	}
+	return "", ""
 }
 
 // optDir is where versions live: the parent of the current binary's version directory when it's

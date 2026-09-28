@@ -1,0 +1,27 @@
+# DRAFT (#60): berth's entry for the aqua registry (aquaproj/aqua-registry, pkgs/ar4mirez/berth/).
+# Not submitted yet. Before opening the PR there, run aqua-registry's own tooling on it
+# (cmdx new / cmdx t ar4mirez/berth); in particular check aqua's support for the new-format Sigstore
+# bundle (checksums.txt.sigstore.json, cosign --new-bundle-format). Once aqua has it, berth also
+# installs with `mise use -g aqua:ar4mirez/berth`, signature checked.
+packages:
+  - type: github_release
+    repo_owner: ar4mirez
+    repo_name: berth
+    description: Isolated Claude Code environments, one per organization
+    version_constraint: semver(">= 0.3.0")
+    asset: berth_{{trimV .Version}}_{{.OS}}_{{.Arch}}.{{.Format}}
+    format: tar.gz
+    supported_envs: [linux, darwin]
+    checksum:
+      type: github_release
+      asset: checksums.txt
+      algorithm: sha256
+      cosign:
+        bundle:
+          type: github_release
+          asset: checksums.txt.sigstore.json
+        opts:
+          - --certificate-identity
+          - https://github.com/ar4mirez/berth/.github/workflows/release.yml@refs/tags/{{.Version}}
+          - --certificate-oidc-issuer
+          - https://token.actions.githubusercontent.com

@@ -2,10 +2,12 @@
 version: 2
 project_name: berth
 
-# Man pages (#56), generated from the commands' help and packed into every archive.
+# Man pages (#56) and shell completion, generated from the commands' help and packed into every
+# archive and package (#60).
 before:
   hooks:
     - go run ./tools/gendocs man man {{ .Version }}
+    - go run ./tools/gendocs completions completions
 
 builds:
   - id: berth
@@ -32,10 +34,21 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - README.md
+      - LICENSE
       - man/*.1
+      - completions/*
+
+# The source archive, which the AUR's from-source package (aur_sources) builds.
+source:
+  enabled: true
+  name_template: "{{ .ProjectName }}_{{ .Version }}"
+  prefix_template: "{{ .ProjectName }}_{{ .Version }}/"
 
 checksum:
   name_template: checksums.txt
+  # The install script (#60), so the signature over checksums.txt covers it too.
+  extra_files:
+    - glob: ./install.sh
 
 # Keyless cosign signature over checksums.txt (which covers every archive), as a Sigstore bundle.
 # In the release workflow the certificate names that workflow and its tag ref; docs/releases.md has
@@ -56,7 +69,121 @@ changelog:
   use: github-native
 
 # Only the release workflow publishes (on a v* tag); CI builds snapshots.
+# Packages (#60), attached to every release and covered by the signed checksums.txt. A signed
+# apt/yum repository comes later; until then: apt install ./berth_<v>_linux_<arch>.deb (docs).
+nfpms:
+  - id: packages
+    package_name: berth
+    # Each format's conventional name (berth_<v>_amd64.deb, berth-<v>-1.x86_64.rpm,
+    # berth-<v>-1-x86_64.pkg.tar.zst), which also keeps mise's ubi: from taking one for the archive.
+    file_name_template: "{{ .ConventionalFileName }}"
+    formats: [deb, rpm, archlinux]
+    vendor: berth
+    homepage: https://ar4mirez.github.io/berth/
+    maintainer: ar4mirez <ar4mirez@users.noreply.github.com>
+    description: |-
+      Isolated Claude Code environments, one per organization.
+      Each org gets its own container, Claude account, git identity, repos, egress firewall
+      and repo allowlist; berth drives Docker locally or on remote hosts over SSH.
+    license: Apache-2.0
+    section: utils
+    bindir: /usr/bin
+    contents:
+      - src: ./man/*.1
+        dst: /usr/share/man/man1/
+      - src: ./completions/berth.bash
+        dst: /usr/share/bash-completion/completions/berth
+      - src: ./completions/_berth
+        dst: /usr/share/zsh/site-functions/_berth
+      - src: ./completions/berth.fish
+        dst: /usr/share/fish/vendor_completions.d/berth.fish
+      - src: ./LICENSE
+        dst: /usr/share/licenses/berth/LICENSE
+      - src: ./README.md
+        dst: /usr/share/doc/berth/README.md
+
+# Homebrew (#60): a cask in ar4mirez/homebrew-tap. Published only when the release workflow has
+# HOMEBREW_TAP_TOKEN (a fine-grained token with Contents: write on that repo alone).
+homebrew_casks:
+  - name: berth
+    repository:
+      owner: ar4mirez
+      name: homebrew-tap
+      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
+    homepage: https://ar4mirez.github.io/berth/
+    description: Isolated Claude Code environments, one per organization
+    license: Apache-2.0
+    skip_upload: '{{ if not (index .Env "HOMEBREW_TAP_TOKEN") }}true{{ end }}'
+    manpages:
+      - man/berth.1
+    completions:
+      bash: completions/berth.bash
+      zsh: completions/_berth
+      fish: completions/berth.fish
+    hooks:
+      post:
+        # The binary is signed through Sigstore (checksums.txt), not by Apple: without this,
+        # Gatekeeper quarantines what the cask downloaded.
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/berth"]
+          end
+
+# Arch Linux (#60): berth-bin (the release binary) and berth (built from source) in the AUR.
+# Published only when the release workflow has AUR_KEY (the AUR account's SSH key).
+aurs:
+  - name: berth-bin
+    homepage: https://ar4mirez.github.io/berth/
+    description: Isolated Claude Code environments, one per organization
+    license: Apache-2.0
+    maintainers:
+      - ar4mirez <ar4mirez@users.noreply.github.com>
+    private_key: '{{ index .Env "AUR_KEY" }}'
+    git_url: ssh://aur@aur.archlinux.org/berth-bin.git
+    skip_upload: '{{ if not (index .Env "AUR_KEY") }}true{{ end }}'
+    depends: [docker]
+    package: |-
+      install -Dm755 ./berth "${pkgdir}/usr/bin/berth"
+      install -Dm644 ./LICENSE "${pkgdir}/usr/share/licenses/berth/LICENSE"
+      install -Dm644 ./completions/berth.bash "${pkgdir}/usr/share/bash-completion/completions/berth"
+      install -Dm644 ./completions/_berth "${pkgdir}/usr/share/zsh/site-functions/_berth"
+      install -Dm644 ./completions/berth.fish "${pkgdir}/usr/share/fish/vendor_completions.d/berth.fish"
+      for m in ./man/*.1; do install -Dm644 "$m" "${pkgdir}/usr/share/man/man1/$(basename "$m")"; done
+
+aur_sources:
+  - name: berth
+    homepage: https://ar4mirez.github.io/berth/
+    description: Isolated Claude Code environments, one per organization
+    license: Apache-2.0
+    maintainers:
+      - ar4mirez <ar4mirez@users.noreply.github.com>
+    private_key: '{{ index .Env "AUR_KEY" }}'
+    git_url: ssh://aur@aur.archlinux.org/berth.git
+    skip_upload: '{{ if not (index .Env "AUR_KEY") }}true{{ end }}'
+    depends: [docker]
+    makedepends: [go]
+    prepare: |-
+      cd "${pkgname}_${pkgver}"
+      go mod download
+    build: |-
+      cd "${pkgname}_${pkgver}"
+      export CGO_ENABLED=0 GOFLAGS="-trimpath -mod=readonly"
+      go build -ldflags "-s -w -X github.com/ar4mirez/berth/internal/version.Version=${pkgver}" -o berth ./cmd/berth
+      go run ./tools/gendocs man man "${pkgver}"
+      go run ./tools/gendocs completions completions
+    package: |-
+      cd "${pkgname}_${pkgver}"
+      install -Dm755 ./berth "${pkgdir}/usr/bin/berth"
+      install -Dm644 ./LICENSE "${pkgdir}/usr/share/licenses/berth/LICENSE"
+      install -Dm644 ./completions/berth.bash "${pkgdir}/usr/share/bash-completion/completions/berth"
+      install -Dm644 ./completions/_berth "${pkgdir}/usr/share/zsh/site-functions/_berth"
+      install -Dm644 ./completions/berth.fish "${pkgdir}/usr/share/fish/vendor_completions.d/berth.fish"
+      for m in ./man/*.1; do install -Dm644 "$m" "${pkgdir}/usr/share/man/man1/$(basename "$m")"; done
+
 release:
+  # The install script (#60) is a release asset too, so the signed checksums.txt covers it.
+  extra_files:
+    - glob: ./install.sh
   github:
     owner: ar4mirez
     name: berth

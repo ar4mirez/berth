@@ -33,8 +33,13 @@ berth is the Go successor to `ccenv`, a Bash tool that ran this model in product
 - **Beyond ccenv:** remote hosts, signed releases and self-upgrade.
 - **Roadmap:** [`docs/plan.md`](docs/plan.md), and the GitHub milestones.
 
-Install a signed release: [getting started](docs/getting-started.md#install-berth). Coming from ccenv:
+Install it with the install script, Homebrew, a .deb, .rpm or Arch package, the AUR, or mise:
+[getting started](docs/getting-started.md#install-berth). Coming from ccenv:
 [install next to it](docs/host-install.md), then [cut over](docs/cutover.md).
+
+## License
+
+[Apache-2.0](LICENSE).
 
 ## Layout
 
