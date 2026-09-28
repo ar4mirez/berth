@@ -148,7 +148,10 @@ jobs:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           AUR_KEY: ${{ secrets.AUR_KEY }}
 
+      # These two run even when goreleaser failed late (a Homebrew or AUR push after the release
+      # was published, as with v0.4.0): whatever is published gets checked and attested.
       - name: verify, as a user would (docs/releases.md)
+        if: ${{ !cancelled() && hashFiles('dist/checksums.txt') != '' }}
         run: |
           set -euo pipefail
           cd dist
@@ -181,7 +184,7 @@ jobs:
           echo "signature and checksums verified; tampering is caught"
 
       - name: build provenance (SLSA) for the archives and packages
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && hashFiles('dist/checksums.txt') != '' }}
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
