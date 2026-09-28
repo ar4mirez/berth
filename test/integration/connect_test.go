@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -66,8 +67,14 @@ func TestConnectTunnel(t *testing.T) {
 	cmd.Env = env
 	var cout strings.Builder
 	cmd.Stdout, cmd.Stderr = &cout, &cout
+	// Its own process group, as a terminal's Ctrl-C would reach: berth and the ssh it runs.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.WaitDelay = 5 * time.Second
 	mustDo(t, cmd.Start())
-	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	t.Cleanup(func() {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		_ = cmd.Wait()
+	})
 
 	// ttyd answers (401: it wants the password) once the tunnel is up and the org has started.
 	deadline := time.Now().Add(90 * time.Second)

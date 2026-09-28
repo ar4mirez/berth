@@ -45,7 +45,7 @@ func (a *App) Connect(ctx context.Context, o string) error {
 	}
 	fwd := func(port string) string { return port + ":" + bind + ":" + port }
 	args := []string{"ssh", "-N", "-p", p, "-i", e.Key,
-		"-o", "IdentitiesOnly=yes", "-o", "ExitOnForwardFailure=yes",
+		"-o", "IdentitiesOnly=yes", "-o", "ExitOnForwardFailure=yes", "-o", "BatchMode=yes",
 		"-o", "UserKnownHostsFile=" + a.hostPaths().KnownHosts(), "-o", "StrictHostKeyChecking=yes",
 		"-L", "127.0.0.1:" + fwd(sp), "-L", "127.0.0.1:" + fwd(tp), e.User + "@" + h}
 	fmt.Fprintf(a.Stdout, "Tunnel to %s on %s (Ctrl-C closes it):\n  SSH                ssh -p %s node@127.0.0.1\n  Browser terminal   http://127.0.0.1:%s   (password: %s password %s@%s)\n",
