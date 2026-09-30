@@ -102,7 +102,9 @@ func TestEngineLifecycle(t *testing.T) {
 	}
 	must("repo", "add", o, "acme/widgets", "--no-clone")
 
-	// exec: a command in the org as node, in --cwd, with --env set.
+	// exec: a command in the org as node, in --cwd, with --env set. (.claude is the one name the
+	// workspace sweep leaves alone.)
+	must("exec", o, "--", "mkdir", "-p", ".claude")
 	if out := must("exec", o, "--cwd", ".claude", "--env", "BERTH_T=v1", "--", "sh", "-c", `pwd; echo "$BERTH_T"; id -un`); out != "/workspace/.claude\nv1\nnode\n" {
 		t.Errorf("exec: %q", out)
 	}
