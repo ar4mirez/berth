@@ -115,21 +115,25 @@ jobs:
       - name: the profile's setup script runs as node at start; a failure doesn't stop the container
         run: |
           set -euo pipefail
-          start() {  # start <setup.sh content>: prints the container id once it's ready
-            local cfg; cfg=$(mktemp -d); printf "$1" > "$cfg/setup.sh"
-            local cid; cid=$(docker run -d --cap-add NET_ADMIN --cap-add NET_RAW -e ORG=t-ci -e PROFILE_VAR=from-env -v "$cfg:/config:ro" berth-image-ci)
-            for _ in $(seq 90); do docker logs "$cid" 2>&1 | grep -q 'claude-env\[t-ci\]: ready' && break; sleep 2; done
-            docker logs "$cid" 2>&1 | grep -q 'claude-env\[t-ci\]: ready' || { docker logs "$cid" >&2; exit 1; }
-            echo "$cid"
+          fail() { echo "BAD: $1" >&2; docker logs "$cid" >&2 || true; docker exec "$cid" cat /run/berth-setup.log >&2 || true; exit 1; }
+          start() {  # start <setup.sh content>: sets cid once the container is ready
+            local cfg; cfg=$(mktemp -d); printf "$1" > "$cfg/setup.sh"; chmod 644 "$cfg/setup.sh"
+            cid=$(docker run -d --cap-add NET_ADMIN --cap-add NET_RAW -e ORG=t-ci -e PROFILE_VAR=from-env -v "$cfg:/config:ro" berth-image-ci)
+            for _ in $(seq 90); do
+              logs=$(docker logs "$cid" 2>&1 || true)
+              grep -q 'claude-env\[t-ci\]: ready' <<<"$logs" && return 0
+              sleep 2
+            done
+            fail "the container never got ready"
           }
-          cid=$(start 'id -un > /tmp/setup-user\necho "PROFILE_VAR=$PROFILE_VAR"\n')
-          docker logs "$cid" 2>&1 | grep -qx 'setup: done'
-          [ "$(docker exec "$cid" cat /tmp/setup-user)" = node ]
-          docker exec "$cid" grep -qx 'PROFILE_VAR=from-env' /run/berth-setup.log
+          start 'id -un > /tmp/setup-user\necho "PROFILE_VAR=$PROFILE_VAR"\n'
+          grep -qx 'setup: done' <<<"$logs" || fail "no 'setup: done'"
+          [ "$(docker exec "$cid" cat /tmp/setup-user)" = node ] || fail "setup didn't run as node"
+          docker exec "$cid" grep -qx 'PROFILE_VAR=from-env' /run/berth-setup.log || fail "setup didn't get the org's env"
           docker rm -f "$cid" >/dev/null
-          cid=$(start 'echo broken >&2\nexit 3\n')
-          docker logs "$cid" 2>&1 | grep -q 'setup: failed (exit 3), see /run/berth-setup.log'
-          docker exec "$cid" grep -qx broken /run/berth-setup.log
+          start 'echo broken >&2\nexit 3\n'
+          grep -q 'setup: failed (exit 3), see /run/berth-setup.log' <<<"$logs" || fail "no 'setup: failed (exit 3)'"
+          docker exec "$cid" grep -qx broken /run/berth-setup.log || fail "the failure isn't in the log"
           docker rm -f "$cid" >/dev/null
           echo "ok: setup runs as node with the org's env, logs to /run/berth-setup.log, and a failure is only logged"
       - name: a download that doesn't match its checksum fails the build
