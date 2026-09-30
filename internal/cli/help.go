@@ -30,7 +30,7 @@ var sections = []*cobra.Group{
 
 // placement is each top-level command's section; hidden ones live in a noun group now.
 var placement = map[string]string{
-	"org": "orgs", "ls": "orgs", "up": "orgs", "down": "orgs", "restart": "orgs", "attach": "orgs",
+	"org": "orgs", "ls": "orgs", "up": "orgs", "down": "orgs", "destroy": "orgs", "restart": "orgs", "attach": "orgs",
 	"shell": "orgs", "claude": "orgs", "run": "orgs", "logs": "orgs", "info": "orgs", "connect": "orgs",
 	"repo": "inside", "clone": "inside", "fw": "inside", "env": "inside", "secrets": "inside",
 	"account": "account",
@@ -50,6 +50,7 @@ var nounGroups = []struct {
 		{"attach", "attach"}, {"shell", "shell"}, {"logs", "logs"}, {"claude", "claude"}, {"run", "run"},
 		{"whoami", "whoami"}, {"rehydrate", "rehydrate"}, {"migrate", "migrate"}, {"password", "password"},
 		{"remote", "remote"}, {"takeover", "takeover"}, {"handback", "handback"}, {"connect", "connect"},
+		{"destroy", "destroy"},
 	}},
 	{"account", "sign an org in and out: Claude, Remote Control, GitHub", [][2]string{
 		{"signin", "auth"}, {"token", "token"}, {"login", "login"}, {"logout", "logout"}, {"gh", "gh-login"}, {"whoami", "whoami"},
@@ -68,6 +69,7 @@ var examples = map[string][]string{
 	"connect":            {"berth connect acme@box1", "berth connect acme"},
 	"up":                 {"berth up acme", "berth up acme@box1 --take-lease"},
 	"down":               {"berth down acme"},
+	"destroy":            {"berth destroy acme", "berth destroy acme --yes --keep-backups"},
 	"restart":            {"berth restart acme"},
 	"attach":             {"berth attach acme"},
 	"shell":              {"berth shell acme"},

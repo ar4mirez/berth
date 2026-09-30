@@ -69,6 +69,7 @@ var Catalog = map[string]Op{
 	"up":        writeHard("builds if needed, then recreates the container"),
 	"restart":   writeHard("recreates the container"),
 	"down":      writeHard("stops and removes the container"),
+	"destroy":   writeHard("removes the container, the org's directory and (unless --keep-backups) its backups; irreversible, and needs a typed confirmation or --yes"),
 	"build":     write, // builds berth's image; containers keep running on theirs until their next restart
 	"pull":      write, // pulls the released image (#41); containers keep running on theirs
 	"upgrade":   write, // installs a verified release next to the current one and moves the link (#42); restarts nothing
@@ -153,7 +154,7 @@ var groups = map[string]map[string]string{
 	"org": {"ls": "ls", "create": "init", "info": "info", "up": "up", "down": "down", "restart": "restart",
 		"attach": "attach", "shell": "shell", "logs": "logs", "claude": "claude", "run": "run", "whoami": "whoami",
 		"rehydrate": "rehydrate", "migrate": "migrate", "password": "password", "remote": "remote",
-		"takeover": "takeover", "handback": "handback", "connect": "connect"},
+		"takeover": "takeover", "handback": "handback", "connect": "connect", "destroy": "destroy"},
 	"account": {"signin": "auth", "token": "token", "login": "login", "logout": "logout", "gh": "gh-login", "whoami": "whoami"},
 	"system":  {"install": "install", "upgrade": "upgrade", "pull": "pull", "build": "build", "completion": "completion", "parity-check": "parity-check"},
 }

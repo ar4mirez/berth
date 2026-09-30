@@ -9,6 +9,15 @@ type Orgs struct {
 	Orgs   []OrgStatus `json:"orgs"`
 	// Unreachable are the registered hosts whose orgs couldn't be listed (#45).
 	Unreachable []HostError `json:"unreachable"`
+	// Destroyed are the orgs `destroy` removed (offboarded) that don't exist again since.
+	Destroyed []DestroyedOrg `json:"destroyed"`
+}
+
+// DestroyedOrg is an org `destroy` removed, where, and when (RFC 3339, UTC).
+type DestroyedOrg struct {
+	Name string `json:"name"`
+	Host string `json:"host"`
+	At   string `json:"at"`
 }
 
 // HostError is a host that couldn't be reached, and why.

@@ -42,7 +42,8 @@ func TestBerthJSONOutput(t *testing.T) {
       "host": "local"
     }
   ],
-  "unreachable": []
+  "unreachable": [],
+  "destroyed": []
 }
 `
 	if r.Stdout != want {

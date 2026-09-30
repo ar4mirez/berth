@@ -15,6 +15,7 @@ import (
 // reported, never hidden. Without any, the output is ccenv's.
 func (a *App) Ls(ctx context.Context) error {
 	rows := a.orgRows(ctx)
+	destroyed := a.destroyedOrgs()
 	others := a.otherHosts()
 	var unreachable []ops.HostError
 	for _, e := range others {
@@ -23,15 +24,18 @@ func (a *App) Ls(ctx context.Context) error {
 			unreachable = append(unreachable, ops.HostError{Host: e.Name, Error: err.Error()})
 			continue
 		}
-		rows = append(rows, a.On(e.Name, h, e.Home).orgRows(ctx)...)
+		b := a.On(e.Name, h, e.Home)
+		rows = append(rows, b.orgRows(ctx)...)
+		destroyed = append(destroyed, b.destroyedOrgs()...)
 		_ = h.Close()
 	}
 	if a.Output == OutputJSON {
-		out := ops.Orgs{Schema: "berth.orgs/v1", Orgs: []ops.OrgStatus{}, Unreachable: []ops.HostError{}}
+		out := ops.Orgs{Schema: "berth.orgs/v1", Orgs: []ops.OrgStatus{}, Unreachable: []ops.HostError{}, Destroyed: []ops.DestroyedOrg{}}
 		for _, r := range rows {
 			out.Orgs = append(out.Orgs, r.OrgStatus)
 		}
 		out.Unreachable = append(out.Unreachable, unreachable...)
+		out.Destroyed = append(out.Destroyed, destroyed...)
 		return a.writeJSON(out)
 	}
 	format, head := "%-14s %-6s %-6s %-6s %-8s %s\n", []any{"ORG", "STATE", "SSH", "TTYD", "TOKEN", "REMOTE"}

@@ -39,7 +39,8 @@ data (`JSON: true` in the catalog). The rest follow in #54.
       "host": "local"
     }
   ],
-  "unreachable": []
+  "unreachable": [],
+  "destroyed": [ { "name": "initech", "host": "local", "at": "2026-09-30T20:00:00Z" } ]
 }
 ```
 
@@ -52,6 +53,7 @@ data (`JSON: true` in the catalog). The rest follow in #54.
 | `remote` | Remote Control: `-` (down), `off`, `login-needed`, `on`, `blocked-by-org` or `restarting` |
 | `host` | where the org is: `local`, or a registered host's name (docs/hosts.md). This machine's orgs come first. |
 | `unreachable` | the registered hosts whose orgs couldn't be listed: `{"host": "box1", "error": "…"}`. Always present, `[]` when none. |
+| `destroyed` | orgs `destroy` removed (offboarded), where, and when (UTC), that don't exist again since. Always present, `[]` when none. |
 
 ## `berth.env/v1`: `env <org> ls`
 
