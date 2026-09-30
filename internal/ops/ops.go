@@ -78,6 +78,7 @@ var Catalog = map[string]Op{
 	"shell":     write,
 	"claude":    write,
 	"run":       write,
+	"exec":      write,
 
 	// Sign-in.
 	"token":    writeMay("restarts a running org to apply the token, unless --no-restart"),
@@ -152,7 +153,7 @@ var Catalog = map[string]Op{
 // Groups (#55): each verb is a top-level command under another name (internal/cli/help.go).
 var groups = map[string]map[string]string{
 	"org": {"ls": "ls", "create": "init", "info": "info", "up": "up", "down": "down", "restart": "restart",
-		"attach": "attach", "shell": "shell", "logs": "logs", "claude": "claude", "run": "run", "whoami": "whoami",
+		"attach": "attach", "shell": "shell", "logs": "logs", "claude": "claude", "run": "run", "exec": "exec", "whoami": "whoami",
 		"rehydrate": "rehydrate", "migrate": "migrate", "password": "password", "remote": "remote",
 		"takeover": "takeover", "handback": "handback", "connect": "connect", "destroy": "destroy"},
 	"account": {"signin": "auth", "token": "token", "login": "login", "logout": "logout", "gh": "gh-login", "whoami": "whoami"},

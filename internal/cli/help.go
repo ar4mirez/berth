@@ -31,7 +31,7 @@ var sections = []*cobra.Group{
 // placement is each top-level command's section; hidden ones live in a noun group now.
 var placement = map[string]string{
 	"org": "orgs", "ls": "orgs", "up": "orgs", "down": "orgs", "destroy": "orgs", "restart": "orgs", "attach": "orgs",
-	"shell": "orgs", "claude": "orgs", "run": "orgs", "logs": "orgs", "info": "orgs", "connect": "orgs",
+	"shell": "orgs", "claude": "orgs", "run": "orgs", "exec": "orgs", "logs": "orgs", "info": "orgs", "connect": "orgs",
 	"repo": "inside", "clone": "inside", "fw": "inside", "env": "inside", "secrets": "inside",
 	"account": "account",
 	"backup":  "backups", "restore": "backups", "schedule": "backups", "keygen": "backups",
@@ -47,7 +47,7 @@ var nounGroups = []struct {
 }{
 	{"org", "orgs: create, start, stop, connect, move", [][2]string{
 		{"ls", "ls"}, {"create", "init"}, {"info", "info"}, {"up", "up"}, {"down", "down"}, {"restart", "restart"},
-		{"attach", "attach"}, {"shell", "shell"}, {"logs", "logs"}, {"claude", "claude"}, {"run", "run"},
+		{"attach", "attach"}, {"shell", "shell"}, {"logs", "logs"}, {"claude", "claude"}, {"run", "run"}, {"exec", "exec"},
 		{"whoami", "whoami"}, {"rehydrate", "rehydrate"}, {"migrate", "migrate"}, {"password", "password"},
 		{"remote", "remote"}, {"takeover", "takeover"}, {"handback", "handback"}, {"connect", "connect"},
 		{"destroy", "destroy"},
@@ -74,7 +74,8 @@ var examples = map[string][]string{
 	"attach":             {"berth attach acme"},
 	"shell":              {"berth shell acme"},
 	"logs":               {"berth logs acme"},
-	"claude":             {"berth claude acme", "berth claude acme --resume"},
+	"claude":             {"berth claude acme", "berth claude acme --resume", "berth claude acme --cwd app/.worktrees/feat-12 --env OTEL_RESOURCE_ATTRIBUTES=card=12 -- --agent reviewer"},
+	"exec":               {"berth exec acme -- git -C app status", "berth exec acme --cwd app --env CI=1 -- make test"},
 	"run":                {`berth run acme "summarize the open PRs"`},
 	"whoami":             {"berth whoami", "berth whoami acme globex"},
 	"rehydrate":          {"berth rehydrate acme"},

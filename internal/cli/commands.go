@@ -364,11 +364,14 @@ func addCommands(root *cobra.Command) {
 		leased("restart <org> [--take-lease]", "recreate the container", func(a *app.App, c *cobra.Command, o string) error { return a.Restart(c.Context(), o) }),
 		one("attach <org>", "attach to the shared tmux session", func(a *app.App, c *cobra.Command, o string) error { return a.Attach(c.Context(), o) }),
 		one("shell <org>", "bash inside the container", func(a *app.App, c *cobra.Command, o string) error { return a.Shell(c.Context(), o) }),
-		passthrough("claude <org> [args...]", "interactive claude in /workspace", func(a *app.App, c *cobra.Command, o string, rest []string) error {
+		passthrough("claude <org> [--cwd DIR] [--env K=V]... [--] [args...]", "interactive claude in /workspace (or --cwd)", func(a *app.App, c *cobra.Command, o string, rest []string) error {
 			return a.Claude(c.Context(), o, rest)
 		}),
 		passthrough("run <org> \"<prompt>\" [args...]", "headless claude -p", func(a *app.App, c *cobra.Command, o string, rest []string) error {
 			return a.Run(c.Context(), o, rest)
+		}),
+		passthrough("exec <org> [--cwd DIR] [--env K=V]... -- <command> [args...]", "run a command in the container as node (for tools)", func(a *app.App, c *cobra.Command, o string, rest []string) error {
+			return a.Exec(c.Context(), o, rest)
 		}),
 	)
 	root.AddCommand(

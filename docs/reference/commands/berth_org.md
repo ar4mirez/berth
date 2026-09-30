@@ -24,6 +24,7 @@ Each is also a top-level command, as ccenv spelled it:
   berth org logs          = berth logs
   berth org claude        = berth claude
   berth org run           = berth run
+  berth org exec          = berth exec
   berth org whoami        = berth whoami
   berth org rehydrate     = berth rehydrate
   berth org migrate       = berth migrate
@@ -61,11 +62,12 @@ Docs: https://ar4mirez.github.io/berth/reference/commands/berth_org/
 
 * [berth](berth.md)	 - berth: one Claude Code container per organization
 * [berth org attach](berth_org_attach.md)	 - attach to the shared tmux session
-* [berth org claude](berth_org_claude.md)	 - interactive claude in /workspace
+* [berth org claude](berth_org_claude.md)	 - interactive claude in /workspace (or --cwd)
 * [berth org connect](berth_org_connect.md)	 - an SSH tunnel to an org on a registered host: its SSH and browser terminal on 127.0.0.1 here
 * [berth org create](berth_org_create.md)	 - scaffold a new org (berth's own: MANAGER=berth)
 * [berth org destroy](berth_org_destroy.md)	 - offboard: remove the org, its container, history, secrets and backups
 * [berth org down](berth_org_down.md)	 - stop the container
+* [berth org exec](berth_org_exec.md)	 - run a command in the container as node (for tools)
 * [berth org handback](berth_org_handback.md)	 - undo takeover: MANAGER=ccenv again; restarts nothing
 * [berth org info](berth_org_info.md)	 - every way to connect
 * [berth org logs](berth_org_logs.md)	 - follow the container's logs

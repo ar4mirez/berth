@@ -102,9 +102,19 @@ func (a *App) Shell(ctx context.Context, o string) error {
 }
 
 // Claude is `ccenv claude <org> [args...]`: interactive claude in /workspace, args passed through.
+// berth adds `claude <org> [--cwd DIR] [--env K=V]... -- [args...]` (exec.go): when the first
+// argument is --cwd or --env, the options run up to `--`, and the rest goes to claude. Anything
+// else passes through as ccenv's does.
 func (a *App) Claude(ctx context.Context, o string, args []string) error {
 	if err := a.interactive(ctx, o); err != nil {
 		return err
+	}
+	if len(args) > 0 && (args[0] == "--cwd" || args[0] == "--env") {
+		opts, rest, err := parseExecOpts(args)
+		if err != nil {
+			return fmt.Errorf("%w; usage: %s claude <org> [--cwd DIR] [--env K=V]... -- [claude args...]", err, Tool)
+		}
+		return a.execIn(ctx, true, []string{"-it", "-u", "node", "-w", opts.cwd}, o, opts.command(o, a, append([]string{"claude"}, rest...)...)...)
 	}
 	return a.execIn(ctx, true, []string{"-it", "-u", "node", "-w", "/workspace"}, o, a.execLoader(o, append([]string{"claude"}, args...)...)...)
 }
