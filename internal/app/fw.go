@@ -124,8 +124,12 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 			if _, after, ok := strings.Cut(e, "://"); ok {
 				e = after
 			}
-			e, _, _ = strings.Cut(e, "/")
-			e, _, _ = strings.Cut(e, ":")
+			// berth keeps an IPv4 range's mask (10.0.0.0/8): ccenv cut it, allowing only the first
+			// address (PARITY.md).
+			if !ipv4CIDR.MatchString(e) {
+				e, _, _ = strings.Cut(e, "/")
+				e, _, _ = strings.Cut(e, ":")
+			}
 			if hasLine(content, e) {
 				fmt.Fprintln(a.Stdout, "already allowed: "+e)
 				continue
@@ -229,6 +233,9 @@ func (a *App) fwApply(ctx context.Context, o string) error {
 }
 
 // modeLine is grep -E '^\s*mode\s+(on|off)\s*$' (\s is [[:space:]]).
+// ipv4CIDR is an IPv4 range as init-firewall.sh accepts it (ipset hash:net).
+var ipv4CIDR = regexp.MustCompile(`^[0-9]+(\.[0-9]+){3}/[0-9]+$`)
+
 var modeLine = regexp.MustCompile(`^[ \t\n\v\f\r]*mode[ \t\n\v\f\r]+(on|off)[ \t\n\v\f\r]*$`)
 
 // hasLine is `grep -qxF "$e" "$f"`: some line is exactly e ("" matches an empty line).
