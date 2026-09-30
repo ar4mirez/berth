@@ -26,6 +26,7 @@ behaviour. Help shows the grouped form and hides the flat commands the groups co
 | `berth org password <org> [show\|rotate]` | `berth password <org> [show\|rotate]` |
 | `berth org remote <org> [status\|logs\|restart]` | `berth remote <org> [status\|logs\|restart]` |
 | `berth org takeover\|handback <org>` | `berth takeover\|handback <org>` |
+| `berth org destroy <org>` | `berth destroy <org>` (berth's own, [below](#removing-an-org-offboarding)) |
 | `berth account signin <org>` | `berth auth <org>` |
 | `berth account token <org>` | `berth token <org>` |
 | `berth account login\|logout <org>` | `berth login\|logout <org>` |
@@ -67,6 +68,25 @@ name several orgs (`whoami`, `backup`) don't use it, and neither does `init`, wh
 
 It lives in `~/.config/berth/context`. Nothing reads it unless you set it, so scripts and the parity suite behave as
 before.
+
+## Removing an org (offboarding)
+
+`berth destroy acme` removes an org for good, for example at the end of an engagement:
+
+- its container (`compose down --volumes`), which stops any session in it
+- its directory: the workspace, Claude Code's config and history, the git and SSH keys, secrets, toolchains. Files the
+  container made as root are removed through the engine
+- its backups in the backups dir (`acme-<date>.tar.zst[.age|.gpg]`, and copies `restore --force` set aside), unless
+  you pass `--keep-backups`. Backups written elsewhere with `backup -o` aren't known to berth: delete those yourself
+- its lease, and the default org if it's `acme`
+
+It lists all of that first, and removes nothing until you type the org's name. `--yes` skips the prompt; without a
+terminal, `--yes` is required. It never takes the default org: name the org. It refuses under `--read-only` and for
+ccenv's orgs.
+
+berth records the org as destroyed, with the time, in `<state>/berth/destroyed`. `berth --output json ls` lists it
+under `destroyed` until an org with that name exists again, so other tools can tell an offboarded org from a missing
+one.
 
 ## Output
 

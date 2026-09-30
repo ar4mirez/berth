@@ -32,6 +32,7 @@ Each is also a top-level command, as ccenv spelled it:
   berth org takeover      = berth takeover
   berth org handback      = berth handback
   berth org connect       = berth connect
+  berth org destroy       = berth destroy
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_org/
 
@@ -63,6 +64,7 @@ Docs: https://ar4mirez.github.io/berth/reference/commands/berth_org/
 * [berth org claude](berth_org_claude.md)	 - interactive claude in /workspace
 * [berth org connect](berth_org_connect.md)	 - an SSH tunnel to an org on a registered host: its SSH and browser terminal on 127.0.0.1 here
 * [berth org create](berth_org_create.md)	 - scaffold a new org (berth's own: MANAGER=berth)
+* [berth org destroy](berth_org_destroy.md)	 - offboard: remove the org, its container, history, secrets and backups
 * [berth org down](berth_org_down.md)	 - stop the container
 * [berth org handback](berth_org_handback.md)	 - undo takeover: MANAGER=ccenv again; restarts nothing
 * [berth org info](berth_org_info.md)	 - every way to connect

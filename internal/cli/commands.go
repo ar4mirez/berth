@@ -406,6 +406,14 @@ func addCommands(root *cobra.Command) {
 			}),
 		}),
 		writes(&cobra.Command{
+			Use: "destroy <org> [--yes] [--keep-backups]", Short: "offboard: remove the org, its container, history, secrets and backups", DisableFlagParsing: true,
+			ValidArgsFunction: completeArgs(orgArg),
+			// No default org (berth use): destroy only acts on an org named on its command line.
+			RunE: orgArgs(nthArg(0), nil, false, func(a *app.App, cmd *cobra.Command, args []string) error {
+				return a.Destroy(cmd.Context(), args)
+			}),
+		}),
+		writes(&cobra.Command{
 			Use: "handback <org>", Short: "undo takeover: MANAGER=ccenv again; restarts nothing", Args: cobra.ArbitraryArgs,
 			ValidArgsFunction: completeArgs(orgArg),
 			RunE: onOrg(nthArg(0), func(a *app.App, cmd *cobra.Command, args []string) error {

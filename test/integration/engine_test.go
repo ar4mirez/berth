@@ -131,4 +131,24 @@ func TestEngineLifecycle(t *testing.T) {
 	if ps, _ := eng("ps", "-aq", "--filter", fmt.Sprintf("name=^claude-%s$", o)); ps != "" {
 		t.Errorf("a container remains after down: %s", ps)
 	}
+
+	// Offboarding: destroy removes the org's directory, files its container made included, and
+	// its backup; ls reports it as destroyed.
+	must("up", o)
+	out = must("destroy", o, "--yes")
+	if !strings.Contains(out, "Destroyed "+o+", and 1 backup(s).") {
+		t.Errorf("destroy:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(state, "orgs", o)); !os.IsNotExist(err) {
+		t.Errorf("the org's directory remains: %v", err)
+	}
+	if _, err := os.Stat(f[1]); !os.IsNotExist(err) {
+		t.Errorf("the backup remains: %v", err)
+	}
+	if ps, _ := eng("ps", "-aq", "--filter", fmt.Sprintf("name=^claude-%s$", o)); ps != "" {
+		t.Errorf("a container remains after destroy: %s", ps)
+	}
+	if ls := must("--output", "json", "ls"); !strings.Contains(ls, `"name": "`+o+`"`) || !strings.Contains(ls, `"destroyed": [`) {
+		t.Errorf("ls after destroy:\n%s", ls)
+	}
 }

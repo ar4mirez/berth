@@ -39,6 +39,7 @@ berth [flags]
 * [berth claude](berth_claude.md)	 - interactive claude in /workspace
 * [berth clone](berth_clone.md)	 - register a repo and clone it (repo add)
 * [berth connect](berth_connect.md)	 - an SSH tunnel to an org on a registered host: its SSH and browser terminal on 127.0.0.1 here
+* [berth destroy](berth_destroy.md)	 - offboard: remove the org, its container, history, secrets and backups
 * [berth down](berth_down.md)	 - stop the container
 * [berth env](berth_env.md)	 - custom env vars for the container
 * [berth fw](berth_fw.md)	 - the egress allowlist (changes apply live)
