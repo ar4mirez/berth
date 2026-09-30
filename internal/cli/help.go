@@ -64,7 +64,7 @@ var nounGroups = []struct {
 // examples are each top-level command's, as typed; a group's copy gets them respelled.
 var examples = map[string][]string{
 	"ls":                 {"berth ls", "berth --output json ls"},
-	"init":               {`berth init acme --name "Ada Lovelace" --email ada@example.com`, "berth init acme@box1"},
+	"init":               {`berth init acme --name "Ada Lovelace" --email ada@example.com`, "berth init acme@box1", "berth init acme --profile team-profile.yaml"},
 	"info":               {"berth info acme"},
 	"connect":            {"berth connect acme@box1", "berth connect acme"},
 	"up":                 {"berth up acme", "berth up acme@box1 --take-lease"},

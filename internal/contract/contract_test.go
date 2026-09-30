@@ -56,6 +56,9 @@ func TestImageAndComposeAgree(t *testing.T) {
 		{"secrets as files: loaded before the snapshot", entrypoint, ". /usr/local/lib/claude-env/secrets-env.sh\n"},
 		{"secrets as files: shipped", dockerfile, "secrets-env.sh uid-remap.sh /usr/local/lib/claude-env/"},
 		{"runtime UID remap: compose passes the host user", compose, "HOST_UID: ${HOST_UID:-}\n      HOST_GID: ${HOST_GID:-}\n"},
+		{"profile setup script, copied", entrypoint, "install -m 644 " + SetupScript + " /run/berth-setup.sh\n"},
+		{"profile setup script, as node", entrypoint, "as_node timeout 300 bash /run/berth-setup.sh ) > " + SetupLog + " 2>&1"},
+		{"firewall provider line", firewall, `"provider "*)`},
 		{"runtime UID remap: first in the entrypoint", entrypoint, ". /usr/local/lib/claude-env/uid-remap.sh\n"},
 	}
 	for _, c := range checks {

@@ -49,6 +49,7 @@ nav:
       - Repos: guides/repos.md
       - The firewall: guides/firewall.md
       - Secrets and env vars: guides/env.md
+      - Profiles: guides/profiles.md
       - Secrets as files: secrets.md
       - Backups and restore: guides/backups.md
       - Networking (Tailscale, VPNs, tunnels): networking.md

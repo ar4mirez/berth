@@ -70,6 +70,18 @@ jq '.hasCompletedOnboarding = true
   "$CFG/.claude.json" > "$tmp" && cat "$tmp" > "$CFG/.claude.json" && rm -f "$tmp"
 chown -R node:node "$CFG"
 
+# --- Profile setup (berth init --profile): as node, at every start, before any session opens ---
+# Its output goes to /run/berth-setup.log. A failure or a timeout is logged; the container still starts.
+# Root copies it first: node may not be able to read /config (another owner, a 0700 dir).
+if [ -s /config/setup.sh ]; then
+  install -m 644 /config/setup.sh /run/berth-setup.sh
+  if ( cd /home/node && as_node timeout 300 bash /run/berth-setup.sh ) > /run/berth-setup.log 2>&1; then
+    echo "setup: done"
+  else
+    echo "setup: failed (exit $?), see /run/berth-setup.log" >&2
+  fi
+fi
+
 # --- sshd ---------------------------------------------------------------------
 mkdir -p /etc/ssh/keys
 [ -f /etc/ssh/keys/ssh_host_ed25519_key ] || ssh-keygen -q -t ed25519 -N '' -f /etc/ssh/keys/ssh_host_ed25519_key

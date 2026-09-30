@@ -24,6 +24,8 @@ const (
 	// SecretsEnv holds one file per secret or custom variable (#37): secrets-env.sh exports them at
 	// start, and berth's exec loader for `claude`/`run` reads them.
 	SecretsEnv = Config + "/secrets/env"
+	// SetupScript is a profile's setup (berth init --profile): entrypoint.sh runs it as node at start.
+	SetupScript = Config + "/setup.sh"
 )
 
 // What the container writes for the host to read.
@@ -31,6 +33,7 @@ const (
 	FirewallStatus   = "/run/firewall.status"            // init-firewall.sh; `fw show`'s live line
 	RemoteControlLog = ClaudeDir + "/remote-control.log" // entrypoint.sh (RC_LOG); `remote`, `ls`, `login`
 	Credentials      = ClaudeDir + "/.credentials.json"  // Claude Code's full login ($CLAUDE_CONFIG_DIR)
+	SetupLog         = "/run/berth-setup.log"            // entrypoint.sh: the setup script's output
 	FirewallScript   = "init-firewall.sh"                // on PATH: `apply` (the default) and `presets`
 	TmuxSession      = "main"                            // entrypoint.sh; attach and ttyd join it
 	EnvKeys          = "CCENV_ENV_KEYS"                  // org.env: custom vars the entrypoint snapshots for SSH

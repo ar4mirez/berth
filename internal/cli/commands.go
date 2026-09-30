@@ -296,7 +296,7 @@ func addCommands(root *cobra.Command) {
 		// init and env parse their own arguments, as ccenv does: the same messages, and env's
 		// --no-restart only as the 4th argument.
 		writes(&cobra.Command{
-			Use: "init <org> [--name N --email E]", Short: "scaffold a new org (berth's own: MANAGER=berth)", DisableFlagParsing: true,
+			Use: "init <org> [--name N --email E] [--profile FILE]", Short: "scaffold a new org (berth's own: MANAGER=berth)", DisableFlagParsing: true,
 			RunE: orgArgs(nthArg(0), nil, false, func(a *app.App, cmd *cobra.Command, args []string) error { return a.Init(cmd.Context(), args) }),
 		}),
 		reads(&cobra.Command{

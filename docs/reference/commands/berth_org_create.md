@@ -15,7 +15,7 @@ scaffold a new org (berth's own: MANAGER=berth)
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_org_create/
 
 ```
-berth org create <org> [--name N --email E] [flags]
+berth org create <org> [--name N --email E] [--profile FILE] [flags]
 ```
 
 ### Examples
@@ -23,6 +23,7 @@ berth org create <org> [--name N --email E] [flags]
 ```
   berth org create acme --name "Ada Lovelace" --email ada@example.com
   berth org create acme@box1
+  berth org create acme --profile team-profile.yaml
 ```
 
 ### Options

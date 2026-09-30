@@ -8,10 +8,25 @@ set -euo pipefail
 CONF=/config/firewall.txt
 STATUS=/run/firewall.status
 
-# Always allowed: Claude, GitHub, npm.
-BASE="api.anthropic.com console.anthropic.com statsig.anthropic.com mcp-proxy.anthropic.com
-claude.ai platform.claude.com downloads.claude.ai statsig.com sentry.io registry.npmjs.org
+# Always allowed: GitHub, npm, and the model provider's endpoints (Anthropic's unless the file has a
+# `provider` line, which `berth init --profile` writes).
+BASE="registry.npmjs.org
 api.github.com raw.githubusercontent.com objects.githubusercontent.com codeload.github.com uploads.github.com"
+ANTHROPIC="api.anthropic.com console.anthropic.com statsig.anthropic.com mcp-proxy.anthropic.com
+claude.ai platform.claude.com downloads.claude.ai statsig.com sentry.io"
+# provider_hosts <name> [region]: a provider's endpoints; fails for an unknown name or missing region.
+provider_hosts() {
+  local r="${2:-}"
+  case "$1" in
+    anthropic)  echo "$ANTHROPIC" ;;
+    bedrock)    [ -n "$r" ] || return 1
+                echo "bedrock-runtime.$r.amazonaws.com bedrock.$r.amazonaws.com sts.$r.amazonaws.com sts.amazonaws.com" ;;
+    vertex)     [ -n "$r" ] || return 1
+                echo "$r-aiplatform.googleapis.com aiplatform.googleapis.com oauth2.googleapis.com www.googleapis.com" ;;
+    openrouter) echo "openrouter.ai" ;;
+    *) return 1 ;;
+  esac
+}
 
 declare -A PRESETS=(
   [mise]="mise.jdx.dev mise-versions.jdx.dev tuf-repo-cdn.sigstore.dev rekor.sigstore.dev fulcio.sigstore.dev github.com release-assets.githubusercontent.com objects.githubusercontent.com dl.google.com go.dev static.rust-lang.org sh.rustup.rs nodejs.org cache.ruby-lang.org www.python.org astral.sh"
@@ -34,19 +49,23 @@ if [ "${1:-apply}" = "presets" ]; then
   exit 0
 fi
 
-mode=on; entries="$BASE"
+mode=on; entries="$BASE"; provider="$ANTHROPIC"
 if [ -f "$CONF" ]; then
   while read -r line; do
     line="${line%%#*}"; line="$(echo "$line" | xargs)"; [ -n "$line" ] || continue
     case "$line" in
       "mode off") mode=off ;;
       "mode on")  mode=on ;;
+      "provider "*) read -r _ pname pregion _ <<< "$line"
+            if h=$(provider_hosts "$pname" "$pregion"); then provider="$h"
+            else echo "firewall: bad provider line '$line' (anthropic | bedrock <region> | vertex <region> | openrouter)" >&2; fi ;;
       @*) p="${line#@}"; [ -n "${PRESETS[$p]:-}" ] && entries+=" ${PRESETS[$p]}" \
             || echo "firewall: unknown preset @$p" >&2 ;;
       *)  entries+=" $line" ;;
     esac
   done < "$CONF"
 fi
+entries+=" $provider"
 
 # --- DNS-time allowlisting (#1) ---------------------------------------------------------------
 # dnsmasq, on 127.0.0.1, becomes the container's only resolver. For an allowlisted name (and its

@@ -1,6 +1,6 @@
 # The firewall
 
-Each org's egress is **default-deny**. Anthropic, GitHub and npm are always allowed; anything else must be in the org's
+Each org's egress is **default-deny**. GitHub, npm and the model provider (Anthropic, [unless you pick another](#the-model-provider)) are always allowed; anything else must be in the org's
 allowlist, `config/firewall.txt`. Changes apply to the running container at once, with no restart.
 
 ```bash
@@ -35,8 +35,24 @@ run. If a site still fails after you allow it:
 
 ## The file
 
-One entry per line: `mode on|off`, a domain, an IP or CIDR, or an `@preset`. Lines starting with `#` are comments.
-`/config` is mounted read-only, so nothing inside the container can change it.
+One entry per line: `mode on|off`, a domain, an IP or CIDR, an `@preset`, or a `provider` line. Lines starting with
+`#` are comments. `/config` is mounted read-only, so nothing inside the container can change it.
+
+## The model provider
+
+Anthropic's endpoints are allowed unless the file has a `provider` line. With one, that provider's endpoints replace
+Anthropic's; GitHub and npm stay. `berth init --profile` writes it ([Profiles](profiles.md)); you can also add it with
+`berth fw acme edit`.
+
+| Line | Allowed |
+|---|---|
+| `provider anthropic` (the default) | `api.anthropic.com`, `claude.ai` and the other Claude Code endpoints |
+| `provider bedrock <region>` | `bedrock-runtime.<region>.amazonaws.com`, `bedrock.<region>.amazonaws.com`, `sts.<region>.amazonaws.com`, `sts.amazonaws.com` |
+| `provider vertex <region>` | `<region>-aiplatform.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com`, `www.googleapis.com` |
+| `provider openrouter` | `openrouter.ai` |
+
+A line with an unknown provider, or without the region Bedrock and Vertex need, is reported by `berth fw acme reload`,
+and Anthropic's endpoints stay.
 
 ## On a registered host
 
