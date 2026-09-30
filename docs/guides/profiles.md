@@ -42,8 +42,8 @@ Unknown keys are refused, so a typo doesn't pass silently.
 
 ## The setup script
 
-At every start, before sessions open, the container runs `bash /config/setup.sh` as `node`, from `/home/node`, with
-the org's variables. It has 5 minutes. Its output goes to `/run/berth-setup.log`. If it fails or times out, the
+At every start, before sessions open, the container copies `/config/setup.sh` to `/run/berth-setup.sh` and runs it
+with bash as `node`, from `/home/node`, with the org's variables. It has 5 minutes. Its output goes to `/run/berth-setup.log`. If it fails or times out, the
 container logs `setup: failed (exit N)` and starts anyway.
 
 Write it to be run again: check before installing, and update what's already there. Install into a directory that
