@@ -88,6 +88,50 @@ jobs:
               [ "$(cat /run/dnsmasq.pid)" = "$pid" ] || { echo "dnsmasq restarted on an unchanged list"; exit 1; }
               echo "ok: names resolve through dnsmasq into the allowlist; other names and outside DNS are blocked"'
           docker network rm berth-fw-ci >/dev/null
+      - name: firewall - the provider line replaces Anthropic's endpoints (berth init --profile)
+        run: |
+          set -euo pipefail
+          cfg=$(mktemp -d)
+          docker network create berth-prov-ci >/dev/null
+          reach() {  # reach <firewall.txt> <url> <yes|no>: any HTTP answer counts as reachable
+            printf "$1" > "$cfg/firewall.txt"
+            code=$(docker run --rm --network berth-prov-ci --cap-add NET_ADMIN --cap-add NET_RAW -v "$cfg:/config:ro" \
+              --entrypoint bash berth-image-ci -c "init-firewall.sh apply >/dev/null; curl -s -o /dev/null -w %{http_code} --max-time 10 $2 || true")
+            if [ "$3" = yes ] && [ "$code" = 000 ]; then echo "BAD: $2 blocked with: $1" >&2; exit 1; fi
+            if [ "$3" = no ] && [ "$code" != 000 ]; then echo "BAD: $2 reachable ($code) with: $1" >&2; exit 1; fi
+            echo "ok  $3 $2 with: $1"
+          }
+          reach 'mode on\n' https://api.anthropic.com yes
+          reach 'mode on\nprovider openrouter\n' https://openrouter.ai/api/v1/models yes
+          reach 'mode on\nprovider openrouter\n' https://api.anthropic.com no
+          reach 'mode on\nprovider bedrock us-east-1\n' https://bedrock-runtime.us-east-1.amazonaws.com yes
+          reach 'mode on\nprovider bedrock us-east-1\n' https://api.anthropic.com no
+          reach 'mode on\nprovider vertex us-east5\n' https://us-east5-aiplatform.googleapis.com yes
+          reach 'mode on\nprovider vertex us-east5\n' https://claude.ai no
+          reach 'mode on\nprovider vertex us-east5\n' https://api.github.com yes
+          # A bad line is reported, and Anthropic's endpoints stay.
+          reach 'mode on\nprovider bedrock\n' https://api.anthropic.com yes
+          docker network rm berth-prov-ci >/dev/null
+      - name: the profile's setup script runs as node at start; a failure doesn't stop the container
+        run: |
+          set -euo pipefail
+          start() {  # start <setup.sh content>: prints the container id once it's ready
+            local cfg; cfg=$(mktemp -d); printf "$1" > "$cfg/setup.sh"
+            local cid; cid=$(docker run -d --cap-add NET_ADMIN --cap-add NET_RAW -e ORG=t-ci -e PROFILE_VAR=from-env -v "$cfg:/config:ro" berth-image-ci)
+            for _ in $(seq 90); do docker logs "$cid" 2>&1 | grep -q 'claude-env\[t-ci\]: ready' && break; sleep 2; done
+            docker logs "$cid" 2>&1 | grep -q 'claude-env\[t-ci\]: ready' || { docker logs "$cid" >&2; exit 1; }
+            echo "$cid"
+          }
+          cid=$(start 'id -un > /tmp/setup-user\necho "PROFILE_VAR=$PROFILE_VAR"\n')
+          docker logs "$cid" 2>&1 | grep -qx 'setup: done'
+          [ "$(docker exec "$cid" cat /tmp/setup-user)" = node ]
+          docker exec "$cid" grep -qx 'PROFILE_VAR=from-env' /run/berth-setup.log
+          docker rm -f "$cid" >/dev/null
+          cid=$(start 'echo broken >&2\nexit 3\n')
+          docker logs "$cid" 2>&1 | grep -q 'setup: failed (exit 3), see /run/berth-setup.log'
+          docker exec "$cid" grep -qx broken /run/berth-setup.log
+          docker rm -f "$cid" >/dev/null
+          echo "ok: setup runs as node with the org's env, logs to /run/berth-setup.log, and a failure is only logged"
       - name: a download that doesn't match its checksum fails the build
         run: |
           if docker build --build-arg TTYD_SHA256_AMD64=0000000000000000000000000000000000000000000000000000000000000000 image/ >/tmp/tamper.log 2>&1; then

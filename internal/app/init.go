@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/ar4mirez/berth/internal/contract"
 )
 
 // newPassword is ccenv's `head -c 64 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32`.
@@ -36,7 +38,9 @@ func (a *App) writeSecret(p, value string) error {
 }
 
 // Init is `ccenv init <org> [--name N] [--email E]`. The org it creates is berth's (MANAGER=berth,
-// the first line of org.env); everything else is ccenv's scaffold, byte for byte.
+// the first line of org.env); everything else is ccenv's scaffold, byte for byte. berth adds
+// `--profile <file>`: its firewall entries, model provider, variables and setup script are applied
+// to the new org (profile.go).
 func (a *App) Init(ctx context.Context, args []string) error {
 	o := ""
 	if len(args) > 0 {
@@ -49,9 +53,14 @@ func (a *App) Init(ctx context.Context, args []string) error {
 	if _, err := a.Host.FS.Stat(path.Join(d, "org.env")); err == nil {
 		return fmt.Errorf("%s already exists", o)
 	}
-	var name, email string
+	var name, email, profileFile string
 	for len(args) > 0 {
 		switch args[0] {
+		case "--profile":
+			if len(args) < 2 || args[1] == "" {
+				return errProfileFlag
+			}
+			profileFile, args = args[1], args[2:]
 		case "--name", "--email":
 			if len(args) < 2 {
 				return errors.New("$2: unbound variable") // bash's set -u error for `name="$2"`
@@ -65,6 +74,14 @@ func (a *App) Init(ctx context.Context, args []string) error {
 		default:
 			return fmt.Errorf("unknown flag %s", args[0])
 		}
+	}
+	var prof *Profile
+	if profileFile != "" {
+		p, err := a.readProfile(profileFile)
+		if err != nil {
+			return err
+		}
+		prof = p
 	}
 	if name == "" {
 		name, _ = a.capture(ctx, true, "git", "config", "--global", "user.name")
@@ -102,7 +119,11 @@ func (a *App) Init(ctx context.Context, args []string) error {
 	if err := a.writeSecret(path.Join(d, "config", "secrets", "ttyd_credential"), "node:"+pw); err != nil {
 		return err
 	}
-	if err := a.writeNew(ctx, path.Join(d, "config", "firewall.txt"), []byte(firewallTemplate(o))); err != nil {
+	fwFile := firewallTemplate(o)
+	if prof != nil {
+		fwFile = prof.firewallFile(o)
+	}
+	if err := a.writeNew(ctx, path.Join(d, "config", "firewall.txt"), []byte(fwFile)); err != nil {
 		return err
 	}
 
@@ -135,6 +156,11 @@ func (a *App) Init(ctx context.Context, args []string) error {
 	if err := a.Host.FS.Chmod(a.Orgs.EnvPath(o), 0o600); err != nil {
 		return err
 	}
+	if prof != nil {
+		if err := a.applyProfile(o, prof); err != nil {
+			return err
+		}
+	}
 	fmt.Fprintf(a.Stdout, `Created %[1]s
 
 Next:
@@ -143,6 +169,15 @@ Next:
   3. Sign in: %[2]s auth %[3]s   (private browser window, %[3]s's Claude account)
   4. Repos:   %[2]s repo add %[3]s <owner/repo>   (only registered repos are allowed)
 `, d, Tool, o, a.catFile(path.Join(d, "ssh", "id_ed25519.pub")))
+	if prof != nil {
+		fmt.Fprintf(a.Stdout, "\nFrom the profile (model provider: %s):\n", prof.Provider)
+		for _, k := range prof.Secrets {
+			fmt.Fprintf(a.Stdout, "  - Set %s:  %s env %s set %s\n", k, Tool, o, k)
+		}
+		if prof.Setup != "" {
+			fmt.Fprintf(a.Stdout, "  - The setup script runs as node at every start (config/setup.sh); its log: %s\n", contract.SetupLog)
+		}
+	}
 	return nil
 }
 
