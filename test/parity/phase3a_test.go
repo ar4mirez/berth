@@ -1,5 +1,11 @@
 package parity
 
+import (
+	"slices"
+	"strings"
+	"testing"
+)
+
 // Phase 3a: fw allow/add, deny/remove/rm, on/off, edit, reload, test.
 
 func fwFile(content string) map[string]File {
@@ -14,8 +20,8 @@ func init() {
 			Rule{Bin: "docker", Match: `init-firewall\.sh apply$`, Stderr: "bad entry\n", Exit: 3})}, 3, []string{"bad entry"}},
 		{Scenario{Name: "fw allow, file without final newline", Args: []string{"fw", "globex", "allow", "x.example"},
 			Files: fwFile("mode on\npypi.org")}, 0, []string{"allowed: x.example"}},
-		{Scenario{Name: "fw allow, odd entries", Args: []string{"fw", "globex", "allow", "http://h.example:8080/a/b", "https://", "pypi.org", "10.0.0.0/8", "@node"},
-			Files: fwFile("mode on\npypi.org\n\n")}, 0, []string{"already allowed: pypi.org", "allowed: 10.0.0.0"}},
+		{Scenario{Name: "fw allow, odd entries", Args: []string{"fw", "globex", "allow", "http://h.example:8080/a/b", "https://", "pypi.org", "10.0.0.1", "@node"},
+			Files: fwFile("mode on\npypi.org\n\n")}, 0, []string{"already allowed: pypi.org", "allowed: 10.0.0.1"}},
 		{Scenario{Name: "fw allow, no file yet", Args: []string{"fw", "globex", "allow", "@node"},
 			Files: withoutFile(twoOrgs, "state/orgs/globex/config/firewall.txt")}, 0, []string{"allowed: @node"}},
 		{Scenario{Name: "fw allow, no entries", Args: []string{"fw", "globex", "allow"}, Files: twoOrgs},
@@ -46,5 +52,29 @@ func init() {
 	}
 	for _, name := range []string{"fw allow, stopped", "fw deny"} {
 		ported[name] = true
+	}
+}
+
+// TestBerthFwAllowKeepsCIDR: berth keeps an IPv4 range's mask, where ccenv cut it at the "/" and
+// allowed only the first address (PARITY.md). URLs are still reduced to the host, and deny takes
+// the range as written.
+func TestBerthFwAllowKeepsCIDR(t *testing.T) {
+	r := run(t, Berth(berthBin), Scenario{Args: []string{"fw", "globex", "allow", "10.0.0.0/8", "142.250.0.0/15", "https://h.example/a/b", "10.0.0.0/8"},
+		Files: fwFile("mode on\n")})
+	if r.Exit != 0 {
+		t.Fatalf("allow: exit %d\n%s", r.Exit, r.Stderr)
+	}
+	for _, want := range []string{"allowed: 10.0.0.0/8", "allowed: 142.250.0.0/15", "allowed: h.example", "already allowed: 10.0.0.0/8"} {
+		if !strings.Contains(r.Stdout, want+"\n") {
+			t.Errorf("stdout lacks %q:\n%s", want, r.Stdout)
+		}
+	}
+	want := `state/orgs/globex/config/firewall.txt 0644 "mode on\n10.0.0.0/8\n142.250.0.0/15\nh.example\n"`
+	if !slices.Contains(r.Tree, want) {
+		t.Errorf("firewall.txt: want %s in\n%s", want, strings.Join(r.Tree, "\n"))
+	}
+	r = run(t, Berth(berthBin), Scenario{Args: []string{"fw", "globex", "deny", "10.0.0.0/8"}, Files: fwFile("mode on\n10.0.0.0/8\n")})
+	if r.Exit != 0 || !strings.Contains(r.Stdout, "removed: 10.0.0.0/8") {
+		t.Errorf("deny: exit %d\n%s%s", r.Exit, r.Stdout, r.Stderr)
 	}
 }
