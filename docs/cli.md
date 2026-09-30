@@ -19,7 +19,7 @@ behaviour. Help shows the grouped form and hides the flat commands the groups co
 | `berth org info <org>` | `berth info <org>` |
 | `berth org up\|down\|restart <org>` | `berth up\|down\|restart <org>` |
 | `berth org attach\|shell\|logs <org>` | `berth attach\|shell\|logs <org>` |
-| `berth org claude\|run <org> …` | `berth claude\|run <org> …` |
+| `berth org claude\|run\|exec <org> …` | `berth claude\|run\|exec <org> …` (`exec` is berth's own, [below](#running-a-command-in-an-org)) |
 | `berth org whoami [org…]` | `berth whoami [org…]` |
 | `berth org rehydrate <org>` | `berth rehydrate <org>` |
 | `berth org migrate <org> <host>` | `berth migrate <org> <host>` |
@@ -68,6 +68,28 @@ name several orgs (`whoami`, `backup`) don't use it, and neither does `init`, wh
 
 It lives in `~/.config/berth/context`. Nothing reads it unless you set it, so scripts and the parity suite behave as
 before.
+
+## Running a command in an org
+
+`berth claude acme` starts Claude Code in `/workspace`, and passes every argument to it, as ccenv did. To start it
+somewhere else in the workspace, or with extra variables, put berth's options first and end them with `--`:
+
+```bash
+berth claude acme --cwd app/.worktrees/feat-12 --env OTEL_RESOURCE_ATTRIBUTES=card=12 -- --agent reviewer "/review 12"
+```
+
+`berth exec` runs any command the same way, without a terminal, and ends with its exit code. Tools use it to run a step
+inside the org (`crew start` runs its card preparation this way):
+
+```bash
+berth exec acme -- git -C app status
+berth exec acme --cwd app --env CI=1 -- make test
+```
+
+- `--cwd DIR`: relative to `/workspace`, or absolute; it must be inside `/workspace`. The default is `/workspace`
+- `--env K=V` (repeatable): set for the command after the org's own variables load, so it wins over them. The value is
+  visible in the container's process list: don't pass secrets this way, use `berth env acme set`
+- Both run as `node`, need the org up, and reach nothing `berth shell` doesn't
 
 ## Removing an org (offboarding)
 

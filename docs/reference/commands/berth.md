@@ -36,12 +36,13 @@ berth [flags]
 * [berth account](berth_account.md)	 - sign an org in and out: Claude, Remote Control, GitHub
 * [berth attach](berth_attach.md)	 - attach to the shared tmux session
 * [berth backup](berth_backup.md)	 - encrypted backup of orgs (age key, recipients, or a gpg passphrase)
-* [berth claude](berth_claude.md)	 - interactive claude in /workspace
+* [berth claude](berth_claude.md)	 - interactive claude in /workspace (or --cwd)
 * [berth clone](berth_clone.md)	 - register a repo and clone it (repo add)
 * [berth connect](berth_connect.md)	 - an SSH tunnel to an org on a registered host: its SSH and browser terminal on 127.0.0.1 here
 * [berth destroy](berth_destroy.md)	 - offboard: remove the org, its container, history, secrets and backups
 * [berth down](berth_down.md)	 - stop the container
 * [berth env](berth_env.md)	 - custom env vars for the container
+* [berth exec](berth_exec.md)	 - run a command in the container as node (for tools)
 * [berth fw](berth_fw.md)	 - the egress allowlist (changes apply live)
 * [berth host](berth_host.md)	 - the hosts berth manages: this machine and others over SSH
 * [berth info](berth_info.md)	 - every way to connect

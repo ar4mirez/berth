@@ -102,6 +102,13 @@ func TestEngineLifecycle(t *testing.T) {
 	}
 	must("repo", "add", o, "acme/widgets", "--no-clone")
 
+	// exec: a command in the org as node (the operator uid), in --cwd, with --env set. (.claude is the one name the
+	// workspace sweep leaves alone.)
+	must("exec", o, "--", "mkdir", "-p", ".claude")
+	if out := must("exec", o, "--cwd", ".claude", "--env", "BERTH_T=v1", "--", "sh", "-c", `pwd; echo "$BERTH_T"; id -u`); out != fmt.Sprintf("/workspace/.claude\nv1\n%d\n", os.Getuid()) {
+		t.Errorf("exec: %q", out)
+	}
+
 	// Files the container writes in the bind mounts are the operator's (rootless Podman: keep-id).
 	if _, err := eng("exec", "-u", "node", "claude-"+o, "sh", "-c", "echo hi > /home/node/.claude/berth-engine-test"); err != nil {
 		t.Fatalf("writing as the container user: %v\n%s", err, diag())
