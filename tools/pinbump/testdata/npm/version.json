@@ -1,0 +1,21 @@
+{
+  "name": "@anthropic-ai/claude-code",
+  "version": "2.1.285",
+  "dist": {
+    "shasum": "2c81d81bc9c682564b1a90eb8a66073762fabe8a",
+    "tarball": "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-2.1.285.tgz",
+    "fileCount": 7,
+    "integrity": "sha512-frr0DLmVHSDNjw+hC6ZmXMVQ8yH4nNmVcI4lVFzWt0bdPNZP7clOKsuLcqSdwQabIpe6A3NEc3TJfiBVD8B2Bg==",
+    "signatures": [
+      {
+        "sig": "MEQCIA+GtPdNzBy9CmJXi32K/rfXkTuXF/EIrOyiCA6xDMzzAiA/ZMSs5Ezhj6KYQLvlvcpfcy3hg/CAXKQHpy520ByP0w==",
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+      },
+      {
+        "sig": "MEUCIBjkwRdmtDMjUV86XDOYOakm9qLGPZguy40iQ6Ot4gjpAiEAju3flxfmYaqEHSUfYEzANYp+kF62CKBc+jp343f0imc=",
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+      }
+    ],
+    "unpackedSize": 186001
+  }
+}

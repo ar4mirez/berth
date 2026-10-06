@@ -121,3 +121,23 @@ cosign verify ghcr.io/ar4mirez/berth-image@<digest> \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 gh attestation verify oci://ghcr.io/ar4mirez/berth-image@<digest> -R ar4mirez/berth
 ```
+
+## Keeping the image's tools current
+
+The image pins every tool it downloads, by version and checksum: the base image by digest, gh, ttyd and mise by
+sha256, and Claude Code by its npm integrity. They're kept current without third-party apps:
+
+| What | Bumped by |
+|---|---|
+| the base image's digest, Go modules, GitHub Actions | GitHub's Dependabot, weekly |
+| gh, ttyd, mise, Claude Code (`# pin:` lines in `image/Dockerfile`) | the `pinbump` workflow (`tools/pinbump`), weekly or `gh workflow run pinbump` |
+
+`pinbump` opens one PR per tool, with the version and its checksums changed together:
+
+- **Where the checksums come from:** the project's own checksum file in its GitHub release, which must match GitHub's
+  own digest of each asset where GitHub has one; for Claude Code, the integrity the npm registry signed, which must
+  verify with npm's published keys. A mismatch is refused, and nothing is opened. Claude Code follows its `stable`
+  dist-tag.
+- **What the PR runs:** `ci` and the `image` build, which checks each download against its checksum and the installed
+  versions against the pins.
+- **Live orgs:** a merged bump reaches an org only in a release, at that org's next restart (above).

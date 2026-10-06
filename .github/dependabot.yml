@@ -1,5 +1,5 @@
 # Dependency updates with GitHub's built-in Dependabot (no third-party apps). The image's pinned
-# tools (gh, ttyd, mise, Claude Code: ARGs with checksums) are bumped by #69's workflow instead,
+# tools (gh, ttyd, mise, Claude Code: ARGs with checksums) are bumped by the pinbump workflow (#69) instead,
 # since Dependabot can't update a checksum together with its version.
 version: 2
 updates:
