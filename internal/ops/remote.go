@@ -42,7 +42,7 @@ func GetRemoteStatus(ctx context.Context, s System, org string) (RemoteStatus, e
 			}
 		}
 		if err != nil || st.Capacity == "" {
-			return st, &Exit{Code: 1}
+			return st, quiet(KindState, 1, Tool+" remote "+org+" logs", "Remote Control is running in %s, but its log has no capacity line yet", org)
 		}
 	case RemoteBlocked(ctx, s, org):
 		st.State = "blocked-by-org"

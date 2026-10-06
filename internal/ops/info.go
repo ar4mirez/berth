@@ -24,10 +24,10 @@ func GetInfo(ctx context.Context, s System, org string) (Info, error) {
 	// key ends the command with exit 1 and no message.
 	var ok bool
 	if in.SSHRaw, ok = s.EnvGet(org, "SSH_PORT"); !ok {
-		return in, &Exit{Code: 1}
+		return in, quiet(KindState, 1, "", "%s's org.env has no SSH_PORT", org)
 	}
 	if in.TTYDRaw, ok = s.EnvGet(org, "TTYD_PORT"); !ok {
-		return in, &Exit{Code: 1}
+		return in, quiet(KindState, 1, "", "%s's org.env has no TTYD_PORT", org)
 	}
 	in.SSHPort, in.TTYDPort = PortOf(in.SSHRaw), PortOf(in.TTYDRaw)
 	if Running(ctx, s, org) {

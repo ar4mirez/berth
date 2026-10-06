@@ -23,7 +23,7 @@ func (a *App) needOwnedOrg(o string) error {
 		if m == "" {
 			m = "unset, so ccenv"
 		}
-		return fmt.Errorf("org '%s' is managed by ccenv (MANAGER=%s); use: ccenv ... %s", o, m, o)
+		return &ops.Error{Kind: ops.KindRefused, Code: 1, Msg: fmt.Sprintf("org '%s' is managed by ccenv (MANAGER=%s); use: ccenv ... %s", o, m, o)}
 	}
 	return nil
 }

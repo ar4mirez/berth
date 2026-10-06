@@ -104,7 +104,7 @@ func TestBerthJSONOutput(t *testing.T) {
 	}
 	// A write subcommand of a command that returns data has no JSON.
 	w := run(t, Berth(berthBin), Scenario{Args: []string{"--output", "json", "use", "acme"}, Files: twoOrgs})
-	if w.Exit != 1 || !strings.Contains(w.Stderr, `--output json isn't available for "use"`) {
+	if w.Exit != 1 || !strings.Contains(w.Stderr, `"kind": "usage"`) || !strings.Contains(w.Stderr, `--output json isn't available for \"use\": it changes things`) {
 		t.Errorf("use <org>: exit %d, stderr %q", w.Exit, w.Stderr)
 	}
 }

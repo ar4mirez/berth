@@ -2,7 +2,6 @@ package ops
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path"
 	"regexp"
@@ -103,10 +102,10 @@ func env(s System, org, key string) string {
 // isn't a valid org name is reported as unknown (ccenv would look for it and not find it).
 func NeedOrg(s System, org string) error {
 	if org == "" {
-		return errors.New("missing <org>")
+		return fail(KindUsage, "", "missing <org>")
 	}
 	if !OrgName.MatchString(org) || !s.IsFile(EnvPath(s, org)) {
-		return fmt.Errorf("unknown org '%s' (run: %s init %s)", org, Tool, org)
+		return fail(KindNotFound, "run: "+Tool+" init "+org, "unknown org '%s'", org)
 	}
 	return nil
 }
@@ -129,7 +128,7 @@ func Running(ctx context.Context, s System, org string) bool {
 // NeedUp is need_up: the org's container must be running.
 func NeedUp(ctx context.Context, s System, org string) error {
 	if !Running(ctx, s, org) {
-		return fmt.Errorf("claude-%s is not running (%s up %s)", org, Tool, org)
+		return fail(KindNotRunning, Tool+" up "+org, "claude-%s is not running", org)
 	}
 	return nil
 }
