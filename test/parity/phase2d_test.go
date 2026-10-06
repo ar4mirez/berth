@@ -87,13 +87,8 @@ func init() {
 			Rule{Bin: "docker", Match: `^exec -u node claude-acme sh -c env`, Exit: 3})}, 3, nil},
 
 		// gh-login
-		{Scenario{Name: "gh-login, already signed in", Args: []string{"gh-login", "acme"}, Files: twoOrgs, Rules: running("acme",
-			Rule{Bin: "docker", Match: `gh api user`, Stdout: "octo-acme\n"})}, 0, []string{"acme: gh already signed in as octo-acme (use --force to sign in again)"}},
-		{Scenario{Name: "gh-login", Args: []string{"gh-login", "acme"}, Files: twoOrgs, Rules: running("acme",
-			Rule{Bin: "docker", Match: `gh api user`, Once: true},
-			Rule{Bin: "docker", Match: `gh api user`, Stdout: "octo-acme\n"})}, 0, []string{"acme: gh signed in as octo-acme"}},
-		{Scenario{Name: "gh-login --force", Args: []string{"gh-login", "acme", "--force"}, Files: twoOrgs, Rules: running("acme",
-			Rule{Bin: "docker", Match: `gh api user`, Stdout: "octo-acme\n"})}, 0, []string{"Signing the gh CLI in"}},
+		// The scenarios that sign in are berth's own (TestBerthGhLoginGitKey): berth then puts the
+		// org's git key on the account, which ccenv leaves to the operator (PARITY.md).
 		{Scenario{Name: "gh-login, didn't complete", Args: []string{"gh-login", "acme"}, Files: twoOrgs, Rules: running("acme")},
 			1, []string{"<tool>: gh sign-in didn't complete for acme"}},
 		{Scenario{Name: "gh-login, gh fails", Args: []string{"gh-login", "acme"}, Files: twoOrgs, Rules: running("acme",

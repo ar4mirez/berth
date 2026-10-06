@@ -109,10 +109,12 @@ and your other orgs are never touched. `berth whoami` shows which account each o
 
 Then give the org access to GitHub:
 
-1. **Add the org's key.** Put the org's public key on GitHub, as an account key or a deploy key. `berth info acme`
-   prints it (`Git public key: ssh-ed25519 …`). With `gh`:
+1. **`berth gh-login acme`.** It signs in the `gh` CLI inside the container, for PRs, issues and the API. Then it
+   puts the org's git key on that GitHub account, with this machine's `gh`, if that is signed in to the same account.
+   The container's own `gh` can't add keys.
+2. **Or add the org's key yourself,** when this machine's `gh` is another account, or you want a deploy key for one
+   repo instead of an account key. `berth info acme` prints it (`Git public key: ssh-ed25519 …`). With `gh`:
    `gh ssh-key add ~/.local/share/berth/orgs/acme/ssh/id_ed25519.pub --title claude-acme`.
-2. **Optional: `berth gh-login acme`.** It signs in the `gh` CLI inside the container, for PRs, issues and the API.
 3. **Register the repos the org may use:** `berth repo add acme acme/widgets` registers the repo and clones it into
    `/workspace/widgets`. Nothing else can be cloned or kept there (see [Repos](guides/repos.md)).
 

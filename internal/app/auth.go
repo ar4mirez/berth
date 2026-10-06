@@ -284,6 +284,7 @@ func (a *App) GhLogin(ctx context.Context, o, flag string) error {
 	}
 	if acct := a.ghAccount(ctx, o); acct != "" && flag != "--force" {
 		fmt.Fprintf(a.Stdout, "%s: gh already signed in as %s (use --force to sign in again)\n", o, acct)
+		a.ensureGitKey(ctx, o, acct)
 		return nil
 	}
 	fmt.Fprintf(a.Stdout, `Signing the gh CLI in for %[1]s, inside its container (your host gh is not touched).
@@ -301,5 +302,44 @@ func (a *App) GhLogin(ctx context.Context, o, flag string) error {
 		return fmt.Errorf("gh sign-in didn't complete for %s", o)
 	}
 	fmt.Fprintf(a.Stdout, "\n%s: gh signed in as %s\n", o, acct)
+	a.ensureGitKey(ctx, o, acct)
 	return nil
+}
+
+// ensureGitKey puts the org's git key on acct's GitHub, so clones over SSH work after gh-login
+// (berth-only; PARITY.md). The container's gh token can't add keys, on purpose (--skip-ssh-key and
+// no admin:public_key scope), so the upload uses the host's gh, and only when that is signed in as
+// acct. Otherwise it says how to add the key. It never fails gh-login.
+func (a *App) ensureGitKey(ctx context.Context, o, acct string) {
+	pubPath := path.Join(a.Orgs.Dir, o, "ssh", "id_ed25519.pub")
+	b, err := a.Host.FS.ReadFile(pubPath)
+	pub := strings.Fields(string(b))
+	if err != nil || len(pub) < 2 {
+		return
+	}
+	// A user's public keys need no scope to list.
+	onAccount, _ := a.capture(ctx, true, append([]string{"docker", "exec", "-u", "node", "claude-" + o},
+		a.execLoader(o, "gh", "api", "users/"+acct+"/keys", "-q", ".[].key")...)...)
+	for _, k := range strings.Split(onAccount, "\n") {
+		if f := strings.Fields(k); len(f) >= 2 && f[0] == pub[0] && f[1] == pub[1] {
+			return
+		}
+	}
+	title := "claude-" + o
+	if len(pub) > 2 {
+		title = pub[2]
+	}
+	if a.hostGh(ctx) {
+		if hostAcct, _ := a.capture(ctx, true, "gh", "api", "user", "-q", ".login"); hostAcct == acct {
+			if _, err := a.capture(ctx, true, "gh", "ssh-key", "add", pubPath, "--title", title); err == nil {
+				fmt.Fprintf(a.Stdout, "%s: git key added to %s's GitHub as '%s' (with the host's gh)\n", o, acct, title)
+				return
+			}
+			fmt.Fprintf(a.Stdout, "%s: the host's gh couldn't add the git key to %s's GitHub (gh auth refresh -h github.com -s admin:public_key, then run this again).\n", o, acct)
+		}
+	}
+	fmt.Fprintf(a.Stdout, `%[1]s: the git key isn't on %[2]s's GitHub yet, so clones over SSH are refused.
+  -> Add it at https://github.com/settings/ssh/new, signed in as %[2]s:
+     %[3]s
+`, o, acct, strings.Join(pub, " "))
 }
