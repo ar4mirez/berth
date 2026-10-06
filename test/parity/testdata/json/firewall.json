@@ -1,0 +1,12 @@
+{
+  "schema": "berth.firewall/v1",
+  "org": "acme",
+  "file": "<RUN>/state/orgs/acme/config/firewall.txt",
+  "entries": [
+    "mode on",
+    "@mise",
+    "@python",
+    "pypi.org"
+  ],
+  "live": "on (12 entries)"
+}

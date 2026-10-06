@@ -113,7 +113,11 @@ func addGlobalFlags(root *cobra.Command) {
 		case app.OutputText:
 		case app.OutputJSON:
 			if op, ok := ops.Lookup(cmd.Name(), subOf(cmd.Name(), args)); !ok || !op.JSON {
-				return fmt.Errorf("--output json isn't available for %q yet (#54)", strings.TrimPrefix(cmd.CommandPath(), root.Name()+" "))
+				why := "it changes things, and returns no data"
+				if op.NoJSON != "" {
+					why = "it is " + op.NoJSON
+				}
+				return fmt.Errorf("--output json isn't available for %q: %s", strings.TrimPrefix(cmd.CommandPath(), root.Name()+" "), why)
 			}
 		default:
 			return fmt.Errorf("--output must be text or json, not %q", *output)

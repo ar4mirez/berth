@@ -1,0 +1,16 @@
+{
+  "schema": "berth.hosts/v1",
+  "hosts": [
+    {
+      "name": "local",
+      "kind": "local",
+      "address": "",
+      "home": "<RUN>/state",
+      "reachable": true,
+      "engine": "docker",
+      "docker": "29.0.0",
+      "orgs": 2,
+      "error": ""
+    }
+  ]
+}

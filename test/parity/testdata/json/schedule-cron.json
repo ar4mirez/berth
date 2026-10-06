@@ -1,0 +1,10 @@
+{
+  "schema": "berth.schedule/v1",
+  "kind": "cron",
+  "timer": [],
+  "runs": [],
+  "jobs": [
+    "30 2 * * * /opt/<tool> backup --all --keep 7 >> /b/cron.log 2>&1  # ccenv-backup"
+  ],
+  "log": "<RUN>/state/backups/cron.log"
+}

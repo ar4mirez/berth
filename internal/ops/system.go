@@ -28,10 +28,16 @@ type System interface {
 	// Succeeds runs a command for its exit status. quiet drops its stdout too.
 	Succeeds(ctx context.Context, quiet bool, args ...string) bool
 
+	// Silent runs a command with its stdout and stderr dropped.
+	Silent(ctx context.Context, args ...string) bool
+
 	// ReadFile, IsFile (`[ -f ]`) and IsDir (`[ -d ]`) are the host's files.
 	ReadFile(p string) ([]byte, error)
 	IsFile(p string) bool
 	IsDir(p string) bool
+	// Exists is `[ -e ]`. DirNames is every entry of a directory, hidden ones too, unsorted.
+	Exists(p string) bool
+	DirNames(dir string) ([]string, error)
 
 	// OrgsDir is <state root>/orgs. OrgDirs are its directories, in byte order (an org is one with
 	// an org.env).
@@ -57,6 +63,8 @@ type System interface {
 	// can't be resolved). Tunnel is how to reach an org bound to localhost, or nil if it needs none.
 	Address(ctx context.Context, org string) string
 	Tunnel(ctx context.Context, org, sshPort, ttydPort string) *Tunnel
+	// BackupsDir is where backups, and the cron schedule's log, go.
+	BackupsDir() string
 	// DefaultOrg is the saved default org, as `berth use` wrote it ("" for none).
 	DefaultOrg() string
 	// Image is the tag of the image this berth runs its orgs on.

@@ -197,3 +197,117 @@ type Image struct {
 	Schema string `json:"schema"` // "berth.image/v1"
 	Tag    string `json:"tag"`
 }
+
+// Repos is `berth repo ls <org> --output json`: the registered repos, and the audit `repo audit`
+// gives.
+type Repos struct {
+	Schema string `json:"schema"` // "berth.repos/v1"
+	Org    string `json:"org"`
+	Repos  []Repo `json:"repos"`
+	RepoAudit
+}
+
+// Repo is one registered repo.
+type Repo struct {
+	Dir string `json:"dir"`
+	// Repo is the canonical form, host/path ("" for a local repo, or a URL with no canonical form).
+	Repo string `json:"repo"`
+	URL  string `json:"url"`
+	// Local is true for a repo with no remote yet (`repo new --local`).
+	Local bool `json:"local"`
+	// Branch is the checked-out branch when the container can say, else the registered one ("" for
+	// the remote's default).
+	Branch string `json:"branch"`
+	// State is "cloned", "missing", or "unknown" when the container is down and the folder is there.
+	State string `json:"state"`
+	// Changed is the number of uncommitted changes (null unless the running container reported it).
+	Changed *int `json:"changed"`
+
+	// The REPO, BRANCH and STATUS columns as ccenv words them.
+	RepoText   string `json:"-"`
+	BranchText string `json:"-"`
+	StatusText string `json:"-"`
+}
+
+// RepoAudit is the workspace checked against the registry (`repo audit`).
+type RepoAudit struct {
+	// Policy is REPO_POLICY: "enforce", "warn" or "off" ("" when org.env has no such line).
+	Policy string `json:"policy"`
+	// Unregistered are the folders in /workspace that aren't registered repos.
+	Unregistered []string `json:"unregistered"`
+	// QuarantineDir is where enforce mode moves them, and Quarantined what is there now.
+	QuarantineDir string   `json:"quarantine_dir"`
+	Quarantined   []string `json:"quarantined"`
+}
+
+// RepoAuditDoc is `berth repo audit <org> --output json`.
+type RepoAuditDoc struct {
+	Schema string `json:"schema"` // "berth.repo-audit/v1"
+	Org    string `json:"org"`
+	RepoAudit
+}
+
+// RepoPolicy is `berth repo policy <org> --output json`.
+type RepoPolicy struct {
+	Schema string `json:"schema"` // "berth.repo-policy/v1"
+	Org    string `json:"org"`
+	// Policy is "enforce", "warn" or "off" ("" when org.env has no REPO_POLICY line).
+	Policy string `json:"policy"`
+}
+
+// Presets is `berth fw <org> presets --output json`: the @presets the image knows.
+type Presets struct {
+	Schema  string   `json:"schema"` // "berth.firewall-presets/v1"
+	Presets []Preset `json:"presets"`
+	// Raw is the list as the image prints it.
+	Raw string `json:"-"`
+}
+
+// Preset is one @preset and the hosts it allows.
+type Preset struct {
+	Name  string   `json:"name"` // "@python"
+	Hosts []string `json:"hosts"`
+}
+
+// FirewallTest is `berth fw <org> test [host...] --output json`: what the org can reach now.
+type FirewallTest struct {
+	Schema  string          `json:"schema"` // "berth.firewall-test/v1"
+	Org     string          `json:"org"`
+	Results []FirewallProbe `json:"results"`
+}
+
+// FirewallProbe is one URL tried from inside the container.
+type FirewallProbe struct {
+	URL     string `json:"url"`
+	Allowed bool   `json:"allowed"`
+}
+
+// Schedule is `berth schedule status --output json`: the nightly backup's schedule.
+type Schedule struct {
+	Schema string `json:"schema"` // "berth.schedule/v1"
+	// Kind is "systemd" (a user timer), "cron" (a crontab line) or "none".
+	Kind string `json:"kind"`
+	// Timer is systemd's `list-timers` for the timer: its header line and the timer's.
+	Timer []string `json:"timer"`
+	// Runs are the last runs' lines from the service's journal (systemd).
+	Runs []string `json:"runs"`
+	// Jobs are the crontab's lines for the schedule, and Log where their output goes (cron).
+	Jobs []string `json:"jobs"`
+	Log  string   `json:"log"`
+
+	// TimerText is `list-timers | head -2` as printed. NoRuns is true when the text says
+	// "(no runs yet)": no matching journal line, or the journal couldn't be read.
+	TimerText string `json:"-"`
+	NoRuns    bool   `json:"-"`
+}
+
+// HostGuard is `berth host guard <name> status --output json`.
+type HostGuard struct {
+	Schema    string `json:"schema"` // "berth.host-guard/v1"
+	Host      string `json:"host"`
+	Installed bool   `json:"installed"`
+	// State is the guard container's state ("running", …; "" when not installed).
+	State string `json:"state"`
+	// Rules is the guard's own report of its chains.
+	Rules string `json:"rules"`
+}

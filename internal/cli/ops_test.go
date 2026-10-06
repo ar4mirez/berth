@@ -71,8 +71,11 @@ func TestOutputJSONOnlyWhereSupported(t *testing.T) {
 		{[]string{"use", "acme"}, false},
 		{[]string{"logs", "acme"}, false},
 		{[]string{"fw", "acme", "allow", "x.example"}, false},
-		{[]string{"repo", "policy", "acme"}, false},
-		{[]string{"schedule", "status"}, false},
+		{[]string{"repo", "policy", "acme"}, true},
+		{[]string{"repo", "policy", "acme", "warn"}, false},
+		{[]string{"schedule", "status"}, true},
+		{[]string{"schedule", "off"}, false},
+		{[]string{"password", "acme"}, false},
 	} {
 		_, errOut, code := run(t, append([]string{"--home", home, "--output", "json"}, tc.args...)...)
 		refused := code != 0 && contains(errOut, "--output json isn't available")

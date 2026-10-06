@@ -1,0 +1,45 @@
+{
+  "schema": "berth.repos/v1",
+  "org": "acme",
+  "repos": [
+    {
+      "dir": "app",
+      "repo": "github.com/acme/app",
+      "url": "git@github.com:acme/app.git",
+      "local": false,
+      "branch": "feature/x",
+      "state": "cloned",
+      "changed": 3
+    },
+    {
+      "dir": "notes",
+      "repo": "",
+      "url": "local",
+      "local": true,
+      "branch": "",
+      "state": "missing",
+      "changed": null
+    },
+    {
+      "dir": "api",
+      "repo": "github.com/acme/api",
+      "url": "git@github.com:acme/api.git",
+      "local": false,
+      "branch": "develop",
+      "state": "missing",
+      "changed": null
+    }
+  ],
+  "policy": "enforce",
+  "unregistered": [
+    "Zeta",
+    "stray",
+    "tool",
+    ".scratch"
+  ],
+  "quarantine_dir": "<RUN>/state/orgs/acme/quarantine",
+  "quarantined": [
+    "old.2026",
+    "old.20260101-0000"
+  ]
+}

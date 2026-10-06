@@ -8,6 +8,7 @@ import (
 
 	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/hosts"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // The host guard (#48): on a registered host, DOCKER-USER/INPUT rules under every org's own
@@ -109,13 +110,21 @@ func (a *App) HostGuard(ctx context.Context, args []string) error {
 		}
 		fmt.Fprintf(a.Stdout, "The host guard is off for %s: its rules are removed. Nothing was restarted.\n", name)
 	default:
-		if b.quietRun(ctx, "docker", "inspect", hosts.GuardContainer) != nil {
+		// The guard's own report can fail after the line above it is printed.
+		g, err := ops.GetHostGuard(ctx, b, name)
+		if a.Output == OutputJSON {
+			if err != nil {
+				return err
+			}
+			return a.writeJSON(g)
+		}
+		if !g.Installed {
 			fmt.Fprintf(a.Stdout, "The host guard isn't installed on %s (turn it on: %s host guard %s on).\n", name, Tool, name)
 			return nil
 		}
-		state, _ := b.capture(ctx, true, "docker", "inspect", "-f", "{{.State.Status}}", hosts.GuardContainer)
-		fmt.Fprintf(a.Stdout, "%s on %s: %s\n", hosts.GuardContainer, name, state)
-		return b.guard(ctx, "status", a.Stdout)
+		fmt.Fprintf(a.Stdout, "%s on %s: %s\n", hosts.GuardContainer, name, g.State)
+		fmt.Fprint(a.Stdout, g.Rules)
+		return err
 	}
 	return nil
 }

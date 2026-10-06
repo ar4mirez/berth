@@ -1,0 +1,5 @@
+{
+  "schema": "berth.repo-policy/v1",
+  "org": "acme",
+  "policy": "enforce"
+}

@@ -1,0 +1,8 @@
+{
+  "schema": "berth.schedule/v1",
+  "kind": "none",
+  "timer": [],
+  "runs": [],
+  "jobs": [],
+  "log": ""
+}

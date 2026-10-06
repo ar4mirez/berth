@@ -1,0 +1,14 @@
+{
+  "schema": "berth.firewall-test/v1",
+  "org": "acme",
+  "results": [
+    {
+      "url": "https://pypi.org",
+      "allowed": true
+    },
+    {
+      "url": "http://blocked.example",
+      "allowed": false
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schema": "berth.repo-audit/v1",
+  "org": "acme",
+  "policy": "enforce",
+  "unregistered": [
+    "Zeta",
+    "stray",
+    "tool",
+    ".scratch"
+  ],
+  "quarantine_dir": "<RUN>/state/orgs/acme/quarantine",
+  "quarantined": [
+    "old.2026",
+    "old.20260101-0000"
+  ]
+}

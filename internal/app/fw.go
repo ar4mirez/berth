@@ -174,28 +174,32 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 		unlock()
 		return a.fwApply(ctx, o)
 	case "test":
-		if err := a.needUp(ctx, o); err != nil {
+		res, err := ops.TestFirewall(ctx, a, o, args)
+		if err != nil {
 			return err
 		}
-		if len(args) == 0 {
-			args = []string{"api.anthropic.com", "github.com", "example.com"}
+		if a.Output == OutputJSON {
+			return a.writeJSON(res)
 		}
-		for _, e := range args {
-			if !strings.Contains(e, "://") {
-				e = "https://" + e
-			}
-			if a.passthrough(ctx, false, "docker", "exec", "-u", "node", "claude-"+o, "curl", "-s", "-o", "/dev/null", "--max-time", "6", e) == nil {
-				fmt.Fprintln(a.Stdout, "ALLOWED  "+e)
+		for _, r := range res.Results {
+			if r.Allowed {
+				fmt.Fprintln(a.Stdout, "ALLOWED  "+r.URL)
 			} else {
-				fmt.Fprintln(a.Stdout, "blocked  "+e)
+				fmt.Fprintln(a.Stdout, "blocked  "+r.URL)
 			}
 		}
 		return nil
 	case "presets":
-		if a.running(ctx, o) {
-			return a.passthrough(ctx, false, "docker", "exec", "claude-"+o, contract.FirewallScript, "presets")
+		// The list is printed as the image gives it, and a failing docker ends with its exit code.
+		pre, err := ops.GetFirewallPresets(ctx, a, o)
+		if a.Output == OutputJSON {
+			if err != nil {
+				return err
+			}
+			return a.writeJSON(pre)
 		}
-		return a.passthrough(ctx, false, "docker", "run", "--rm", "--entrypoint", contract.FirewallScript, "claude-env", "presets")
+		fmt.Fprint(a.Stdout, pre.Raw)
+		return err
 	}
 	return fmt.Errorf("usage: %s fw <org> [show|allow|deny|on|off|edit|reload|presets|test]", Tool)
 }

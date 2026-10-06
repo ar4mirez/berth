@@ -65,9 +65,10 @@ A read command either returns data or says why not in the catalog (`NoJSON`). Th
 - [x] Golden files (`test/parity/testdata/json/`) and `docs/json.md` for each
 
 ### PR 2: read operations, part 2
-- [ ] New JSON: `repo ls`, `repo audit`, `repo policy`, `fw presets`, `fw test`, `schedule status`,
+- [x] New JSON: `repo ls`, `repo audit`, `repo policy`, `fw presets`, `fw test`, `schedule status`,
       `host guard status`
-- [ ] The catalog test: a read operation returns JSON or states why not
+- [x] The catalog test: a read operation returns JSON or states why not (`TestReadsReturnDataOrSayWhyNot`)
+- [x] Golden files for every document, the four from #68 included
 
 ### PR 3: rich errors
 - [ ] `ops.Error`: exit code, message, hint, kind; used by every operation in `internal/ops`
