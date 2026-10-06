@@ -11,18 +11,18 @@ import (
 	"io/fs"
 	"os"
 	"path"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/ar4mirez/berth/internal/config"
 	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/ops"
 	"github.com/ar4mirez/berth/internal/org"
 )
 
 // Tool is the name berth uses in its own command hints ("berth up acme" where ccenv says
 // "ccenv up acme"); the parity harness normalizes both.
-const Tool = "berth"
+const Tool = ops.Tool
 
 // App is one berth invocation: the state it runs against, the host holding it, and stdio.
 type App struct {
@@ -78,27 +78,10 @@ func New(st config.State, h *host.Host, stdin io.Reader, stdout, stderr io.Write
 }
 
 // Exit ends berth with Code and no message: ccenv exits that way where set -e stops a command.
-type Exit struct{ Code int }
+type Exit = ops.Exit
 
-func (e *Exit) Error() string { return fmt.Sprintf("exit status %d", e.Code) }
-
-// ExitCode lets the CLI end with Code without printing anything.
-func (e *Exit) ExitCode() int { return e.Code }
-
-var orgName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
-
-// needOrg is ccenv's need_org for commands that only read: it doesn't refuse orgs by MANAGER,
-// because berth must be able to read legacy-owned orgs before cutover (PARITY.md). A name that
-// isn't a valid org name is reported as unknown (ccenv would look for it and not find it).
-func (a *App) needOrg(o string) error {
-	if o == "" {
-		return errors.New("missing <org>")
-	}
-	if !orgName.MatchString(o) || !a.isFile(a.Orgs.EnvPath(o)) {
-		return fmt.Errorf("unknown org '%s' (run: %s init %s)", o, Tool, o)
-	}
-	return nil
-}
+// needOrg is ccenv's need_org for commands that only read (ops.NeedOrg).
+func (a *App) needOrg(o string) error { return ops.NeedOrg(a, o) }
 
 // isFile is `[ -f p ]`: a regular file, following symlinks.
 func (a *App) isFile(p string) bool {

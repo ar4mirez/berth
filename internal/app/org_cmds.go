@@ -129,22 +129,22 @@ func (a *App) Env(ctx context.Context, args []string) error {
 	}
 	switch sub {
 	case "ls", "list":
+		vars, err := ops.GetEnv(a, o)
+		if err != nil {
+			return err
+		}
 		if a.Output == OutputJSON {
-			out := ops.Env{Schema: "berth.env/v1", Org: o, Vars: []ops.EnvVar{}}
-			for _, k := range strings.Fields(keys) {
-				out.Vars = append(out.Vars, ops.EnvVar{Name: k, Present: hasLine(k)})
-			}
-			return a.writeJSON(out)
+			return a.writeJSON(vars)
 		}
 		if keys == "" {
 			fmt.Fprintf(a.Stdout, "(no custom variables; add one: %s env %s set KEY)\n", Tool, o)
 			return nil
 		}
-		for _, k := range strings.Fields(keys) {
-			if hasLine(k) {
-				fmt.Fprintln(a.Stdout, k)
+		for _, v := range vars.Vars {
+			if v.Present {
+				fmt.Fprintln(a.Stdout, v.Name)
 			} else {
-				fmt.Fprintln(a.Stdout, k+"  (listed but missing)")
+				fmt.Fprintln(a.Stdout, v.Name+"  (listed but missing)")
 			}
 		}
 		return nil
@@ -272,7 +272,7 @@ func (a *App) readValue(key string) (string, error) {
 
 // rcLog is rc_log: the last n non-blank lines of the Remote Control log, ANSI stripped.
 func (a *App) rcLog(ctx context.Context, o string, n int, stdout io.Writer) error {
-	script := fmt.Sprintf(`sed -e 's/\x1b\][^\x1b]*\x1b\\//g' -e 's/\x1b\[[0-9;]*[A-Za-z]//g' `+contract.RemoteControlLog+` 2>/dev/null | grep -av '^\s*$' | tail -%d`, n)
+	script := ops.RemoteLogScript(n)
 	return a.Host.Exec.Run(ctx, host.Cmd{Args: []string{"docker", "exec", "claude-" + o, "sh", "-c", script}, Stdout: stdout, Stderr: a.Stderr})
 }
 
@@ -280,6 +280,9 @@ func (a *App) rcLog(ctx context.Context, o string, n int, stdout io.Writer) erro
 func (a *App) Remote(ctx context.Context, o, sub string) error {
 	if sub == "" {
 		sub = "status"
+	}
+	if sub == "status" {
+		return a.remoteStatus(ctx, o)
 	}
 	if sub == "restart" {
 		if err := a.writable(o, "restart Remote Control"); err != nil {
@@ -292,42 +295,6 @@ func (a *App) Remote(ctx context.Context, o, sub string) error {
 		return err
 	}
 	switch sub {
-	case "status":
-		if !a.rcLoggedIn(ctx, o) {
-			fmt.Fprintf(a.Stdout, "Remote Control: not logged in. Run: %s login %s\n", Tool, o)
-			return nil
-		}
-		switch {
-		case a.rcRunning(ctx, o):
-			fmt.Fprintln(a.Stdout, "Remote Control: running")
-			fmt.Fprintln(a.Stdout, "  Open:  "+a.rcURL(ctx, o))
-			fmt.Fprintf(a.Stdout, "  Or:    claude.ai/code or the Claude app -> pick environment '%s' -> New session\n", o)
-			// rc_log 200 | grep -a Capacity | tail -1 | sed 's/^ */  /': under pipefail, no Capacity
-			// line (grep exits 1) or a failing docker ends the command there, with exit 1.
-			var log strings.Builder
-			err := a.rcLog(ctx, o, 200, &log)
-			last := ""
-			for _, l := range fileLines([]byte(log.String())) {
-				if strings.Contains(l, contract.RemoteControlCapacity) {
-					last = l
-				}
-			}
-			if last != "" {
-				fmt.Fprintln(a.Stdout, "  "+strings.TrimLeft(last, " "))
-			}
-			if err != nil || last == "" {
-				return &Exit{Code: 1}
-			}
-		case a.rcBlocked(ctx, o):
-			fmt.Fprintf(a.Stdout, `Remote Control: BLOCKED by the Claude organization's policy for this account.
-  An admin of that Claude organization must enable Remote Control. The service retries hourly and
-  recovers on its own. Meanwhile use SSH, the browser terminal, VS Code or '%[1]s attach %[2]s'.
-  To stop trying: set REMOTE_CONTROL=0 in orgs/%[2]s/org.env, then %[1]s restart %[2]s
-`, Tool, o)
-		default:
-			fmt.Fprintf(a.Stdout, "Remote Control: restarting (see: %s remote %s logs)\n", Tool, o)
-		}
-		return nil
 	case "logs":
 		return a.rcLog(ctx, o, 40, a.Stdout)
 	case "restart":
@@ -336,4 +303,37 @@ func (a *App) Remote(ctx context.Context, o, sub string) error {
 		return nil
 	}
 	return fmt.Errorf("usage: %s remote <org> [status|logs|restart]", Tool)
+}
+
+// remoteStatus is `ccenv remote <org> status`. When Remote Control is on and its log has no
+// capacity line, ccenv's pipeline fails after the lines above it are printed: exit 1, no message.
+func (a *App) remoteStatus(ctx context.Context, o string) error {
+	st, err := ops.GetRemoteStatus(ctx, a, o)
+	if st.State == "" {
+		return err // not an org, or not running
+	}
+	if a.Output == OutputJSON {
+		// The state is known even when the capacity line isn't: JSON reports it, with an empty one.
+		return a.writeJSON(st)
+	}
+	switch st.State {
+	case "login-needed":
+		fmt.Fprintf(a.Stdout, "Remote Control: not logged in. Run: %s login %s\n", Tool, o)
+	case "on":
+		fmt.Fprintln(a.Stdout, "Remote Control: running")
+		fmt.Fprintln(a.Stdout, "  Open:  "+st.URL)
+		fmt.Fprintf(a.Stdout, "  Or:    claude.ai/code or the Claude app -> pick environment '%s' -> New session\n", o)
+		if st.Capacity != "" {
+			fmt.Fprintln(a.Stdout, "  "+st.Capacity)
+		}
+	case "blocked-by-org":
+		fmt.Fprintf(a.Stdout, `Remote Control: BLOCKED by the Claude organization's policy for this account.
+  An admin of that Claude organization must enable Remote Control. The service retries hourly and
+  recovers on its own. Meanwhile use SSH, the browser terminal, VS Code or '%[1]s attach %[2]s'.
+  To stop trying: set REMOTE_CONTROL=0 in orgs/%[2]s/org.env, then %[1]s restart %[2]s
+`, Tool, o)
+	default:
+		fmt.Fprintf(a.Stdout, "Remote Control: restarting (see: %s remote %s logs)\n", Tool, o)
+	}
+	return err
 }

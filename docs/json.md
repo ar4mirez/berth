@@ -5,13 +5,20 @@ Commands that return data accept `--output json`. It's a global flag, so it goes
 
 ```bash
 berth --output json ls
+berth --output json info acme
+berth --output json whoami
+berth --output json remote acme status
 berth --output json env acme ls
 berth --output json fw acme show
+berth --output json host ls
+berth --output json use
 ```
 
-Asking for JSON from a command that doesn't return data yet fails right away, with
+Asking for JSON from a command that doesn't return data fails right away, with
 `--output json isn't available for "<command>" yet`, and changes nothing. `internal/ops` lists which commands return
-data (`JSON: true` in the catalog). The rest follow in #54.
+data (`JSON: true` in the catalog). The remaining read commands follow in #54.
+
+Each document below has a golden file in `test/parity/testdata/json/`, which the tests compare byte for byte.
 
 ## Rules
 - **Every document names its schema and version:** `"schema": "berth.<kind>/v<N>"`.
@@ -100,3 +107,87 @@ shows the same case as `(listed but missing)`.
 - `engine` is the host's container engine, `docker` or `podman`; `docker` holds that engine's version (#57).
 - `orgs` is `null` when it couldn't be counted. `error` says what failed, and is `""` otherwise.
 - A host that can't be reached is still listed, and the exit code is 0.
+
+## `berth.info/v1`: `info <org>`
+
+```json
+{
+  "schema": "berth.info/v1",
+  "org": "acme",
+  "container": "claude-acme",
+  "state": "running",
+  "remote_url": "https://claude.ai/code?environment=env_0123",
+  "address": "100.64.0.7",
+  "local_only": false,
+  "ssh_port": 2201,
+  "ttyd_port": 7701,
+  "user": "node",
+  "ssh_host": "claude-acme",
+  "git_public_key": "ssh-ed25519 AAAA… claude-acme@box",
+  "tunnel": null
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `state` | `running` or `stopped` |
+| `remote_url` | the org's claude.ai/code environment; `""` until Remote Control is set up, or when the org is stopped |
+| `address` | where other devices reach the org's ports; `""` if its bind can't be resolved (the reason is on stderr) |
+| `local_only` | `true` when the ports are bound to this machine only (`127.0.0.1`) |
+| `ssh_port`, `ttyd_port` | numbers, or `null` when `org.env` has no valid value |
+| `user`, `ssh_host` | the account SSH uses, and the `Host` alias berth suggests for `~/.ssh/config` |
+| `git_public_key` | the org's git key; `""` if it can't be read (the reason is on stderr) |
+| `tunnel` | `null`, or `{"connect": "acme@box1", "ssh_target": "ops@box1.example"}` for an org reached through an SSH tunnel: the argument for `berth connect`, and where to tunnel by hand (`""` when unknown) |
+
+The browser terminal's password is never included: `berth password acme` prints it.
+
+## `berth.whoami/v1`: `whoami [org...]`
+
+```json
+{
+  "schema": "berth.whoami/v1",
+  "orgs": [
+    {
+      "org": "acme",
+      "running": true,
+      "token": true,
+      "github": "octo-acme",
+      "claude": { "email": "dev@example.com", "organization": "Acme Corp", "organization_id": "org-acme" }
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `token` | whether a Claude token is set |
+| `github` | the gh CLI's login in the container; `""` when it isn't signed in, or the org is down |
+| `claude` | the Remote Control login; `null` when not logged in, or the org is down |
+
+## `berth.remote/v1`: `remote <org> status`
+
+```json
+{ "schema": "berth.remote/v1", "org": "acme", "state": "on", "url": "https://claude.ai/code?environment=env_0123", "capacity": "Capacity: 1/8 sessions" }
+```
+
+| Field | Meaning |
+|---|---|
+| `state` | `login-needed`, `on`, `blocked-by-org` or `restarting` |
+| `url`, `capacity` | when `on`: the environment's link and the service's last capacity line; `""` otherwise, or not logged yet |
+
+The org must be running: otherwise the command fails as the text one does. Where the text output ends with exit 1
+because the service hasn't logged a capacity line yet, the JSON has `"capacity": ""` and exit 0.
+
+## `berth.default-org/v1`: `use`
+
+```json
+{ "schema": "berth.default-org/v1", "org": "acme@box1" }
+```
+
+`org` is `null` when no default org is set.
+
+## `berth.image/v1`: `image-tag`
+
+```json
+{ "schema": "berth.image/v1", "tag": "berth/claude-env:0123456789ab" }
+```

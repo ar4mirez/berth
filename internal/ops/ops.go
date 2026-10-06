@@ -57,8 +57,8 @@ var (
 var Catalog = map[string]Op{
 	// Reading.
 	"ls":           readJSON,
-	"info":         read,
-	"whoami":       read,
+	"info":         readJSON,
+	"whoami":       readJSON,
 	"logs":         read,
 	"completion":   read,
 	"parity-check": read,
@@ -70,11 +70,11 @@ var Catalog = map[string]Op{
 	"restart":   writeHard("recreates the container"),
 	"down":      writeHard("stops and removes the container"),
 	"destroy":   writeHard("removes the container, the org's directory and (unless --keep-backups) its backups; irreversible, and needs a typed confirmation or --yes"),
-	"build":     write, // builds berth's image; containers keep running on theirs until their next restart
-	"pull":      write, // pulls the released image (#41); containers keep running on theirs
-	"upgrade":   write, // installs a verified release next to the current one and moves the link (#42); restarts nothing
-	"image-tag": read,  // hidden: the image tag this berth uses (for upgrade)
-	"attach":    write, // exec into the running container (acts as the org)
+	"build":     write,    // builds berth's image; containers keep running on theirs until their next restart
+	"pull":      write,    // pulls the released image (#41); containers keep running on theirs
+	"upgrade":   write,    // installs a verified release next to the current one and moves the link (#42); restarts nothing
+	"image-tag": readJSON, // hidden: the image tag this berth uses (for upgrade)
+	"attach":    write,    // exec into the running container (acts as the org)
 	"shell":     write,
 	"claude":    write,
 	"run":       write,
@@ -99,7 +99,7 @@ var Catalog = map[string]Op{
 		"rm":    writeMay("restarts a running org unless --no-restart"),
 	}},
 	"remote": {Access: BySub, Subs: map[string]Op{
-		"": read, "status": read, "logs": read,
+		"": readJSON, "status": readJSON, "logs": read,
 		"restart": write, // the Remote Control service, not the container
 	}},
 	"fw": {Access: BySub, Subs: map[string]Op{
@@ -142,7 +142,7 @@ var Catalog = map[string]Op{
 	}},
 
 	// The default org (#55): showing it reads; setting or clearing it writes the operator's config.
-	"use": {Access: BySub, Subs: map[string]Op{"": read, "<org>": write, "--clear": write}},
+	"use": {Access: BySub, Subs: map[string]Op{"": readJSON, "<org>": write, "--clear": write}},
 
 	// Cutover and install.
 	"takeover": write, // MANAGER=berth only; the container keeps running

@@ -65,6 +65,12 @@ func subOf(cmd string, args []string) string {
 			return "policy/"
 		}
 		return at(0)
+	case "use": // use [<org>[@host] | --clear]
+		switch at(0) {
+		case "", "--clear":
+			return at(0)
+		}
+		return "<org>"
 	case "schedule": // the last action word wins, as in ccenv
 		sub := ""
 		for _, a := range args {

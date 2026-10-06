@@ -12,6 +12,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/ar4mirez/berth/internal/contract"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // browserHint is ccenv's browser_hint, followed by its blank line.
@@ -172,7 +173,7 @@ func (a *App) Login(ctx context.Context, o string) error {
 		if a.rcRunning(ctx, o) && a.rcURL(ctx, o) != "" {
 			break
 		}
-		if a.rcBlocked(ctx, o) {
+		if ops.RemoteBlocked(ctx, a, o) {
 			break
 		}
 	}
@@ -194,7 +195,7 @@ func (a *App) pkillRemoteControl(ctx context.Context, o string) {
 func (a *App) rcAccount(ctx context.Context, o string) string {
 	out, _ := a.captureRaw(ctx, false, "docker", "exec", "-u", "node", "claude-"+o, "sh", "-c",
 		"env -u CLAUDE_CODE_OAUTH_TOKEN claude auth status 2>/dev/null; true")
-	lines, _ := accountLines([]byte(out))
+	lines, _ := ops.AccountLines([]byte(out))
 	return strings.TrimRight(strings.Join(lines, "\n"), "\n")
 }
 

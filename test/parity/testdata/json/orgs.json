@@ -1,0 +1,27 @@
+{
+  "schema": "berth.orgs/v1",
+  "orgs": [
+    {
+      "name": "acme",
+      "manager": "berth",
+      "state": "up",
+      "ssh_port": 2201,
+      "ttyd_port": 7701,
+      "token": true,
+      "remote": "on",
+      "host": "local"
+    },
+    {
+      "name": "globex",
+      "manager": "berth",
+      "state": "down",
+      "ssh_port": 2202,
+      "ttyd_port": 7702,
+      "token": false,
+      "remote": "-",
+      "host": "local"
+    }
+  ],
+  "unreachable": [],
+  "destroyed": []
+}

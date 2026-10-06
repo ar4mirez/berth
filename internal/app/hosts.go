@@ -423,17 +423,14 @@ func (a *App) confirmHostKey(ue *sshhost.UnknownHostError) (string, error) {
 	return ue.Fingerprint, nil
 }
 
-// HostLs is `berth host ls`: this machine and every registered host, whether it's reachable, its
-// Docker version and its number of orgs.
-func (a *App) HostLs(ctx context.Context, args []string) error {
-	if len(args) > 0 {
-		return fmt.Errorf("usage: %s host ls", Tool)
-	}
+// Hosts is ops.System's: this machine and every registered host, whether it's reachable, its
+// engine's version and its number of orgs.
+func (a *App) Hosts(ctx context.Context) ([]ops.HostStatus, error) {
 	reg, err := hosts.Load(a.Operator.FS, a.hostPaths())
 	if err != nil {
-		return err
+		return nil, err
 	}
-	res := ops.Hosts{Schema: "berth.hosts/v1", Hosts: []ops.HostStatus{a.statusOf(ctx, a.Operator, hosts.Entry{Name: hosts.Local, Kind: hosts.KindLocal, Home: a.State.Home.Path, Engine: a.State.Engine})}}
+	out := []ops.HostStatus{a.statusOf(ctx, a.Operator, hosts.Entry{Name: hosts.Local, Kind: hosts.KindLocal, Home: a.State.Home.Path, Engine: a.State.Engine})}
 	for _, e := range reg.Hosts {
 		h, err := a.dialHost(ctx, e, e.Key)
 		if err != nil {
@@ -441,11 +438,23 @@ func (a *App) HostLs(ctx context.Context, args []string) error {
 			if eng == "" {
 				eng = host.EngineDocker
 			}
-			res.Hosts = append(res.Hosts, ops.HostStatus{Name: e.Name, Kind: e.Kind, Address: e.Address(), Home: e.Home, Engine: eng, Error: err.Error()})
+			out = append(out, ops.HostStatus{Name: e.Name, Kind: e.Kind, Address: e.Address(), Home: e.Home, Engine: eng, Error: err.Error()})
 			continue
 		}
-		res.Hosts = append(res.Hosts, a.statusOf(ctx, h, e))
+		out = append(out, a.statusOf(ctx, h, e))
 		_ = h.Close()
+	}
+	return out, nil
+}
+
+// HostLs is `berth host ls`.
+func (a *App) HostLs(ctx context.Context, args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("usage: %s host ls", Tool)
+	}
+	res, err := ops.GetHosts(ctx, a)
+	if err != nil {
+		return err
 	}
 	if a.Output == OutputJSON {
 		return a.writeJSON(res)

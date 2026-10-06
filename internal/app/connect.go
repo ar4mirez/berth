@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // Connect is `berth connect <org>[@host]` (#58): an SSH tunnel from this machine to an org on a
@@ -17,7 +18,7 @@ func (a *App) Connect(ctx context.Context, o string) error {
 		return err
 	}
 	sp, tp := a.env(o, "SSH_PORT"), a.env(o, "TTYD_PORT")
-	if portOf(sp) == nil || portOf(tp) == nil {
+	if ops.PortOf(sp) == nil || ops.PortOf(tp) == nil {
 		return fmt.Errorf("%s has no SSH_PORT/TTYD_PORT in its org.env", o)
 	}
 	bind, err := a.resolveBind(ctx, o)

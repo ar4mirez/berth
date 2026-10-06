@@ -14,20 +14,7 @@ import (
 )
 
 // firewallTemplate is ccenv's write_firewall_template.
-func firewallTemplate(o string) string {
-	return `# Egress allowlist for ` + o + `, applied live by: ` + Tool + ` fw ` + o + ` ...
-# One entry per line:  domain (pypi.org) | IP or CIDR (10.0.0.0/8) | @preset (@python) | mode on|off
-# Always allowed: Anthropic/Claude, GitHub, npm.  List presets: ` + Tool + ` fw ` + o + ` presets
-# Entries are resolved to IPs, so wildcards (*.example.com) are not supported.
-mode on
-# Toolchain installs via mise, plus package registries for common languages:
-@mise
-@python
-@go
-@rust
-@ruby
-`
-}
+func firewallTemplate(o string) string { return ops.FirewallTemplate(o) }
 
 // fwWrites are the fw subcommands that change the allowlist (or open an editor on it).
 var fwWrites = map[string]bool{"allow": true, "add": true, "deny": true, "remove": true, "rm": true,
@@ -76,44 +63,26 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 	}
 	switch sub {
 	case "show":
+		out, err := ops.GetFirewallEntries(a, o)
+		if err != nil {
+			return err
+		}
 		if a.Output == OutputJSON {
 			// The same data as the text, but no entries isn't an error here, just an empty list.
-			out := ops.Firewall{Schema: "berth.firewall/v1", Org: o, File: f, Entries: []string{}}
-			for _, l := range fileLines(content) {
-				if t := strings.TrimLeft(l, " \t\n\v\f\r"); t != "" && !strings.HasPrefix(t, "#") {
-					out.Entries = append(out.Entries, l)
-				}
-			}
-			if a.running(ctx, o) {
-				live, err := a.capture(ctx, true, "docker", "exec", "claude-"+o, "cat", contract.FirewallStatus)
-				if err != nil {
-					live = "unknown"
-				}
-				out.Live = &live
-			}
+			out.Live, _ = ops.FirewallLive(ctx, a, o)
 			return a.writeJSON(out)
 		}
 		fmt.Fprintln(a.Stdout, f)
 		// grep -vE '^\s*(#|$)' "$f" | sed 's/^/  /': under pipefail and set -e, a file with no
 		// entries (grep selects nothing, exit 1) ends the command here with exit 1.
-		shown := 0
-		for _, l := range fileLines(content) {
-			if t := strings.TrimLeft(l, " \t\n\v\f\r"); t == "" || strings.HasPrefix(t, "#") {
-				continue
-			}
+		for _, l := range out.Entries {
 			fmt.Fprintln(a.Stdout, "  "+l)
-			shown++
 		}
-		if shown == 0 {
+		if len(out.Entries) == 0 {
 			return &Exit{Code: 1}
 		}
-		if a.running(ctx, o) {
-			// echo "live: $(docker exec … cat /run/firewall.status 2>/dev/null || echo unknown)"
-			live, err := a.captureRaw(ctx, true, "docker", "exec", "claude-"+o, "cat", contract.FirewallStatus)
-			if err != nil {
-				live += "unknown\n"
-			}
-			fmt.Fprintln(a.Stdout, "live: "+strings.TrimRight(live, "\n"))
+		if live, text := ops.FirewallLive(ctx, a, o); live != nil {
+			fmt.Fprintln(a.Stdout, "live: "+text)
 		}
 		return nil
 	case "allow", "add":

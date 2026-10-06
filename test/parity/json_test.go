@@ -1,6 +1,7 @@
 package parity
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -95,5 +96,15 @@ func TestBerthJSONOutput(t *testing.T) {
 	r = jsonRun([]string{"fw", "globex", "show"}, withFile(twoOrgs, "state/orgs/globex/config/firewall.txt", File{Content: "# only comments\n", Mode: 0o644}), nil)
 	if !strings.Contains(r.Stdout, `"entries": []`) {
 		t.Errorf("fw show, no entries: %s", r.Stdout)
+	}
+	// The image tag follows image/'s content, so only its shape is pinned.
+	r = jsonRun([]string{"image-tag"}, nil, nil)
+	if !regexp.MustCompile(`^\{\n  "schema": "berth\.image/v1",\n  "tag": "berth/claude-env:[0-9a-f]{12}"\n\}\n$`).MatchString(r.Stdout) {
+		t.Errorf("image-tag: %s", r.Stdout)
+	}
+	// A write subcommand of a command that returns data has no JSON.
+	w := run(t, Berth(berthBin), Scenario{Args: []string{"--output", "json", "use", "acme"}, Files: twoOrgs})
+	if w.Exit != 1 || !strings.Contains(w.Stderr, `--output json isn't available for "use"`) {
+		t.Errorf("use <org>: exit %d, stderr %q", w.Exit, w.Stderr)
 	}
 }

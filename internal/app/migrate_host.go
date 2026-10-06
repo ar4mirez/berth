@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ar4mirez/berth/internal/hosts"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // Moving an org between hosts over the registry (#50): `berth migrate <org>[@host] <host>`.
@@ -59,7 +60,7 @@ func (a *App) migrateToHost(ctx context.Context, o, target, as string, yes, noSw
 	if name == "" {
 		name = o
 	}
-	if !orgName.MatchString(name) {
+	if !ops.OrgName.MatchString(name) {
 		return fmt.Errorf("invalid org name '%s'", name)
 	}
 	// The target may already have a stopped copy from an earlier rehearsal: it is replaced. Any other
