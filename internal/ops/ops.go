@@ -41,17 +41,22 @@ type Op struct {
 	Note string
 	// JSON is true when the operation returns data (`--output json`).
 	JSON bool
-	// NoJSON says why a reading operation returns no data. Every reading operation has one or the
-	// other (TestReadsReturnDataOrSayWhyNot).
+	// Events is true when the operation reports its progress as events (`--output json` prints one
+	// per line): the long ones, and the ones that stream.
+	Events bool
+	// NoJSON says why a reading operation returns neither. Every reading operation has JSON, Events
+	// or NoJSON (TestReadsReturnDataOrSayWhyNot).
 	NoJSON string
 	// Subs, for Access BySub: the subcommands. "" is the default subcommand.
 	Subs map[string]Op
 }
 
 var (
-	readJSON  = Op{Access: Read, JSON: true}
-	readText  = func(why string) Op { return Op{Access: Read, NoJSON: why} }
-	write     = Op{Access: Write}
+	readJSON = Op{Access: Read, JSON: true}
+	readText = func(why string) Op { return Op{Access: Read, NoJSON: why} }
+	write    = Op{Access: Write}
+	// events marks a long operation: it reports its progress as events.
+	events    = func(op Op) Op { op.Events = true; return op }
 	writeMay  = func(note string) Op { return Op{Access: Write, Restart: Maybe, Note: note} }
 	writeHard = func(note string) Op { return Op{Access: Write, Restart: Always, Note: note} }
 )
@@ -62,22 +67,22 @@ var Catalog = map[string]Op{
 	"ls":           readJSON,
 	"info":         readJSON,
 	"whoami":       readJSON,
-	"logs":         readText("a stream of log lines"),
+	"logs":         events(Op{Access: Read}), // a stream: one event per line
 	"completion":   readText("a shell script"),
 	"parity-check": readText("a line diff against ccenv, for the cutover"),
 	"connect":      readText("holds an SSH tunnel open until interrupted"), // changes nothing (#58)
 
 	// Lifecycle.
 	"init":      write,
-	"up":        writeHard("builds if needed, then recreates the container"),
-	"restart":   writeHard("recreates the container"),
+	"up":        events(writeHard("builds if needed, then recreates the container")),
+	"restart":   events(writeHard("recreates the container")),
 	"down":      writeHard("stops and removes the container"),
 	"destroy":   writeHard("removes the container, the org's directory and (unless --keep-backups) its backups; irreversible, and needs a typed confirmation or --yes"),
-	"build":     write,    // builds berth's image; containers keep running on theirs until their next restart
-	"pull":      write,    // pulls the released image (#41); containers keep running on theirs
-	"upgrade":   write,    // installs a verified release next to the current one and moves the link (#42); restarts nothing
-	"image-tag": readJSON, // hidden: the image tag this berth uses (for upgrade)
-	"attach":    write,    // exec into the running container (acts as the org)
+	"build":     events(write), // builds berth's image; containers keep running on theirs until their next restart
+	"pull":      events(write), // pulls the released image (#41); containers keep running on theirs
+	"upgrade":   write,         // installs a verified release next to the current one and moves the link (#42); restarts nothing
+	"image-tag": readJSON,      // hidden: the image tag this berth uses (for upgrade)
+	"attach":    write,         // exec into the running container (acts as the org)
 	"shell":     write,
 	"claude":    write,
 	"run":       write,
@@ -102,7 +107,7 @@ var Catalog = map[string]Op{
 		"rm":    writeMay("restarts a running org unless --no-restart"),
 	}},
 	"remote": {Access: BySub, Subs: map[string]Op{
-		"": readJSON, "status": readJSON, "logs": readText("a stream of log lines"),
+		"": readJSON, "status": readJSON, "logs": events(Op{Access: Read}),
 		"restart": write, // the Remote Control service, not the container
 	}},
 	"fw": {Access: BySub, Subs: map[string]Op{
@@ -121,9 +126,9 @@ var Catalog = map[string]Op{
 	"clone": write,
 
 	// Backups.
-	"backup":    write, // writes backup files; the org and its container are untouched
+	"backup":    events(write), // writes backup files; the org and its container are untouched
 	"keygen":    write,
-	"restore":   writeMay("starts the restored org unless --no-start; --force stops the org it replaces"),
+	"restore":   events(writeMay("starts the restored org unless --no-start; --force stops the org it replaces")),
 	"rehydrate": write,
 	"migrate":   write, // streams the org; nothing restarts here
 	"schedule": {Access: BySub, Subs: map[string]Op{

@@ -51,6 +51,7 @@ func (a *App) On(name string, h *host.Host, home string) *App {
 	b.Operator, b.HostName, b.root = a.Operator, name, a.base()
 	b.TakeLease, b.HostAppFn = a.TakeLease, a.HostAppFn
 	b.OpenTTY, b.Output, b.Self, b.Invoked = a.OpenTTY, a.Output, a.Self, a.Invoked
+	b.Progress = a.Progress
 	return b
 }
 

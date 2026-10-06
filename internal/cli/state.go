@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -37,6 +38,34 @@ func withAccess(c *cobra.Command, a string) *cobra.Command {
 type stateKey struct{}
 
 type outputKey struct{}
+
+// progress holds a long operation's events for one invocation (--output json on up, backup, logs,
+// …): the pre-run hook names the operation, appFor starts it, and execute ends it.
+type progress struct {
+	op, org string
+	p       *ops.Progress
+}
+
+type progressKey struct{}
+
+func progressFrom(ctx context.Context) *progress {
+	h, _ := ctx.Value(progressKey{}).(*progress)
+	return h
+}
+
+var eventOrgName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*(@[a-z0-9][a-z0-9-]*)?$`)
+
+// eventOrg is the org an operation's events are about: the org argument of the commands that take
+// one first ("" for the rest, and when it is left out for the default org).
+func eventOrg(cmd string, args []string) string {
+	switch cmd {
+	case "up", "restart", "logs", "remote":
+		if len(args) > 0 && eventOrgName.MatchString(args[0]) {
+			return args[0]
+		}
+	}
+	return ""
+}
 
 // outputFrom is the --output the root's pre-run hook accepted for this command.
 func outputFrom(ctx context.Context) string {
@@ -112,7 +141,16 @@ func addGlobalFlags(root *cobra.Command) {
 		switch *output {
 		case app.OutputText:
 		case app.OutputJSON:
-			if op, ok := ops.Lookup(cmd.Name(), subOf(cmd.Name(), args)); !ok || !op.JSON {
+			op, ok := ops.Lookup(cmd.Name(), subOf(cmd.Name(), args))
+			switch {
+			case ok && op.JSON:
+			case ok && op.Events:
+				// A long operation: its progress, one event per line (appFor starts it).
+				if h := progressFrom(cmd.Context()); h != nil {
+					// The operation as the catalog names it: "up", "remote logs".
+					h.op, h.org = strings.TrimSpace(cmd.Name()+" "+subOf(cmd.Name(), args)), eventOrg(cmd.Name(), args)
+				}
+			default:
 				why := "it changes things, and returns no data"
 				if op.NoJSON != "" {
 					why = "it is " + op.NoJSON

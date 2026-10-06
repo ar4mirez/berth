@@ -29,8 +29,8 @@ func TestReadsReturnDataOrSayWhyNot(t *testing.T) {
 		leaves(name, Catalog[name], func(path string, op Op) {
 			n++
 			switch {
-			case op.Access == Read && op.JSON == (op.NoJSON != ""):
-				t.Errorf("%q reads: it must return JSON or say why not (NoJSON), not both or neither", path)
+			case op.Access == Read && countTrue(op.JSON, op.Events, op.NoJSON != "") != 1:
+				t.Errorf("%q reads: it must return JSON, report events, or say why not (NoJSON): exactly one", path)
 			case op.Access == Write && (op.JSON || op.NoJSON != ""):
 				t.Errorf("%q writes: JSON and NoJSON are for reading operations", path)
 			case op.Access != Read && op.Access != Write:
@@ -40,6 +40,28 @@ func TestReadsReturnDataOrSayWhyNot(t *testing.T) {
 	}
 	if n < 60 {
 		t.Fatalf("only %d operations walked", n)
+	}
+}
+
+func countTrue(bs ...bool) int {
+	n := 0
+	for _, b := range bs {
+		if b {
+			n++
+		}
+	}
+	return n
+}
+
+// TestLongOperationsReportEvents: the operations the issue names report progress (#54).
+func TestLongOperationsReportEvents(t *testing.T) {
+	for _, c := range [][2]string{{"up", ""}, {"restart", ""}, {"build", ""}, {"pull", ""}, {"backup", ""}, {"restore", ""}, {"logs", ""}, {"remote", "logs"}} {
+		if op, ok := Lookup(c[0], c[1]); !ok || !op.Events {
+			t.Errorf("%s %s doesn't report events", c[0], c[1])
+		}
+	}
+	if op, _ := Lookup("ls", ""); op.Events {
+		t.Error("ls reports events: it returns one document")
 	}
 }
 

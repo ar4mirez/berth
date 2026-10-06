@@ -55,7 +55,9 @@ func (a *App) Restart(ctx context.Context, o string) error {
 		return err
 	}
 	a.warnOpenBind(o)
+	a.Progress.Step("image", "getting the image")
 	a.imageFromRelease(ctx) // a release pulls its image here; otherwise compose builds it if missing
+	a.Progress.Step("container", "recreating claude-"+o)
 	if err := a.compose(ctx, o, "up", "-d", "--force-recreate"); err != nil {
 		return err
 	}
@@ -138,14 +140,17 @@ func (a *App) Up(ctx context.Context, o string) error {
 	a.warnOpenBind(o)
 	// ccenv's up always builds (--build). A release that pulled its image doesn't: building would
 	// replace the pulled image with a local build of the same image/.
+	a.Progress.Step("image", "getting the image")
 	args := []string{"up", "-d", "--build", "--force-recreate"}
 	if a.imageFromRelease(ctx) {
 		args = []string{"up", "-d", "--force-recreate"}
 	}
+	a.Progress.Step("container", "recreating claude-"+o)
 	if err := a.compose(ctx, o, args...); err != nil {
 		return err
 	}
 	a.refreshGuard(ctx)
+	a.Progress.Step("ready", "waiting for the container to start")
 	if err := a.passthrough(ctx, false, "sleep", "3"); err != nil {
 		return err
 	}
@@ -164,6 +169,7 @@ func (a *App) Build(ctx context.Context, args []string) error {
 	}
 	uid, _ := a.capture(ctx, false, "id", "-u")
 	gid, _ := a.capture(ctx, false, "id", "-g")
+	a.Progress.Step("build", "building "+set.Tag)
 	argv := append([]string{"docker", "build", "-t", set.Tag, "--build-arg", "USER_UID=" + uid, "--build-arg", "USER_GID=" + gid}, args...)
 	return a.passthrough(ctx, false, append(argv, set.ImageDir)...)
 }

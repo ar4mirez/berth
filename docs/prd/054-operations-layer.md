@@ -46,11 +46,11 @@ has before it stops, and the text must match.
 
 ### Commands that return no JSON
 
-A read command either returns data or says why not in the catalog (`NoJSON`). The reasons:
+A read command returns data, reports events (`logs`, `remote logs`: PR 4), or says why not in the catalog
+(`NoJSON`). The reasons:
 
 | Command | Why |
 |---|---|
-| `logs`, `remote logs` | a stream of log lines; progress events cover streams (PR 4) |
 | `completion` | a shell script |
 | `connect` | holds an SSH tunnel open until interrupted |
 | `password show` | a secret, and secrets never appear in JSON (`docs/json.md`) |
@@ -78,8 +78,11 @@ A read command either returns data or says why not in the catalog (`NoJSON`). Th
 - [x] Text output unchanged, silent exits included
 
 ### PR 4: progress events
-- [ ] `ops.Event` and a sink; `up`, `restart`, `build`, `pull`, `backup`, `restore`, `logs` and `remote logs` emit
-- [ ] `--output json` on those commands prints one event per line
+- [x] `ops.Event`, `ops.Progress` and a sink; the catalog marks the operations that report (`Events`)
+- [x] `up`, `restart`, `build`, `pull`, `backup`, `restore`, `logs` and `remote logs` emit: their steps, and every
+      line they or their commands print
+- [x] `--output json` on those commands prints one `berth.event/v1` per line, ending with `done` or `failed`
+      (`TestBerthProgressEvents`)
 
 ### PR 5: schemas
 - [ ] A JSON Schema file per document, generated from the Go types

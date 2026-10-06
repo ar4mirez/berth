@@ -384,11 +384,15 @@ func (a *App) Backup(ctx context.Context, args []string) error {
 		sfx += ".age"
 	}
 
+	if out == "-" && a.Progress != nil {
+		return errors.New("-o - writes the backup itself to stdout: it can't be combined with --output json")
+	}
 	for _, o := range orgs {
 		if err := a.needOrg(o); err != nil {
 			return err
 		}
 		mount := path.Join(a.Orgs.Dir, o) + ":/src:ro"
+		a.Progress.Step("org", o)
 		if plan {
 			fmt.Fprintln(a.Stdout, "== "+o)
 			if err := a.archive(ctx, sec, o, "", mount, a.Stdin, a.Stdout, "plan"); err != nil {

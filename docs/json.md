@@ -21,17 +21,17 @@ berth --output json schedule status
 berth --output json host guard box1 status
 ```
 
-Every command that only reads returns data, except the few that can't. Asking one of those for JSON, or a command
+Every command that only reads returns data, except the few that can't. The long operations, and the ones that
+stream, report [events](#progress-bertheventv1) instead. Asking one of those for JSON, or a command
 that changes things, fails right away and changes nothing:
 
 ```console
-$ berth --output json logs acme
-berth: --output json isn't available for "logs": it is a stream of log lines
+$ berth --output json completion
+berth: --output json isn't available for "completion": it is a shell script
 ```
 
 | No JSON for | Why |
 |---|---|
-| `logs`, `remote <org> logs` | a stream of log lines |
 | `completion` | a shell script |
 | `connect` | it holds an SSH tunnel open until interrupted |
 | `password <org>` | a secret, and secrets never appear in JSON |
@@ -87,6 +87,45 @@ $ berth --output json info nope
 Without `--output json` nothing changes: berth prints `berth: <message> (<hint>)`. In the few places where ccenv
 ends with an exit code and no message, the text output stays silent too, and the document still says what
 happened.
+
+## Progress: `berth.event/v1`
+
+`up`, `restart`, `build`, `pull`, `backup`, `restore`, `logs` and `remote <org> logs` take a while, or never end.
+With `--output json` they print one event per line on stdout as they go, and nothing on stderr:
+
+```console
+$ berth --output json up acme
+{"schema":"berth.event/v1","time":"2026-10-06T12:00:00.1Z","op":"up","org":"acme","type":"start","step":"","stream":"","message":"","error":null}
+{"schema":"berth.event/v1","time":"2026-10-06T12:00:00.2Z","op":"up","org":"acme","type":"step","step":"image","stream":"","message":"getting the image","error":null}
+{"schema":"berth.event/v1","time":"2026-10-06T12:00:01.4Z","op":"up","org":"acme","type":"step","step":"container","stream":"","message":"recreating claude-acme","error":null}
+{"schema":"berth.event/v1","time":"2026-10-06T12:00:02.9Z","op":"up","org":"acme","type":"output","step":"","stream":"stdout","message":" Container claude-acme  Started","error":null}
+{"schema":"berth.event/v1","time":"2026-10-06T12:00:06.0Z","op":"up","org":"acme","type":"done","step":"","stream":"","message":"","error":null}
+```
+
+| Field | Meaning |
+|---|---|
+| `time` | when it happened (RFC 3339, UTC) |
+| `op`, `org` | the operation (`up`, `remote logs`, …) and the org named on the command line; `""` when there is none |
+| `type` | `start`, `step`, `output`, `done` or `failed` |
+| `step` | for `step`: which step begins (below); `message` describes it |
+| `stream` | for `output`: `stdout` or `stderr`; `message` is one line the operation, or a command it ran, printed |
+| `error` | for `failed`: the failure, as a [`berth.error/v1`](#errors-bertherrorv1) document; `null` otherwise |
+
+The first event is always `start` and the last is `done` or `failed`. The exit code is 0 after `done`, and the
+error's `code` after `failed`.
+
+| Operation | Steps |
+|---|---|
+| `up` | `image`, `container`, `ready` |
+| `restart` | `image`, `container` |
+| `build` | `build` |
+| `pull` | `pull` |
+| `backup` | `org`, once per org (`message` is its name) |
+| `restore` | `restore`, then `start` when the restored org is started |
+| `logs`, `remote <org> logs` | none: every line is an `output` event |
+
+Steps may be added without changing the schema's version. `backup -o -` writes the backup itself to stdout, so it
+can't be combined with `--output json`.
 
 ## `berth.orgs/v1`: `ls`
 

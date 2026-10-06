@@ -69,7 +69,7 @@ func TestOutputJSONOnlyWhereSupported(t *testing.T) {
 		{[]string{"ls"}, true},
 		{[]string{"info", "acme"}, true},
 		{[]string{"use", "acme"}, false},
-		{[]string{"logs", "acme"}, false},
+		{[]string{"completion"}, false},
 		{[]string{"fw", "acme", "allow", "x.example"}, false},
 		{[]string{"repo", "policy", "acme"}, true},
 		{[]string{"repo", "policy", "acme", "warn"}, false},

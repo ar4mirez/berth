@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -68,7 +69,13 @@ func execute(root *cobra.Command, args []string, stdin io.Reader, stdout, stderr
 	root.SetIn(stdin)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
+	h := &progress{}
+	root.SetContext(context.WithValue(context.Background(), progressKey{}, h))
 	err := root.Execute()
+	if h.p != nil {
+		// A long operation under --output json: its last event says how it ended.
+		return h.p.Done(err)
+	}
 	if err == nil {
 		return 0
 	}
