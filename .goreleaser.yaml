@@ -120,14 +120,15 @@ homebrew_casks:
       bash: completions/berth.bash
       zsh: completions/_berth
       fish: completions/berth.fish
-    hooks:
-      post:
-        # The binary is signed through Sigstore (checksums.txt), not by Apple: without this,
-        # Gatekeeper quarantines what the cask downloaded.
-        install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/berth"]
-          end
+    # The binary is signed through Sigstore (checksums.txt), not by Apple: without this,
+    # Gatekeeper quarantines what the cask downloaded. A custom block, because goreleaser's
+    # hooks write `postflight do`, which Homebrew deprecated for `postflight_steps`.
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/berth"], must_succeed: false
+        end
+      end
 
 # Arch Linux (#60): berth-bin (the release binary) and berth (built from source) in the AUR.
 # Published only when the release workflow has AUR_KEY (the AUR account's SSH key).
