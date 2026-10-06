@@ -137,6 +137,7 @@ func (a *App) Restore(ctx context.Context, args []string) error {
 		return fmt.Errorf("invalid org name '%s'", name)
 	}
 	format := a.catFile(stage + "/.ccenv-format")
+	a.Progress.Step("restore", "restoring "+name)
 	fmt.Fprintf(a.Stdout, "Restoring '%s' from %s (%s, %s) as '%s'\n", field("org"), field("source_host"), field("created"), format, name)
 
 	d := path.Join(a.Orgs.Dir, name)
@@ -227,6 +228,7 @@ func (a *App) Restore(ctx context.Context, args []string) error {
 		fmt.Fprintf(a.Stdout, "Start with: %s up %s\n", Tool, name)
 		return nil
 	}
+	a.Progress.Step("start", "starting claude-"+name)
 	q := *a
 	q.Stdout = io.Discard
 	if err := q.compose(ctx, name, "up", "-d", "--force-recreate"); err != nil {

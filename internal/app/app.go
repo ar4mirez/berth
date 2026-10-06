@@ -51,6 +51,9 @@ type App struct {
 	Upgrader *Upgrader
 	// Output is OutputText (the default, ccenv's) or OutputJSON, for operations that return data.
 	Output string
+	// Progress is where a long operation reports its steps (nil: nowhere). With one, Stdout and
+	// Stderr are its writers, so everything printed is an event too.
+	Progress *ops.Progress
 	// Self is the berth binary itself (symlinks resolved): what install links to.
 	Self string
 	// Invoked is the path berth was run as, symlinks kept (~/.local/bin/berth): what the scheduled

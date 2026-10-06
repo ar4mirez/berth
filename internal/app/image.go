@@ -69,6 +69,7 @@ func (a *App) Pull(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	a.Progress.Step("pull", "pulling "+a.publishedImage())
 	if !a.imageFromRelease(ctx) {
 		return fmt.Errorf("couldn't pull %s", a.publishedImage())
 	}

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +14,7 @@ import (
 	"github.com/ar4mirez/berth/internal/app"
 	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/host/local"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // appFor builds the App a command runs against: the resolved state, on the local host.
@@ -24,6 +26,16 @@ func appFor(cmd *cobra.Command) *app.App {
 	a.Self, _ = os.Executable()
 	a.Invoked = invokedPath()
 	a.Output = outputFrom(cmd.Context())
+	if h := progressFrom(cmd.Context()); h != nil && h.op != "" {
+		// The operation's own output, and that of the commands it runs, becomes events on stdout.
+		if h.p == nil {
+			enc := json.NewEncoder(cmd.OutOrStdout())
+			enc.SetEscapeHTML(false)
+			h.p = ops.NewProgress(func(e ops.Event) { _ = enc.Encode(e) }, h.op, h.org)
+		}
+		a.Progress, a.Output = h.p, app.OutputText
+		a.Stdout, a.Stderr = h.p.Writer("stdout"), h.p.Writer("stderr")
+	}
 	return a
 }
 
