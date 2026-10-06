@@ -51,13 +51,14 @@ jobs:
             [ -s "$out" ] || continue
             branch=$(jq -r .branch "$out"); title=$(jq -r .title "$out")
             jq -r .body "$out" > "$RUNNER_TEMP/body.md"
+            { echo "$title"; echo; cat "$RUNNER_TEMP/body.md"; } > "$RUNNER_TEMP/msg.txt"
             pr=$(gh pr list --head "$branch" --state open --json number -q '.[0].number')
             # Already proposed, for the same Dockerfile: leave the PR and its checks alone.
             if [ -n "$pr" ] && git fetch -q origin "$branch" && git diff --quiet FETCH_HEAD -- image/Dockerfile; then
               echo "$dep: #$pr already proposes this"; continue
             fi
             git switch -q -C "$branch"
-            git commit -q -m "$title" -F "$RUNNER_TEMP/body.md" image/Dockerfile
+            git commit -q -F "$RUNNER_TEMP/msg.txt" image/Dockerfile
             git push -q -f origin "$branch"
             if [ -n "$pr" ]; then
               gh pr edit "$pr" --title "$title" --body-file "$RUNNER_TEMP/body.md"
