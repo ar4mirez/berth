@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"net"
 	"path"
 	"regexp"
 	"strings"
@@ -119,7 +120,7 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 		if len(args) == 0 {
 			return fmt.Errorf("usage: %s fw %s allow <domain|ip|cidr|@preset>...", Tool, o) //nolint:staticcheck // ccenv's exact usage text
 		}
-		for _, e := range args {
+		for i, e := range args {
 			// e="${e#*://}"; e="${e%%/*}"; e="${e%%:*}": https://x.com:443/path -> x.com
 			if _, after, ok := strings.Cut(e, "://"); ok {
 				e = after
@@ -130,6 +131,13 @@ func (a *App) Fw(ctx context.Context, o string, args []string) error {
 				e, _, _ = strings.Cut(e, "/")
 				e, _, _ = strings.Cut(e, ":")
 			}
+			// Nothing is written unless every entry is one the firewall can use (#104; PARITY.md).
+			if err := fwEntry(e, args[i]); err != nil {
+				return err
+			}
+			args[i] = e
+		}
+		for _, e := range args {
 			if hasLine(content, e) {
 				fmt.Fprintln(a.Stdout, "already allowed: "+e)
 				continue
@@ -230,6 +238,34 @@ func (a *App) fwApply(ctx context.Context, o string) error {
 	}
 	fmt.Fprintf(a.Stdout, "(saved; applies on: %s up %s)\n", Tool, o)
 	return nil
+}
+
+// fwName is a name init-firewall.sh gives dnsmasq: a hostname, optionally with a leading "*.".
+// fwPreset is an @preset; the image knows which exist.
+var (
+	fwName   = regexp.MustCompile(`^(\*\.)?[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?(\.[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?)*$`)
+	fwPreset = regexp.MustCompile(`^@[a-z0-9_-]+$`)
+	ipv4     = regexp.MustCompile(`^[0-9]+(\.[0-9]+){3}$`)
+)
+
+// fwEntry refuses an entry init-firewall.sh would skip: the same rule, applied before the file is
+// written. e is the entry as it would be stored and arg is what was typed. ccenv stores anything.
+func fwEntry(e, arg string) error {
+	switch {
+	case ipv4.MatchString(e), ipv4CIDR.MatchString(e): // before names: 10.0.0.1 reads as one too
+		if _, _, err := net.ParseCIDR(e); err == nil || net.ParseIP(e) != nil {
+			return nil
+		}
+		return fmt.Errorf("'%s' isn't an IPv4 address or range", arg)
+	case fwPreset.MatchString(e), fwName.MatchString(e):
+		return nil
+	case e == "":
+		return fmt.Errorf("'%s' has no host to allow", arg)
+	case strings.Contains(e, "*"):
+		return fmt.Errorf("'%s': a wildcard only works as a leading '*.' (the firewall can't match part of a label). "+
+			"List each host, or allow the whole domain, like '*.example.com'", arg)
+	}
+	return fmt.Errorf("'%s' isn't a hostname, an IPv4 address or range, or an @preset", arg)
 }
 
 // modeLine is grep -E '^\s*mode\s+(on|off)\s*$' (\s is [[:space:]]).

@@ -20,7 +20,7 @@ func init() {
 			Rule{Bin: "docker", Match: `init-firewall\.sh apply$`, Stderr: "bad entry\n", Exit: 3})}, 3, []string{"bad entry"}},
 		{Scenario{Name: "fw allow, file without final newline", Args: []string{"fw", "globex", "allow", "x.example"},
 			Files: fwFile("mode on\npypi.org")}, 0, []string{"allowed: x.example"}},
-		{Scenario{Name: "fw allow, odd entries", Args: []string{"fw", "globex", "allow", "http://h.example:8080/a/b", "https://", "pypi.org", "10.0.0.1", "@node"},
+		{Scenario{Name: "fw allow, odd entries", Args: []string{"fw", "globex", "allow", "http://h.example:8080/a/b", "pypi.org", "10.0.0.1", "@node"},
 			Files: fwFile("mode on\npypi.org\n\n")}, 0, []string{"already allowed: pypi.org", "allowed: 10.0.0.1"}},
 		{Scenario{Name: "fw allow, no file yet", Args: []string{"fw", "globex", "allow", "@node"},
 			Files: withoutFile(twoOrgs, "state/orgs/globex/config/firewall.txt")}, 0, []string{"allowed: @node"}},
@@ -76,5 +76,39 @@ func TestBerthFwAllowKeepsCIDR(t *testing.T) {
 	r = run(t, Berth(berthBin), Scenario{Args: []string{"fw", "globex", "deny", "10.0.0.0/8"}, Files: fwFile("mode on\n10.0.0.0/8\n")})
 	if r.Exit != 0 || !strings.Contains(r.Stdout, "removed: 10.0.0.0/8") {
 		t.Errorf("deny: exit %d\n%s%s", r.Exit, r.Stdout, r.Stderr)
+	}
+}
+
+// TestBerthFwAllowRefusesBadEntries: berth writes only entries the firewall can use, where ccenv
+// stores anything (PARITY.md). One name dnsmasq can't parse used to cost the container its
+// resolver (#104). A refused entry stops the command before the file or the container is touched.
+func TestBerthFwAllowRefusesBadEntries(t *testing.T) {
+	for arg, want := range map[string]string{
+		"web-git-*.example.app":  "<tool>: 'web-git-*.example.app': a wildcard only works as a leading '*.' (the firewall can't match part of a label). List each host, or allow the whole domain, like '*.example.com'\n",
+		"https://":               "<tool>: 'https://' has no host to allow\n",
+		"999.1.1.1":              "<tool>: '999.1.1.1' isn't an IPv4 address or range\n",
+		"exa$mple.com":           "<tool>: 'exa$mple.com' isn't a hostname, an IPv4 address or range, or an @preset\n",
+		"https://-bad.example/x": "<tool>: 'https://-bad.example/x' isn't a hostname, an IPv4 address or range, or an @preset\n",
+	} {
+		r := run(t, Berth(berthBin), Scenario{Args: []string{"fw", "acme", "allow", "ok.example.com", arg}, Files: twoOrgs, Rules: running("acme")})
+		if r.Exit != 1 || r.Stderr != want || r.Stdout != "" {
+			t.Errorf("%s: exit %d, stdout %q, stderr %q", arg, r.Exit, r.Stdout, r.Stderr)
+		}
+		for _, l := range r.Tree {
+			if strings.HasPrefix(l, "state/orgs/acme/config/firewall.txt ") && strings.Contains(l, "ok.example.com") {
+				t.Errorf("%s: firewall.txt was written:\n%s", arg, l)
+			}
+		}
+		for _, c := range r.Calls {
+			if strings.Contains(c, "init-firewall") {
+				t.Errorf("%s: the firewall was applied: %s", arg, c)
+			}
+		}
+	}
+	// A leading wildcard is fine, and so is what was there before.
+	r := run(t, Berth(berthBin), Scenario{Args: []string{"fw", "globex", "allow", "*.example.com"}, Files: fwFile("mode on\nweb-git-*.example.app\n")})
+	want := `state/orgs/globex/config/firewall.txt 0644 "mode on\nweb-git-*.example.app\n*.example.com\n"`
+	if r.Exit != 0 || r.Stdout != "allowed: *.example.com\n(saved; applies on: <tool> up globex)\n" || !slices.Contains(r.Tree, want) {
+		t.Errorf("leading wildcard: exit %d, stdout %q, stderr %q\n%s", r.Exit, r.Stdout, r.Stderr, strings.Join(r.Tree, "\n"))
 	}
 }
