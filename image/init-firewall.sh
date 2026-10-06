@@ -2,8 +2,12 @@
 # Default-deny egress firewall driven by /config/firewall.txt (live-editable via `berth fw`).
 #   init-firewall.sh apply    (re)build the allowlist and rules; safe to run anytime
 #   init-firewall.sh presets  list available @presets
-# File format: one entry per line. `mode on|off`, a domain, an IP/CIDR, or `@preset`.
+# File format: one entry per line. `mode on|off`, a domain (or `*.domain`), an IPv4 address or range,
+# or `@preset`. An entry that is none of these is skipped with a warning, and the rest still applies
+# (#104). Exit codes: 0 applied; 3 applied, but something was skipped or DNS allowlisting is down;
+# anything else, not applied.
 set -euo pipefail
+set -f   # entries are split on spaces and may hold a `*`: never expand them against the filesystem
 
 CONF=/config/firewall.txt
 STATUS=/run/firewall.status
@@ -67,6 +71,26 @@ if [ -f "$CONF" ]; then
 fi
 entries+=" $provider"
 
+# An entry is an IPv4 address or range, or a name dnsmasq can match: a hostname, optionally with a
+# leading `*.`. Anything else is skipped: one name dnsmasq refuses would cost the container its
+# resolver (#104). `berth fw allow` applies the same rule before it writes the file.
+IP_RE='^[0-9]+(\.[0-9]+){3}(/[0-9]+)?$'
+LABEL='[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?'
+NAME_RE="^(\\*\\.)?$LABEL(\\.$LABEL)*\$"
+skipped=(); dns_down=""
+skip() {  # skip <entry> <why>
+  skipped+=("$1"); echo "firewall: skipping '$1': $2" >&2
+}
+ips=(); domains=()
+for e in $entries; do
+  if [[ "$e" =~ $IP_RE ]]; then ips+=("$e")
+  elif [[ "$e" =~ $NAME_RE ]]; then domains+=("$e")
+  elif [[ "$e" == *"*"* ]]; then skip "$e" "a wildcard only works as a leading '*.' (list each host, or allow the whole domain, like '*.example.com')"
+  elif [[ "$e" == *:* ]]; then skip "$e" "IPv6 addresses and ports aren't supported"
+  else skip "$e" "not a hostname, an IPv4 address or range, or an @preset"
+  fi
+done
+
 # --- DNS-time allowlisting (#1) ---------------------------------------------------------------
 # dnsmasq, on 127.0.0.1, becomes the container's only resolver. For an allowlisted name (and its
 # subdomains) it adds each answer's IPs to the "allowed-dns" set before returning the answer, so a
@@ -75,28 +99,70 @@ entries+=" $provider"
 # a compose network), saved once per container; DNS to anywhere else is blocked below.
 UPSTREAM=/run/resolv.conf.upstream
 [ -f "$UPSTREAM" ] || cp /etc/resolv.conf "$UPSTREAM"
-dns_setup() {  # dns_setup <domain>...: (re)start dnsmasq for these names, point resolv.conf at it
-  local conf=/run/berth-dnsmasq.conf new=/run/berth-dnsmasq.conf.new ns doms=""
-  ipset create -exist allowed-dns hash:ip timeout 3600
+dns_conf() {  # dns_conf <file> <domain>...: dnsmasq's config, with one ipset line per name
+  local f="$1" ns e; shift
   {
     echo "listen-address=127.0.0.1"; echo "bind-interfaces"; echo "no-resolv"; echo "cache-size=1000"
     for ns in $(awk '/^nameserver/ {print $2}' "$UPSTREAM"); do echo "server=$ns"; done
-    for e in "$@"; do doms+="/$e"; done
-    [ -n "$doms" ] && echo "ipset=$doms/allowed-dns"
-  } > "$new"
+    # dnsmasq matches a name and everything under it, and has no wildcard for sets: `*.example.com`
+    # goes in as `example.com`.
+    for e in "$@"; do echo "ipset=/${e#\*.}/allowed-dns"; done
+  } > "$f"
+}
+dns_ok() { dnsmasq --test --conf-file="$1" >/dev/null 2>&1; }
+dns_running() { [ -f /run/dnsmasq.pid ] && kill -0 "$(cat /run/dnsmasq.pid)" 2>/dev/null; }
+dns_setup() {  # dns_setup <domain>...: (re)start dnsmasq for these names, point resolv.conf at it
+  local conf=/run/berth-dnsmasq.conf new=/run/berth-dnsmasq.conf.new e ok=()
+  ipset create -exist allowed-dns hash:ip timeout 3600
+  # dnsmasq checks the config before it replaces the running one: a config it refuses must never
+  # leave the container without a resolver (#104).
+  dns_conf "$new" "$@"
+  if ! dns_ok "$new"; then
+    dns_conf "$new"
+    if dns_ok "$new"; then
+      # A name the check above let through, and dnsmasq refuses: find it, so it costs only itself.
+      for e in "$@"; do
+        dns_conf "$new" "$e"
+        if dns_ok "$new"; then ok+=("$e"); else skip "$e" "dnsmasq can't match this name"; fi
+      done
+      dns_conf "$new" "${ok[@]}"
+    fi
+  fi
   # Restart only when the names changed or it isn't running: the 5-minute refresh keeps its cache.
-  if cmp -s "$new" "$conf" && [ -f /run/dnsmasq.pid ] && kill -0 "$(cat /run/dnsmasq.pid)" 2>/dev/null; then
+  if cmp -s "$new" "$conf" && dns_running; then
     rm -f "$new"
-  else
+  elif dns_ok "$new"; then
     mv "$new" "$conf"
     if [ -f /run/dnsmasq.pid ]; then kill "$(cat /run/dnsmasq.pid)" 2>/dev/null || true; sleep 0.2; fi
-    dnsmasq --conf-file="$conf" --pid-file=/run/dnsmasq.pid --user=root
+    dnsmasq --conf-file="$conf" --pid-file=/run/dnsmasq.pid --user=root || true
+    for _ in 1 2 3 4 5; do dns_running && break; sleep 0.2; done
+  else
+    dns_down="DNS allowlist not updated"
+    echo "firewall: dnsmasq refuses its config, kept as $new:" >&2
+    dnsmasq --test --conf-file="$new" 2>&1 | sed 's/^/firewall:   /' >&2 || true
   fi
-  { echo "nameserver 127.0.0.1"; grep -E '^(search|options)' "$UPSTREAM" || true; } > /etc/resolv.conf
+  if dns_running; then
+    { echo "nameserver 127.0.0.1"; grep -E '^(search|options)' "$UPSTREAM" || true; } > /etc/resolv.conf
+  else
+    # No dnsmasq: names still resolve, through the resolver Docker gave the container, and reach
+    # what the one-shot resolution below allows. Only the DNS-time allowlisting is lost.
+    dns_down="no DNS allowlisting"; cat "$UPSTREAM" > /etc/resolv.conf
+    echo "firewall: WARNING dnsmasq isn't running; using the container's own resolver (rotating IP pools may be blocked)" >&2
+  fi
 }
-domains=()
-for e in $entries; do [[ "$e" =~ ^[0-9]+(\.[0-9]+){3}(/[0-9]+)?$ ]] || domains+=("$e"); done
 dns_setup "${domains[@]}"
+
+# finish <status> <message>: record the status, and end with 3 if something was skipped.
+finish() {
+  local problems=""
+  [ ${#skipped[@]} -eq 0 ] || problems="${#skipped[@]} skipped"
+  [ -z "$dns_down" ] || problems+="${problems:+, }$dns_down"
+  echo "$1${problems:+ ($problems)}" > "$STATUS"
+  echo "firewall: $2"
+  [ -n "$problems" ] || exit 0
+  [ ${#skipped[@]} -eq 0 ] || echo "firewall: WARNING skipped (see above): ${skipped[*]}. Remove each with: berth fw ${ORG:-<org>} deny '<entry>'" >&2
+  exit 3
+}
 
 iptables -N CLAUDE-EGRESS 2>/dev/null || true
 iptables -C OUTPUT -j CLAUDE-EGRESS 2>/dev/null || iptables -I OUTPUT 1 -j CLAUDE-EGRESS
@@ -104,9 +170,7 @@ iptables -C OUTPUT -j CLAUDE-EGRESS 2>/dev/null || iptables -I OUTPUT 1 -j CLAUD
 if [ "$mode" = "off" ]; then
   iptables -F CLAUDE-EGRESS
   ip6tables -P OUTPUT ACCEPT 2>/dev/null || true
-  echo "off" > "$STATUS"
-  echo "firewall: OFF (all egress allowed)"
-  exit 0
+  finish off "OFF (all egress allowed)"
 fi
 
 # Build the new set while the old rules still allow DNS/GitHub, then swap atomically.
@@ -117,10 +181,12 @@ if meta=$(curl -fsS --max-time 10 https://api.github.com/meta); then
 else
   echo "firewall: WARNING could not fetch GitHub ranges" >&2
 fi
-for e in $entries; do
-  if [[ "$e" =~ ^[0-9]+(\.[0-9]+){3}(/[0-9]+)?$ ]]; then
-    ipset add -exist allowed-new "$e"; continue
-  fi
+for e in "${ips[@]}"; do
+  ipset add -exist allowed-new "$e" 2>/dev/null || skip "$e" "not an IPv4 address or range"
+done
+for e in "${domains[@]}"; do
+  case " ${skipped[*]} " in *" $e "*) continue ;; esac   # dnsmasq refused it above
+  e="${e#\*.}"
   for ip in $(dig +short +time=2 +tries=2 A "$e" | grep -E '^[0-9]+(\.[0-9]+){3}$' || true); do
     ipset add -exist allowed-new "$ip"
   done
@@ -148,5 +214,4 @@ ip6tables -P OUTPUT DROP 2>/dev/null || true
 ip6tables -C OUTPUT -o lo -j ACCEPT 2>/dev/null || ip6tables -A OUTPUT -o lo -j ACCEPT 2>/dev/null || true
 
 n=$(ipset list allowed | grep -cE '^[0-9]')
-echo "on $n" > "$STATUS"
-echo "firewall: ON ($n allowlisted networks)"
+finish "on $n" "ON ($n allowlisted networks)"

@@ -78,7 +78,8 @@ shows the same case as `(listed but missing)`.
 
 - `entries` are the file's lines that aren't blank or comments, as written.
 - `live` is the running container's `/run/firewall.status` (`on <N>` or `off`). It's `unknown` if it can't be read,
-  and `null` when the org is down.
+  and `null` when the org is down. A note in parentheses follows when the list applied with a problem:
+  `on 187 (1 skipped)`, `on 187 (no DNS allowlisting)`.
 - An empty allowlist is `"entries": []` with exit 0. The text output exits 1 in that case, as ccenv does.
 
 ## `berth.hosts/v1`: `host ls`

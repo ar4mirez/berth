@@ -37,10 +37,7 @@ var providers = map[string]map[string]string{
 	"openrouter": {"ANTHROPIC_BASE_URL": "https://openrouter.ai/api"},
 }
 
-var (
-	region  = regexp.MustCompile(`^[a-z0-9-]+$`)
-	fwEntry = regexp.MustCompile(`^[^\s#]+$`)
-)
+var region = regexp.MustCompile(`^[a-z0-9-]+$`)
 
 // ParseProfile reads and checks a profile. Nothing is created from a profile that fails here.
 func ParseProfile(b []byte) (*Profile, error) {
@@ -85,8 +82,8 @@ func ParseProfile(b []byte) (*Profile, error) {
 		}
 	}
 	for _, e := range p.Firewall {
-		if !fwEntry.MatchString(e) {
-			return nil, fmt.Errorf("profile: firewall: bad entry %q (1 domain, IP, CIDR or @preset)", e)
+		if err := fwEntry(e, e); err != nil {
+			return nil, fmt.Errorf("profile: firewall: bad entry %q: %w", e, err)
 		}
 	}
 	return &p, nil

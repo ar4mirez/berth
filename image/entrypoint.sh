@@ -15,7 +15,8 @@ echo "$ORG" > /etc/claude-env/org
 . /usr/local/lib/claude-env/secrets-env.sh
 
 # --- Firewall (re-applied every 5 min so CDN IP changes and edits are picked up) ---
-/usr/local/bin/init-firewall.sh apply
+# 3 is "applied, but it had to skip something" (#104): the org still starts, and says so in its logs.
+/usr/local/bin/init-firewall.sh apply || [ $? -eq 3 ]
 ( while sleep 300; do /usr/local/bin/init-firewall.sh apply >/dev/null || true; done ) &
 
 # --- Env snapshot for SSH sessions (they don't inherit container env) --------

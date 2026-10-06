@@ -33,10 +33,38 @@ run. If a site still fails after you allow it:
 - **Guessing the host:** `berth fw acme off`, try it, then `berth fw acme on`. That tells you whether the firewall is
   the problem, then close it again.
 
+## Domains and wildcards
+
+A domain allows that name **and every name under it**: `example.com` also allows `api.example.com`. `*.example.com`
+means the same thing. The firewall matches whole labels only, so a `*` anywhere else is refused:
+
+```console
+$ berth fw acme allow 'web-git-*.example.app'
+berth: 'web-git-*.example.app': a wildcard only works as a leading '*.' (the firewall can't match part of a label). List each host, or allow the whole domain, like '*.example.com'
+```
+
+For hosts like preview deployments, either list each one, or allow the domain above them, knowing that it allows
+every name under it (`*.vercel.app` is every Vercel app).
+
+`berth fw allow` also refuses anything else the firewall can't use: an IPv6 address, a host with a port, a name with
+other characters. Nothing is written when an entry is refused.
+
 ## The file
 
-One entry per line: `mode on|off`, a domain, an IP or CIDR, an `@preset`, or a `provider` line. Lines starting with
-`#` are comments. `/config` is mounted read-only, so nothing inside the container can change it.
+One entry per line: `mode on|off`, a domain, an IPv4 address or range, an `@preset`, or a `provider` line. Lines
+starting with `#` are comments. `/config` is mounted read-only, so nothing inside the container can change it.
+
+An entry the firewall can't use (written by `berth fw acme edit`, or by an older berth) is **skipped**, and the
+rest of the list applies. berth says so each time the list is applied, and ends with exit code 3:
+
+```console
+$ berth fw acme reload
+firewall: skipping 'web-git-*.example.app': a wildcard only works as a leading '*.' (list each host, or allow the whole domain, like '*.example.com')
+firewall: ON (187 allowlisted networks)
+firewall: WARNING skipped (see above): web-git-*.example.app. Remove each with: berth fw acme deny '<entry>'
+```
+
+`berth fw acme` then shows `live: on 187 (1 skipped)`. At a container start, the same lines are in `berth logs acme`.
 
 ## The model provider
 

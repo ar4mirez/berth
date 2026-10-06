@@ -88,6 +88,43 @@ jobs:
               [ "$(cat /run/dnsmasq.pid)" = "$pid" ] || { echo "dnsmasq restarted on an unchanged list"; exit 1; }
               echo "ok: names resolve through dnsmasq into the allowlist; other names and outside DNS are blocked"'
           docker network rm berth-fw-ci >/dev/null
+      - name: firewall - an entry dnsmasq can't use is skipped, and DNS stays up (#104)
+        run: |
+          set -euo pipefail
+          cfg=$(mktemp -d)
+          long=$(printf 'a%.0s' $(seq 1 70))   # passes the script's own check; dnsmasq refuses the label
+          printf 'mode on\nexample.com\nweb-git-*.example.app\n*.wikipedia.org\n999.1.1.1/99\n2001:db8::1\n%s.example.org\n' "$long" > "$cfg/firewall.txt"
+          docker network create berth-bad-ci >/dev/null
+          docker run --rm --network berth-bad-ci --cap-add NET_ADMIN --cap-add NET_RAW -v "$cfg:/config:ro" \
+            --entrypoint bash berth-image-ci -c '
+              set -euo pipefail
+              rc=0; init-firewall.sh apply 2>/tmp/err || rc=$?
+              cat /tmp/err
+              [ "$rc" = 3 ] || { echo "apply ended with $rc, not 3"; exit 1; }
+              [ "$(cat /run/firewall.status | cut -d" " -f1,3-)" = "on (4 skipped)" ] || { echo "status: $(cat /run/firewall.status)"; exit 1; }
+              for e in "web-git-\*.example.app" "999.1.1.1/99" "2001:db8::1" "aaaaaaaaaa"; do
+                grep -q "^firewall: skipping .$e" /tmp/err || { echo "no skipping line for $e"; exit 1; }
+              done
+              # dnsmasq is up, on a config it accepts, with one line per name.
+              kill -0 "$(cat /run/dnsmasq.pid)" && dnsmasq --test --conf-file=/run/berth-dnsmasq.conf 2>/dev/null
+              grep -qx "ipset=/example.com/allowed-dns" /run/berth-dnsmasq.conf
+              grep -qx "nameserver 127.0.0.1" /etc/resolv.conf
+              # The good entries work: an exact name, and a leading wildcard (the domain and what is under it).
+              curl -fsS -o /dev/null --max-time 15 https://example.com
+              curl -sS -o /dev/null --max-time 15 https://en.wikipedia.org
+              if curl -fsS -o /dev/null --max-time 8 https://www.debian.org 2>/dev/null; then echo "a name not allowlisted is reachable"; exit 1; fi
+              # The 5-minute refresh keeps dnsmasq, and still reports the skipped entries.
+              pid=$(cat /run/dnsmasq.pid); rc=0; init-firewall.sh apply >/dev/null 2>&1 || rc=$?
+              [ "$rc" = 3 ] && [ "$(cat /run/dnsmasq.pid)" = "$pid" ] || { echo "second apply: exit $rc, or dnsmasq restarted"; exit 1; }
+              # dnsmasq cannot start: names still resolve, through the container'"'"'s own resolver.
+              mkdir /tmp/stub; printf "#!/bin/sh\ncase \" \$* \" in *\" --test \"*) exec /usr/sbin/dnsmasq \"\$@\" ;; esac\nexit 2\n" > /tmp/stub/dnsmasq; chmod +x /tmp/stub/dnsmasq
+              kill "$pid"; sleep 0.3
+              rc=0; PATH=/tmp/stub:$PATH init-firewall.sh apply >/dev/null 2>&1 || rc=$?
+              [ "$rc" = 3 ] && grep -q "no DNS allowlisting" /run/firewall.status || { echo "no dnsmasq: exit $rc, status $(cat /run/firewall.status)"; exit 1; }
+              ! grep -qx "nameserver 127.0.0.1" /etc/resolv.conf || { echo "resolv.conf still points at a dnsmasq that is not running"; exit 1; }
+              curl -fsS -o /dev/null --max-time 15 https://example.com
+              echo "ok: bad entries are skipped and reported; DNS stays up with and without dnsmasq"'
+          docker network rm berth-bad-ci >/dev/null
       - name: firewall - the provider line replaces Anthropic's endpoints (berth init --profile)
         run: |
           set -euo pipefail
