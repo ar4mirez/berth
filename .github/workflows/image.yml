@@ -125,6 +125,45 @@ jobs:
               curl -fsS -o /dev/null --max-time 15 https://example.com
               echo "ok: bad entries are skipped and reported; DNS stays up with and without dnsmasq"'
           docker network rm berth-bad-ci >/dev/null
+      - name: git - github.com over HTTPS with gh's token, for registered repos only (#103)
+        run: |
+          set -euo pipefail
+          cfg=$(mktemp -d); printf 'hello git@github.com:octocat/Hello-World.git\n' > "$cfg/repos.txt"; chmod -R a+rX "$cfg"
+          docker run --rm -v "$cfg:/config:ro" --entrypoint bash berth-image-ci -c '
+            set -euo pipefail
+            mkdir -p /etc/claude-env; echo t-ci > /etc/claude-env/org
+            n() { runuser -u node -- "$@"; }
+            refused() {  # refused <url>: git must not connect, and the guard says why
+              local out; if out=$(n git ls-remote "$1" HEAD 2>&1); then echo "reachable: $1"; exit 1; fi
+              grep -q "repo-guard: github.com/octocat/spoon-knife is not in the allowed repo list" <<<"$out" || { echo "$1: $out"; exit 1; }
+            }
+            # As shipped, and with gh signed out: SSH, through git-ssh-guard.
+            [ "$(git-transport show)" = ssh ] && git-transport apply
+            [ "$(n git ls-remote --get-url https://github.com/octocat/Hello-World)" = "git@github.com:octocat/Hello-World" ]
+            refused https://github.com/octocat/Spoon-Knife
+            # gh signed in (a stand-in with no real token: a public repo needs none to read).
+            printf "#!/bin/sh\ncase \"\$1 \$2\" in \"auth token\") echo fake ;; \"auth git-credential\") cat >/dev/null ;; *) exit 1 ;; esac\n" > /usr/local/sbin/gh
+            chmod 755 /usr/local/sbin/gh
+            [ "$(git-transport apply)" = "git: github.com over https" ] && [ "$(git-transport show)" = https ]
+            for u in https://github.com/octocat/Hello-World git@github.com:octocat/Hello-World.git ssh://git@github.com/octocat/Hello-World; do
+              [ "$(n git ls-remote --get-url "$u" | sed "s/\.git$//")" = "berth::https://github.com/octocat/Hello-World" ] || { echo "$u is not rewritten"; exit 1; }
+              n git ls-remote "$u" HEAD | grep -q "HEAD$" || { echo "a registered repo is not reachable as $u"; exit 1; }
+            done
+            for u in https://github.com/octocat/Spoon-Knife http://github.com/octocat/Spoon-Knife git@github.com:octocat/Spoon-Knife.git \
+                     ssh://git@github.com/octocat/Spoon-Knife berth::https://github.com/octocat/Spoon-Knife \
+                     berth::https://github.com/octocat/Hello-World/../Spoon-Knife; do
+              if n git ls-remote "$u" HEAD >/dev/null 2>&1; then echo "an unregistered repo is reachable as $u"; exit 1; fi
+            done
+            refused https://github.com/octocat/Spoon-Knife
+            # GIT_TRANSPORT=ssh keeps the org key even with gh signed in; an unchanged choice rewrites nothing.
+            [ "$(GIT_TRANSPORT=ssh git-transport apply)" = "git: github.com over ssh" ] && [ -z "$(GIT_TRANSPORT=ssh git-transport apply)" ]
+            [ "$(n git ls-remote --get-url https://github.com/octocat/Hello-World)" = "git@github.com:octocat/Hello-World" ]
+            # Claude may not rewire it.
+            for c in "git -c credential.helper=store fetch" "git remote-https origin https://github.com/octocat/Spoon-Knife" "GIT_TRANSPORT=ssh git fetch" "GIT_CONFIG_NOSYSTEM=1 git fetch"; do
+              echo "{\"tool_name\":\"Bash\",\"cwd\":\"/tmp\",\"tool_input\":{\"command\":\"$c\"}}" | n node /usr/local/lib/claude-env/repo-guard.js | grep -q "\"permissionDecision\":\"deny\"" \
+                || { echo "the hook allows: $c"; exit 1; }
+            done
+            echo "ok: registered repos over HTTPS and SSH; unregistered ones refused on every URL form"'
       - name: firewall - the provider line replaces Anthropic's endpoints (berth init --profile)
         run: |
           set -euo pipefail

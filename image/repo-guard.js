@@ -115,8 +115,9 @@ function main(input) {
       /\bgit\b[^;&|\n]*\bsubmodule\s+add\b/.test(cmd)) {
     decide(`Cloning is done through berth, not inside the container. ${HOW('<owner/repo>')}`);
   }
-  if (/GIT_SSH(_COMMAND)?=|core\.sshCommand|insteadOf|GIT_CONFIG_(PARAMETERS|COUNT|KEY_|VALUE_)|ssh\.variant|git-ssh-guard|sudoers|\/opt\/claude-secrets/i.test(cmd)) {
-    decide('Changing how git connects (ssh command, URL rewrites, the git guard) is not allowed in this container.');
+  if (/GIT_SSH(_COMMAND)?=|core\.sshCommand|insteadOf|GIT_CONFIG_(PARAMETERS|COUNT|KEY_|VALUE_|NOSYSTEM|SYSTEM|GLOBAL)|ssh\.variant|git-ssh-guard|sudoers|\/opt\/claude-secrets/i.test(cmd) ||
+      /credential\.helper|\bremote-(https?|ftps?|ext|fd)\b|git-remote-berth|git-transport|GIT_TRANSPORT|berth::|\bext::/i.test(cmd)) {
+    decide('Changing how git connects (ssh command, URL rewrites, credential helpers, the git guards) is not allowed in this container.');
   }
   const remote = /\bgit\b[^;&|\n]*\bremote\s+(?:add|set-url)\b([^;&|\n]*)/.exec(cmd);
   if (remote) {

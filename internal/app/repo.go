@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ar4mirez/berth/internal/contract"
 	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/repopolicy"
 )
@@ -196,6 +198,7 @@ func (a *App) repoAdd(ctx context.Context, o, f string, args []string) error {
 	}
 	if a.passthrough(ctx, false, "docker", "exec", "claude-"+o, "test", "-e", "/workspace/"+dir) == nil {
 		fmt.Fprintf(a.Stdout, "/workspace/%s already present\n", dir)
+		a.warnIfReadOnly(ctx, o, dir, canon)
 		return nil
 	}
 	if a.cloneIn(ctx, o, branch, url, dir) != nil {
@@ -225,7 +228,45 @@ func (a *App) repoAdd(ctx context.Context, o, f string, args []string) error {
 		return fmt.Errorf("clone failed; registration rolled back. Does this org's key have access? (%s info %s)", Tool, o)
 	}
 	fmt.Fprintf(a.Stdout, "Cloned into /workspace/%s\n", dir)
+	a.warnIfReadOnly(ctx, o, dir, canon)
 	return nil
+}
+
+// pushRefused is what a git host says when the credential can't write to the repo: a read-only or
+// another repo's deploy key over SSH, a token without push access over HTTPS.
+var pushRefused = regexp.MustCompile(`(?i)denied|read.only|permission|\b403\b|not authori[sz]ed|write access`)
+
+// warnIfReadOnly warns when the org can't push to the repo it just registered (#103; berth-only,
+// PARITY.md). A clone of a public repo needs no write access, so without this the first sign is a
+// failed push from inside the container. It asks the repo's own remote with a dry-run push, over
+// whichever transport the org uses, and creates nothing. Read-only use is legitimate, so this only
+// warns; a failure that isn't a refusal (an empty repo, no network) says nothing.
+func (a *App) warnIfReadOnly(ctx context.Context, o, dir, canon string) {
+	var stderr bytes.Buffer
+	err := a.Host.Exec.Run(ctx, host.Cmd{Args: []string{"docker", "exec", "-u", "node", "-w", "/workspace/" + dir, "claude-" + o,
+		"git", "push", "--dry-run", "--quiet", "origin", "HEAD:refs/heads/berth-write-check"}, Stdout: io.Discard, Stderr: &stderr})
+	if err == nil || !pushRefused.Match(stderr.Bytes()) {
+		return
+	}
+	said := ""
+	for _, l := range strings.Split(strings.TrimSpace(stderr.String()), "\n") {
+		if pushRefused.MatchString(l) {
+			said = strings.TrimSpace(l)
+			break
+		}
+	}
+	how, _ := a.capture(ctx, true, "docker", "exec", "claude-"+o, contract.GitTransport, "show")
+	fmt.Fprintf(a.Stderr, "WARNING: %s can clone %s but can't push to it: %s\n", o, canon, said)
+	if how == "https" {
+		fmt.Fprintf(a.Stderr, `  git uses the gh login's token there, and that account has no write access to the repo.
+  Fix: give the account write access, or sign in with one that has it: %[1]s gh-login %[2]s --force
+`, Tool, o)
+		return
+	}
+	fmt.Fprintf(a.Stderr, `  git uses the org's SSH key there. A key added as a deploy key writes to one repo only.
+  Fix: %[1]s gh-login %[2]s (git then uses that login's token for every registered repo),
+       or add the key to the GitHub account instead of as a deploy key (%[1]s info %[2]s prints it).
+`, Tool, o)
 }
 
 // cloneIn clones url into /workspace/<dir> inside the container, as the node user.

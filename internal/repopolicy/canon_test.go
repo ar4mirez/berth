@@ -3,6 +3,7 @@ package repopolicy
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -293,5 +294,148 @@ if (!allowed.has(canon('git@github.com:acme/app.git'))) console.log('not allowed
 		if err != nil || len(out) > 0 {
 			t.Errorf("node: %v\n%s", err, out)
 		}
+	}
+}
+
+// httpsGuard runs image/git-remote-berth (git's HTTPS transport for github.com, #103) outside the
+// image: its copy sources this repo's repo-policy.sh, and `gh` and `git` are fakes. The fake git
+// prints the URL it was handed, so stdout is the repo the guard let through.
+type httpsGuard struct{ script, bin string }
+
+func newHTTPSGuard(t *testing.T) httpsGuard {
+	t.Helper()
+	dir := t.TempDir()
+	src, err := os.ReadFile(filepath.Join("..", "..", "image", "git-remote-berth"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	abs, err := filepath.Abs(policySh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const lib = ". /usr/local/lib/claude-env/repo-policy.sh\n"
+	if !bytes.Contains(src, []byte(lib)) {
+		t.Fatalf("git-remote-berth no longer sources %q", strings.TrimSpace(lib))
+	}
+	g := httpsGuard{script: filepath.Join(dir, "git-remote-berth"), bin: filepath.Join(dir, "bin")}
+	if err := os.WriteFile(g.script, bytes.Replace(src, []byte(lib), []byte(". '"+abs+"'\n"), 1), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(g.bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"gh":  "#!/bin/sh\n[ -z \"$FAKE_GH_SIGNED_OUT\" ]\n",
+		"git": "#!/bin/sh\nfor a; do last=$a; done; echo \"$last\"\n",
+	} {
+		if err := os.WriteFile(filepath.Join(g.bin, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return g
+}
+
+// run returns what the guard let through ("" when it refused), and its stderr.
+func (g httpsGuard) run(t *testing.T, repos, url string, env ...string) (string, string) {
+	t.Helper()
+	reg := filepath.Join(t.TempDir(), "repos.txt")
+	if err := os.WriteFile(reg, []byte(repos), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("bash", g.script, "origin", url)
+	cmd.Env = append([]string{"PATH=" + g.bin + string(os.PathListSeparator) + os.Getenv("PATH"), "REPOS_FILE=" + reg, "LC_ALL=C"}, env...)
+	var out, errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	err := cmd.Run()
+	if err == nil {
+		return strings.TrimSpace(out.String()), errb.String()
+	}
+	var ee *exec.ExitError
+	if !errors.As(err, &ee) || ee.ExitCode() != 128 {
+		t.Fatalf("git-remote-berth %q: %v\n%s", url, err, errb.String())
+	}
+	if out.Len() > 0 {
+		t.Errorf("git-remote-berth %q refused, but wrote %q", url, out.String())
+	}
+	return "", errb.String()
+}
+
+// TestHTTPSGuardAgreement: the HTTPS guard lets a github.com path through exactly when its
+// canonical form is registered, by the same rules as the other three places (canon.tsv). It is
+// stricter in one way, as git-ssh-guard is: a path with ".." is refused outright.
+func TestHTTPSGuardAgreement(t *testing.T) {
+	if !need(t, "bash") {
+		return
+	}
+	g := newHTTPSGuard(t)
+	const other = "other git@github.com:acme/some-other-repo.git\n"
+	n := 0
+	for _, c := range loadCases(t) {
+		// What can follow https://github.com/ on git's command line: a path, with no second host.
+		if (c.host != "" && c.host != "github.com") || strings.ContainsAny(c.input, ":@ \t") || strings.ContainsFunc(c.input, func(r rune) bool { return r < '!' || r > '~' }) {
+			continue
+		}
+		n++
+		want := Canon(c.input, "github.com")
+		if strings.Contains(c.input, "..") || strings.ContainsFunc(c.input, func(r rune) bool {
+			return !strings.ContainsRune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~/-", r)
+		}) {
+			want = ""
+		}
+		url := "https://github.com/" + c.input
+		// Registered: let through, as the canonical repo. Not registered: refused.
+		if want != "" {
+			got, stderr := g.run(t, other+"x https://"+want+"\n", url)
+			if exp := "https://" + want + ".git"; got != exp {
+				t.Errorf("canon.tsv:%d: registered %q: %q let through %q, want %q\n%s", c.line, want, url, got, exp, stderr)
+			}
+		}
+		if got, _ := g.run(t, other, url); got != "" {
+			t.Errorf("canon.tsv:%d: %q isn't registered, and was let through as %q", c.line, url, got)
+		}
+	}
+	if n < 20 {
+		t.Fatalf("only %d canon.tsv rows apply to the HTTPS guard", n)
+	}
+}
+
+// TestHTTPSGuardRefuses: what the HTTPS guard never connects for, whatever is registered.
+func TestHTTPSGuardRefuses(t *testing.T) {
+	if !need(t, "bash") {
+		return
+	}
+	g := newHTTPSGuard(t)
+	const repos = "app git@github.com:acme/app.git\nnotes local\nodd ssh://github.com:2222/acme/odd\n"
+	if got, stderr := g.run(t, repos, "https://github.com/acme/app.git"); got != "https://github.com/acme/app.git" {
+		t.Fatalf("a registered repo was refused: %s", stderr)
+	}
+	for url, why := range map[string]string{
+		"https://github.com/acme/other":              "github.com/acme/other is not in the allowed repo list",
+		"https://github.com/acme/app/../../acme/x":   "bad repo path",
+		"https://github.com/acme/odd":                "not in the allowed repo list", // registered with no canonical form: allows nothing
+		"https://github.com/notes":                   "not in the allowed repo list", // a local repo has no remote
+		"https://gitlab.com/acme/app":                "only https://github.com/",
+		"https://github.com.example.com/acme/app":    "only https://github.com/",
+		"https://user:pw@github.com/acme/app":        "only https://github.com/",
+		"https://github.com:8443/acme/app":           "only https://github.com/",
+		"http://github.com/acme/app":                 "only https://github.com/",
+		"ssh://git@github.com/acme/app":              "only https://github.com/",
+		"https://github.com/acme/app?x=1":            "only https://github.com/",
+		"https://github.com/acme/app --upload-pack=": "only https://github.com/",
+		"https://github.com/":                        "only https://github.com/",
+	} {
+		got, stderr := g.run(t, repos, url)
+		if got != "" || !strings.Contains(stderr, "repo-guard: ") || !strings.Contains(stderr, why) {
+			t.Errorf("%q: let through %q, stderr %q (want %q)", url, got, stderr, why)
+		}
+	}
+	// Signed out of gh: refused, with what to run.
+	got, stderr := g.run(t, repos, "https://github.com/acme/app", "FAKE_GH_SIGNED_OUT=1")
+	if got != "" || !strings.Contains(stderr, "berth gh-login") {
+		t.Errorf("signed out: let through %q, stderr %q", got, stderr)
+	}
+	// An empty registry allows nothing.
+	if got, _ := g.run(t, "", "https://github.com/acme/app"); got != "" {
+		t.Errorf("empty registry: let through %q", got)
 	}
 }

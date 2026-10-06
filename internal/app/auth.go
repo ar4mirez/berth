@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"golang.org/x/term"
+
+	"github.com/ar4mirez/berth/internal/contract"
 )
 
 // browserHint is ccenv's browser_hint, followed by its blank line.
@@ -284,6 +286,7 @@ func (a *App) GhLogin(ctx context.Context, o, flag string) error {
 	}
 	if acct := a.ghAccount(ctx, o); acct != "" && flag != "--force" {
 		fmt.Fprintf(a.Stdout, "%s: gh already signed in as %s (use --force to sign in again)\n", o, acct)
+		a.gitTransport(ctx, o)
 		a.ensureGitKey(ctx, o, acct)
 		return nil
 	}
@@ -302,8 +305,22 @@ func (a *App) GhLogin(ctx context.Context, o, flag string) error {
 		return fmt.Errorf("gh sign-in didn't complete for %s", o)
 	}
 	fmt.Fprintf(a.Stdout, "\n%s: gh signed in as %s\n", o, acct)
+	a.gitTransport(ctx, o)
 	a.ensureGitKey(ctx, o, acct)
 	return nil
+}
+
+// gitTransport has the container choose how git reaches github.com now that gh is signed in
+// (#103; berth-only, PARITY.md): over HTTPS with gh's token, unless org.env says GIT_TRANSPORT=ssh.
+// The container checks every 30 seconds anyway; this makes it immediate. An image from before #103
+// has no such script, and keeps SSH.
+func (a *App) gitTransport(ctx context.Context, o string) {
+	if _, err := a.capture(ctx, true, "docker", "exec", "claude-"+o, contract.GitTransport, "apply"); err != nil {
+		return
+	}
+	if how, _ := a.capture(ctx, true, "docker", "exec", "claude-"+o, contract.GitTransport, "show"); how == "https" {
+		fmt.Fprintf(a.Stdout, "%s: git reaches github.com with this login's token (registered repos only). To keep the org's SSH key instead: GIT_TRANSPORT=ssh in org.env\n", o)
+	}
 }
 
 // ensureGitKey puts the org's git key on acct's GitHub, so clones over SSH work after gh-login

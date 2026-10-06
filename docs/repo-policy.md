@@ -1,18 +1,20 @@
 # Repo policy: canonical repo form
 
-An org may only use the repos registered in its `config/repos.txt`. Three places decide
+An org may only use the repos registered in its `config/repos.txt`. Four places decide
 whether a repo is one of them, and they must agree exactly:
 
 | Where | Implementation | Sees |
 |---|---|---|
 | git's ssh transport (`image/git-ssh-guard`) | `repo_canon` in `image/repo-policy.sh` | the ssh host, `-p` port, and the upload-pack path |
+| git's HTTPS transport for github.com (`image/git-remote-berth`, when the org's gh is signed in) | `repo_canon` in `image/repo-policy.sh` | the path after `https://github.com/` |
 | Claude's PreToolUse hook (`image/repo-guard.js`) | `canon` | `git remote add/set-url` URLs, download URLs |
 | the host CLI (`ccenv`, then berth) | `repo_canon`, then `internal/repopolicy.Canon` | what the user types, `origin` of adopted folders |
 
 Each one maps a repo reference to a **canonical form**, `host/path`, and compares it with the
 canonical forms of the registered URLs. The rules below define that form.
 [`testdata/canon.tsv`](https://github.com/ar4mirez/berth/blob/main/testdata/canon.tsv) pins them, and a Go test runs every row through all
-three implementations (bash, node and Go) and fails if any of them disagrees.
+three implementations (bash, node and Go) and fails if any of them disagrees. A second test runs
+the rows that can follow `https://github.com/` through the HTTPS transport itself.
 
 The guiding rule is **fail closed**. An input that doesn't fit these rules has no canonical form
 (the functions return the empty string), and an empty form never matches anything, so it is denied.
