@@ -2,12 +2,14 @@
 package cli
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
 	"io"
 
 	"github.com/spf13/cobra"
 
+	"github.com/ar4mirez/berth/internal/app"
+	"github.com/ar4mirez/berth/internal/ops"
 	"github.com/ar4mirez/berth/internal/version"
 )
 
@@ -70,12 +72,20 @@ func execute(root *cobra.Command, args []string, stdin io.Reader, stdout, stderr
 	if err == nil {
 		return 0
 	}
-	// An exit code without a message: *ExitError here, *app.Exit, or a passthrough command's own
+	// A typed error (internal/ops) carries its exit code, and whether ccenv prints nothing for it:
+	// an exit code without a message is *ExitError here, *app.Exit, or a passthrough command's own
 	// exit (*host.ExitError).
-	var ec interface{ ExitCode() int }
-	if errors.As(err, &ec) {
-		return ec.ExitCode()
+	e := ops.AsError(err)
+	if out, _ := root.PersistentFlags().GetString("output"); out == app.OutputJSON {
+		// One document on stderr, whatever failed: stdout holds a result or nothing (docs/json.md).
+		enc := json.NewEncoder(stderr)
+		enc.SetIndent("", "  ")
+		enc.SetEscapeHTML(false)
+		_ = enc.Encode(e.Doc())
+		return e.Code
 	}
-	_, _ = fmt.Fprintf(stderr, "berth: %v\n", err)
-	return 1
+	if !e.Quiet {
+		_, _ = fmt.Fprintf(stderr, "berth: %v\n", err)
+	}
+	return e.Code
 }

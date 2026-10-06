@@ -71,8 +71,11 @@ A read command either returns data or says why not in the catalog (`NoJSON`). Th
 - [x] Golden files for every document, the four from #68 included
 
 ### PR 3: rich errors
-- [ ] `ops.Error`: exit code, message, hint, kind; used by every operation in `internal/ops`
-- [ ] With `--output json`, a failure is a `berth.error/v1` document on stderr
+- [x] `ops.Error`: kind, exit code, message, hint; returned by every operation in `internal/ops`, and by the
+      shared guards in `internal/app`
+- [x] `ops.AsError` types any other failure (a silent exit, a command's own exit code, `--read-only`, usage)
+- [x] With `--output json`, a failure is a `berth.error/v1` document on stderr (`TestBerthJSONErrors`)
+- [x] Text output unchanged, silent exits included
 
 ### PR 4: progress events
 - [ ] `ops.Event` and a sink; `up`, `restart`, `build`, `pull`, `backup`, `restore`, `logs` and `remote logs` emit

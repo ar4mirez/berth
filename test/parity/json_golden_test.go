@@ -1,6 +1,7 @@
 package parity
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,5 +107,59 @@ func TestBerthJSONGolden(t *testing.T) {
 		if !seen[f.Name()] {
 			t.Errorf("testdata/json/%s has no case", f.Name())
 		}
+	}
+}
+
+// TestBerthJSONErrors: under --output json a failure is one berth.error/v1 document on stderr, with
+// nothing on stdout and the same exit code as the text output. Where ccenv exits without a message,
+// the document still says what happened.
+func TestBerthJSONErrors(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		args  []string
+		files map[string]File
+		rules []Rule
+		exit  int
+		want  string
+	}{
+		{"an unknown org", []string{"info", "nope"}, twoOrgs, nil, 1,
+			`{"schema":"berth.error/v1","kind":"not-found","code":1,"message":"unknown org 'nope'","hint":"run: <tool> init nope"}`},
+		{"a stopped org", []string{"remote", "globex", "status"}, twoOrgs, nil, 1,
+			`{"schema":"berth.error/v1","kind":"not-running","code":1,"message":"claude-globex is not running","hint":"<tool> up globex"}`},
+		{"ccenv's silent exit", []string{"repo", "audit", "globex"}, twoOrgs, nil, 2,
+			`{"schema":"berth.error/v1","kind":"state","code":2,"message":"globex has no quarantine folder yet: it has never started","hint":"<tool> up globex"}`},
+		{"a writing command", []string{"up", "acme"}, twoOrgs, nil, 1,
+			`{"schema":"berth.error/v1","kind":"usage","code":1,"message":"--output json isn't available for \"up\": it changes things, and returns no data","hint":""}`},
+		{"a stream", []string{"logs", "acme"}, twoOrgs, nil, 1,
+			`{"schema":"berth.error/v1","kind":"usage","code":1,"message":"--output json isn't available for \"logs\": it is a stream of log lines","hint":""}`},
+		{"a failing command", []string{"fw", "acme", "presets"}, twoOrgs, running("acme", Rule{Bin: "docker", Match: `presets$`, Exit: 4}), 4,
+			`"kind":"command","code":4,`},
+	} {
+		r := run(t, Berth(berthBin), Scenario{Args: append([]string{"--output", "json"}, c.args...), Files: c.files, Rules: c.rules})
+		// Compact, fields in the document's order.
+		var doc struct {
+			Schema  string `json:"schema"`
+			Kind    string `json:"kind"`
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+			Hint    string `json:"hint"`
+		}
+		if err := json.Unmarshal([]byte(r.Stderr), &doc); err != nil {
+			t.Errorf("%s: stderr isn't one JSON document: %v\n%s", c.name, err, r.Stderr)
+			continue
+		}
+		var b strings.Builder
+		enc := json.NewEncoder(&b)
+		enc.SetEscapeHTML(false)
+		_ = enc.Encode(doc)
+		got := b.String()
+		if r.Exit != c.exit || r.Stdout != "" || !strings.Contains(got, c.want) {
+			t.Errorf("%s: exit %d, stdout %q\nstderr %s\n  want %s", c.name, r.Exit, r.Stdout, got, c.want)
+		}
+	}
+	// Without --output json nothing changes: the message as before, and silence where ccenv is silent.
+	r := run(t, Berth(berthBin), Scenario{Args: []string{"repo", "audit", "globex"}, Files: twoOrgs})
+	if r.Exit != 2 || r.Stderr != "" || r.Stdout != "" {
+		t.Errorf("text, silent exit: exit %d, stdout %q, stderr %q", r.Exit, r.Stdout, r.Stderr)
 	}
 }

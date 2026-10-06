@@ -124,7 +124,7 @@ func audit(s System, org string, entries []repopolicy.Entry) (RepoAudit, error) 
 	// end the command here with exit 2, before anything below is printed.
 	names, err := s.DirNames(a.QuarantineDir)
 	if err != nil {
-		return a, &Exit{Code: 2}
+		return a, quiet(KindState, 2, Tool+" up "+org, "%s has no quarantine folder yet: it has never started", org)
 	}
 	for _, n := range names { // ls: no hidden entries, sorted
 		if !strings.HasPrefix(n, ".") {

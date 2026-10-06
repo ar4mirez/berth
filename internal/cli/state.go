@@ -117,10 +117,13 @@ func addGlobalFlags(root *cobra.Command) {
 				if op.NoJSON != "" {
 					why = "it is " + op.NoJSON
 				}
-				return fmt.Errorf("--output json isn't available for %q: %s", strings.TrimPrefix(cmd.CommandPath(), root.Name()+" "), why)
+				return &ops.Error{Kind: ops.KindUsage, Code: 1,
+					Msg: fmt.Sprintf("--output json isn't available for %q: %s", strings.TrimPrefix(cmd.CommandPath(), root.Name()+" "), why)}
 			}
 		default:
-			return fmt.Errorf("--output must be text or json, not %q", *output)
+			bad := *output
+			*output = app.OutputText // so the error itself prints as text
+			return &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: fmt.Sprintf("--output must be text or json, not %q", bad)}
 		}
 		cmd.SetContext(context.WithValue(cmd.Context(), outputKey{}, *output))
 		st := config.State{ReadOnly: *readOnly}
