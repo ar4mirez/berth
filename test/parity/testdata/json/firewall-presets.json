@@ -1,0 +1,19 @@
+{
+  "schema": "berth.firewall-presets/v1",
+  "presets": [
+    {
+      "name": "@go",
+      "hosts": [
+        "proxy.golang.org",
+        "sum.golang.org"
+      ]
+    },
+    {
+      "name": "@python",
+      "hosts": [
+        "pypi.org",
+        "files.pythonhosted.org"
+      ]
+    }
+  ]
+}

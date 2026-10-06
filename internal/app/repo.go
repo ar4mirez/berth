@@ -13,6 +13,7 @@ import (
 
 	"github.com/ar4mirez/berth/internal/contract"
 	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/ops"
 	"github.com/ar4mirez/berth/internal/repopolicy"
 )
 
@@ -57,9 +58,9 @@ func (a *App) Repo(ctx context.Context, sub, o string, rest []string) error {
 	case "policy":
 		return a.repoPolicy(ctx, o, nth(rest, 0))
 	case "audit":
-		return a.repoAudit(ctx, o, entries, nth(rest, 0) == "--quiet")
+		return a.repoAudit(o, nth(rest, 0) == "--quiet")
 	}
-	return a.repoLs(ctx, o, entries)
+	return a.repoLs(ctx, o)
 }
 
 func (a *App) reposFile(o string) string { return path.Join(a.Orgs.Dir, o, "config", "repos.txt") }
@@ -680,7 +681,14 @@ func (a *App) repoSync(ctx context.Context, o string, entries []repopolicy.Entry
 // repoPolicy is `ccenv repo policy <org> [enforce|warn|off]`.
 func (a *App) repoPolicy(ctx context.Context, o, m string) error {
 	if m == "" {
-		fmt.Fprintln(a.Stdout, "REPO_POLICY="+a.repoPolicyShown(o))
+		pol, err := ops.GetRepoPolicy(a, o)
+		if err != nil {
+			return err
+		}
+		if a.Output == OutputJSON {
+			return a.writeJSON(pol)
+		}
+		fmt.Fprintln(a.Stdout, "REPO_POLICY="+pol.Policy)
 		return nil
 	}
 	if m != "enforce" && m != "warn" && m != "off" {
@@ -722,108 +730,58 @@ func (a *App) repoEntries(ctx context.Context, o string) ([]repopolicy.Entry, er
 	return repopolicy.Entries(data), nil
 }
 
-func (a *App) repoLs(ctx context.Context, o string, entries []repopolicy.Entry) error {
-	fmt.Fprintf(a.Stdout, "%-22s %-40s %-18s %s\n", "DIR", "REPO", "BRANCH", "STATUS")
-	for _, e := range entries {
-		b := e.Branch
-		var st string
-		switch {
-		case a.running(ctx, o) && a.passthrough(ctx, false, "docker", "exec", "claude-"+o, "test", "-d", "/workspace/"+e.Dir+"/.git") == nil:
-			cur, n := a.repoDirty(ctx, o, e.Dir)
-			st, b = "cloned", cur
-			if n != "0" {
-				st = "cloned, " + n + " changed"
-			}
-		case a.isDir(path.Join(a.Orgs.Dir, o, "workspace", e.Dir, ".git")):
-			st = "cloned (container down)"
-		default:
-			st = "MISSING (" + Tool + " repo sync " + o + ")"
+func (a *App) repoLs(ctx context.Context, o string) error {
+	// The audit can fail (no quarantine dir yet: exit 2) after the table is printed, as in ccenv.
+	repos, err := ops.GetRepos(ctx, a, o)
+	if a.Output == OutputJSON {
+		if err != nil {
+			return err
 		}
-		if b == "-" {
-			b = ""
-		}
-		if b == "" {
-			b = "default"
-		}
-		c := e.Canon
-		if c == "" {
-			c = "-" // repo_entries' placeholder for a URL with no canonical form
-		}
-		if e.URL == "local" {
-			c = "(local only, not published)"
-		}
-		fmt.Fprintf(a.Stdout, "%-22s %-40s %-18s %s\n", e.Dir, c, b, st)
+		return a.writeJSON(repos)
 	}
-	if len(entries) == 0 {
+	fmt.Fprintf(a.Stdout, "%-22s %-40s %-18s %s\n", "DIR", "REPO", "BRANCH", "STATUS")
+	for _, r := range repos.Repos {
+		fmt.Fprintf(a.Stdout, "%-22s %-40s %-18s %s\n", r.Dir, r.RepoText, r.BranchText, r.StatusText)
+	}
+	if len(repos.Repos) == 0 {
 		fmt.Fprintf(a.Stdout, "(no repos registered; add one: %s repo add %s <owner/repo>)\n", Tool, o)
 	}
-	return a.repoAudit(ctx, o, entries, true)
-}
-
-// repoDirty is `read -r cur n <<<"$(repo_dirty …)"`: the first line of
-// `docker exec … git branch/status … 2>/dev/null || echo "? ?"`, split into two words.
-func (a *App) repoDirty(ctx context.Context, o, dir string) (string, string) {
-	out, err := a.captureRaw(ctx, true, "docker", "exec", "-u", "node", "-w", "/workspace/"+dir, "claude-"+o, "sh", "-c",
-		`printf "%s %s" "$(git branch --show-current 2>/dev/null || echo ?)" "$(git status --porcelain 2>/dev/null | wc -l)"`)
 	if err != nil {
-		out += "? ?\n"
+		return err
 	}
-	first, _, _ := strings.Cut(out, "\n")
-	f := strings.Fields(first)
-	switch len(f) {
-	case 0:
-		return "", ""
-	case 1:
-		return f[0], ""
-	}
-	return f[0], strings.Join(f[1:], " ") // read gives the last variable the rest of the line
+	a.printAudit(o, repos.RepoAudit, true)
+	return nil
 }
 
 // repoAudit is `ccenv repo audit <org> [--quiet]`: unregistered folders in the workspace, and what's
 // in quarantine.
-func (a *App) repoAudit(ctx context.Context, o string, entries []repopolicy.Entry, quiet bool) error {
-	registered := map[string]bool{}
-	for _, e := range entries {
-		registered[e.Dir] = true
-	}
-	ws := path.Join(a.Orgs.Dir, o, "workspace")
-	var bad []string
-	for _, n := range a.workspaceGlob(ws) {
-		if n != ".claude" && !registered[n] {
-			bad = append(bad, n)
-		}
-	}
-	// qn=$(ls quarantine 2>/dev/null | wc -l): with no quarantine dir, ls fails, and pipefail + set -e
-	// end the command here with exit 2, before anything below is printed (PARITY.md, legacy quirks).
-	q := path.Join(a.Orgs.Dir, o, "quarantine")
-	quarantined, err := a.lsNames(q)
+func (a *App) repoAudit(o string, quiet bool) error {
+	au, err := ops.GetRepoAudit(a, o)
 	if err != nil {
-		return &Exit{Code: 2}
+		return err
 	}
-	if len(bad) > 0 {
-		fmt.Fprintf(a.Stdout, "\nNot allowed in /workspace (policy: %s): %s\n", a.repoPolicyShown(o), strings.Join(bad, " "))
+	if a.Output == OutputJSON {
+		return a.writeJSON(au)
+	}
+	a.printAudit(o, au.RepoAudit, quiet)
+	return nil
+}
+
+// printAudit is the audit as ccenv prints it.
+func (a *App) printAudit(o string, au ops.RepoAudit, quiet bool) {
+	if len(au.Unregistered) > 0 {
+		fmt.Fprintf(a.Stdout, "\nNot allowed in /workspace (policy: %s): %s\n", au.Policy, strings.Join(au.Unregistered, " "))
 		fmt.Fprintf(a.Stdout, "  keep one -> %s repo adopt %s <dir>    (enforce mode quarantines them within 30s)\n", Tool, o)
 	} else if !quiet {
 		fmt.Fprintln(a.Stdout, "Workspace clean: only registered repos.")
 	}
-	if len(quarantined) > 0 {
-		fmt.Fprintf(a.Stdout, "\nQuarantined (%s):\n", q)
-		for _, n := range quarantined {
+	if len(au.Quarantined) > 0 {
+		fmt.Fprintf(a.Stdout, "\nQuarantined (%s):\n", au.QuarantineDir)
+		for _, n := range au.Quarantined {
 			fmt.Fprintln(a.Stdout, "  "+n)
 		}
 		fmt.Fprintf(a.Stdout, "  bring a repo back -> %s repo adopt %s <name>\n", Tool, o)
 	}
-	return nil
-}
-
-// repoPolicyShown is `$(envval "$org" REPO_POLICY | sed 's/^$/enforce/')`: an empty value shows as
-// enforce, but a missing key shows as nothing (sed gets no line at all).
-func (a *App) repoPolicyShown(o string) string {
-	v, ok, _ := a.Orgs.Get(o, "REPO_POLICY")
-	if ok && v == "" {
-		return "enforce"
-	}
-	return v
 }
 
 // workspaceGlob is `for n in "$ws"/* "$ws"/.[!.]*; do [ -e "$n" ] || continue; …`: the names of
@@ -850,22 +808,6 @@ func (a *App) workspaceGlob(ws string) []string {
 	sort.Strings(visible)
 	sort.Strings(hidden)
 	return append(visible, hidden...)
-}
-
-// lsNames is `ls dir`: its visible entries, sorted; an error if dir can't be listed.
-func (a *App) lsNames(dir string) ([]string, error) {
-	entries, err := a.Host.FS.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	var names []string
-	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), ".") {
-			names = append(names, e.Name())
-		}
-	}
-	sort.Strings(names)
-	return names, nil
 }
 
 // OrgNames lists the orgs (dirs with an org.env) for shell completion.

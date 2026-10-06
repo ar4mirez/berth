@@ -41,13 +41,16 @@ type Op struct {
 	Note string
 	// JSON is true when the operation returns data (`--output json`).
 	JSON bool
+	// NoJSON says why a reading operation returns no data. Every reading operation has one or the
+	// other (TestReadsReturnDataOrSayWhyNot).
+	NoJSON string
 	// Subs, for Access BySub: the subcommands. "" is the default subcommand.
 	Subs map[string]Op
 }
 
 var (
-	read      = Op{Access: Read}
 	readJSON  = Op{Access: Read, JSON: true}
+	readText  = func(why string) Op { return Op{Access: Read, NoJSON: why} }
 	write     = Op{Access: Write}
 	writeMay  = func(note string) Op { return Op{Access: Write, Restart: Maybe, Note: note} }
 	writeHard = func(note string) Op { return Op{Access: Write, Restart: Always, Note: note} }
@@ -59,10 +62,10 @@ var Catalog = map[string]Op{
 	"ls":           readJSON,
 	"info":         readJSON,
 	"whoami":       readJSON,
-	"logs":         read,
-	"completion":   read,
-	"parity-check": read,
-	"connect":      read, // an SSH tunnel from this machine; changes nothing (#58)
+	"logs":         readText("a stream of log lines"),
+	"completion":   readText("a shell script"),
+	"parity-check": readText("a line diff against ccenv, for the cutover"),
+	"connect":      readText("holds an SSH tunnel open until interrupted"), // changes nothing (#58)
 
 	// Lifecycle.
 	"init":      write,
@@ -89,7 +92,7 @@ var Catalog = map[string]Op{
 
 	// Settings, per subcommand.
 	"password": {Access: BySub, Subs: map[string]Op{
-		"": read, "show": read,
+		"": readText("a secret: secrets never appear in JSON"), "show": readText("a secret: secrets never appear in JSON"),
 		"rotate": writeMay("restarts a running org so the browser terminal uses the new password"),
 	}},
 	"env": {Access: BySub, Subs: map[string]Op{
@@ -99,21 +102,21 @@ var Catalog = map[string]Op{
 		"rm":    writeMay("restarts a running org unless --no-restart"),
 	}},
 	"remote": {Access: BySub, Subs: map[string]Op{
-		"": readJSON, "status": readJSON, "logs": read,
+		"": readJSON, "status": readJSON, "logs": readText("a stream of log lines"),
 		"restart": write, // the Remote Control service, not the container
 	}},
 	"fw": {Access: BySub, Subs: map[string]Op{
-		"": readJSON, "show": readJSON, "presets": read, "test": read,
+		"": readJSON, "show": readJSON, "presets": readJSON, "test": readJSON,
 		// Applied live inside a running container; no restart.
 		"allow": write, "add": write, "deny": write, "remove": write, "rm": write,
 		"on": write, "off": write, "edit": write, "reload": write,
 	}},
 	"repo": {Access: BySub, Subs: map[string]Op{
-		"ls": read, "list": read, "audit": read,
+		"ls": readJSON, "list": readJSON, "audit": readJSON,
 		"add": write, "new": write, "create": write, "publish": write, "rm": write, "remove": write,
 		"adopt": write, "sync": write,
 		// policy: showing reads; setting a mode restarts a running org to apply it.
-		"policy": {Access: BySub, Subs: map[string]Op{"": read, "<mode>": writeMay("restarts a running org to apply the policy")}},
+		"policy": {Access: BySub, Subs: map[string]Op{"": readJSON, "<mode>": writeMay("restarts a running org to apply the policy")}},
 	}},
 	"clone": write,
 
@@ -124,7 +127,7 @@ var Catalog = map[string]Op{
 	"rehydrate": write,
 	"migrate":   write, // streams the org; nothing restarts here
 	"schedule": {Access: BySub, Subs: map[string]Op{
-		"status": read,
+		"status": readJSON,
 		"":       write, "run": write, "now": write, "off": write, "--off": write,
 	}},
 
@@ -138,7 +141,7 @@ var Catalog = map[string]Op{
 	"host": {Access: BySub, Subs: map[string]Op{
 		"ls": readJSON, "add": write, "rm": write, "rotate-access": write,
 		// The host guard's rules apply live to running containers; nothing restarts.
-		"guard": {Access: BySub, Subs: map[string]Op{"": read, "status": read, "on": write, "off": write}},
+		"guard": {Access: BySub, Subs: map[string]Op{"": readJSON, "status": readJSON, "on": write, "off": write}},
 	}},
 
 	// The default org (#55): showing it reads; setting or clearing it writes the operator's config.

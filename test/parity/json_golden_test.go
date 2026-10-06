@@ -17,6 +17,16 @@ type jsonCase struct {
 	exit int
 }
 
+// jsonRepos is acme with three registered repos (one cloned, one local, one missing), a stray
+// folder in its workspace and something in quarantine.
+var jsonRepos = merge(repoOrg, map[string]File{
+	"state/orgs/acme/config/repos.txt":    {Content: "app git@github.com:acme/app.git\nnotes local\napi git@github.com:acme/api.git develop\n", Mode: 0o644},
+	"state/orgs/acme/workspace/app/.git":  {Dir: true},
+	"state/orgs/acme/workspace/stray":     {Dir: true},
+	"state/orgs/acme/quarantine":          {Dir: true, Mode: 0o700},
+	"state/orgs/acme/quarantine/old.2026": {Dir: true},
+})
+
 const authStatusOcto = `{"loggedIn":true,"orgId":"org-acme","email":"dev@example.com","orgName":"Acme Corp"}`
 
 // jsonCases are the documents of every command that returns data (internal/ops, docs/json.md),
@@ -31,6 +41,26 @@ var jsonCases = []jsonCase{
 	{name: "remote-on", args: []string{"remote", "acme", "status"}, files: twoOrgs, rules: rcUp("  Capacity: 1/8 sessions\n")},
 	{name: "remote-login-needed", args: []string{"remote", "acme"}, files: twoOrgs, rules: running("acme",
 		Rule{Bin: "docker", Match: `test -f /home/node/\.claude/\.credentials\.json$`, Exit: 1})},
+	{name: "repos", args: []string{"repo", "ls", "acme"}, files: jsonRepos, rules: running("acme",
+		Rule{Bin: "docker", Match: `test -d /workspace/app/\.git$`},
+		Rule{Bin: "docker", Match: `-w /workspace/app claude-acme sh -c printf`, Stdout: "feature/x 3"},
+		Rule{Bin: "docker", Match: `test -d /workspace/`, Exit: 1})},
+	{name: "repos-stopped", args: []string{"repo", "ls", "acme"}, files: jsonRepos},
+	{name: "repo-audit", args: []string{"repo", "audit", "acme"}, files: jsonRepos},
+	{name: "repo-policy", args: []string{"repo", "policy", "acme"}, files: twoOrgs},
+	{name: "firewall", args: []string{"fw", "acme", "show"}, files: twoOrgs, rules: acmeRunning},
+	{name: "firewall-presets", args: []string{"fw", "acme", "presets"}, files: twoOrgs, rules: running("acme",
+		Rule{Bin: "docker", Match: `init-firewall\.sh presets$`, Stdout: "@go         proxy.golang.org sum.golang.org\n@python     pypi.org files.pythonhosted.org\n"})},
+	{name: "firewall-test", args: []string{"fw", "acme", "test", "pypi.org", "http://blocked.example"}, files: twoOrgs, rules: running("acme",
+		Rule{Bin: "docker", Match: `curl .* http://blocked\.example$`, Exit: 7})},
+	{name: "env", args: []string{"env", "acme", "ls"}, files: withFile(twoOrgs, "state/orgs/acme/org.env",
+		File{Content: acmeEnv + "CCENV_ENV_KEYS=OPENROUTER_API_KEY  GONE_KEY\nOPENROUTER_API_KEY='sk-secret'\n"})},
+	{name: "schedule-none", args: []string{"schedule", "status"}, files: twoOrgs, rules: []Rule{
+		{Bin: "systemctl", Match: `show-environment`, Exit: 1}, {Bin: "crontab", Match: `^-l$`, Exit: 1}}},
+	{name: "schedule-cron", args: []string{"schedule", "status"}, files: twoOrgs, rules: []Rule{
+		{Bin: "systemctl", Match: `show-environment`, Exit: 1},
+		{Bin: "crontab", Match: `^-l$`, Stdout: "0 * * * * /usr/bin/true\n30 2 * * * /opt/berth backup --all --keep 7 >> /b/cron.log 2>&1  # <SCHEDULE>\n"}}},
+	{name: "hosts", args: []string{"host", "ls"}, files: twoOrgs, rules: []Rule{{Bin: "docker", Match: `^version`, Stdout: "29.0.0\n"}}},
 	{name: "default-org-none", args: []string{"use"}, files: twoOrgs},
 	{name: "default-org", args: []string{"use"}, files: withFile(twoOrgs, "home/.config/berth/context", File{Content: "acme\n", Mode: 0o600})},
 }

@@ -27,6 +27,14 @@ func (a *App) Succeeds(ctx context.Context, quiet bool, args ...string) bool {
 	return a.passthrough(ctx, quiet, args...) == nil
 }
 
+// Silent runs a command with its stdout and stderr dropped.
+func (a *App) Silent(ctx context.Context, args ...string) bool {
+	return a.quietRun(ctx, args...) == nil
+}
+
+// BackupsDir is where backups go.
+func (a *App) BackupsDir() string { return a.backupsDir() }
+
 // ReadFile reads a file on the org's host.
 func (a *App) ReadFile(p string) ([]byte, error) { return a.Host.FS.ReadFile(p) }
 
@@ -35,6 +43,22 @@ func (a *App) IsFile(p string) bool { return a.isFile(p) }
 
 // IsDir is `[ -d p ]`.
 func (a *App) IsDir(p string) bool { return a.isDir(p) }
+
+// Exists is `[ -e p ]`.
+func (a *App) Exists(p string) bool { return a.exists(p) }
+
+// DirNames is every entry of a directory, hidden ones too.
+func (a *App) DirNames(dir string) ([]string, error) {
+	entries, err := a.Host.FS.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	return names, nil
+}
 
 // OrgsDir is <state root>/orgs.
 func (a *App) OrgsDir() string { return a.Orgs.Dir }

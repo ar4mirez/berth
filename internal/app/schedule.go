@@ -9,19 +9,13 @@ import (
 	"strings"
 
 	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
-// scheduleName is berth's unit and crontab marker: berth-backup, never ccenv's ccenv-backup, so the
-// two schedules can't overwrite each other. At cutover ccenv-backup is turned off in the same step
-// (plan, decision 8).
-const scheduleName = "berth-backup"
+// scheduleName is berth's unit and crontab marker (ops.ScheduleName).
+const scheduleName = ops.ScheduleName
 
-var (
-	atHHMM = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
-	// journalLines is what `schedule status` shows of the service's journal: ccenv's pattern, plus
-	// berth's own error prefix.
-	journalLines = regexp.MustCompile(`==|Wrote|Pruned|failed|ccenv:|berth:`)
-)
+var atHHMM = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
 
 // Schedule is `ccenv schedule [--at HH:MM] [--keep N] [-o dir] | status | run | off`: a nightly
 // `backup --all` through a systemd user timer, or cron where there is no systemd user manager.
@@ -67,10 +61,11 @@ func (a *App) Schedule(ctx context.Context, args []string) error {
 	if !keepN.MatchString(keep) {
 		return errors.New("--keep needs a number >= 1")
 	}
-	if action != "status" {
-		if err := a.State.Writable("change the backup schedule"); err != nil {
-			return err
-		}
+	if action == "status" {
+		return a.scheduleStatus(ctx)
+	}
+	if err := a.State.Writable("change the backup schedule"); err != nil {
+		return err
 	}
 	unit := a.Getenv("HOME") + "/.config/systemd/user"
 	timer, service := unit+"/"+scheduleName+".timer", unit+"/"+scheduleName+".service"
@@ -78,8 +73,6 @@ func (a *App) Schedule(ctx context.Context, args []string) error {
 	hasTimer := systemd && a.isFile(timer)
 
 	switch action {
-	case "status":
-		return a.scheduleStatus(ctx, hasTimer)
 	case "run":
 		if !hasTimer {
 			return fmt.Errorf("no systemd schedule to run (%s backup --all runs it by hand)", Tool)
@@ -182,44 +175,39 @@ func (a *App) Schedule(ctx context.Context, args []string) error {
 
 // scheduleStatus is `schedule status`: the timer and the last runs from the journal, or the crontab
 // line, or that there is no schedule.
-func (a *App) scheduleStatus(ctx context.Context, hasTimer bool) error {
-	if hasTimer {
-		// systemctl … list-timers | head -2: under pipefail its failure ends the command.
-		timers, err := a.captureRaw(ctx, false, "systemctl", "--user", "list-timers", scheduleName+".timer", "--no-pager")
-		_, _ = a.Stdout.Write(headLines([]byte(timers), 2))
+func (a *App) scheduleStatus(ctx context.Context) error {
+	// A failing `systemctl list-timers` ends the command after its first lines are printed.
+	sc, err := ops.GetSchedule(ctx, a)
+	if a.Output == OutputJSON {
+		if err != nil {
+			return err
+		}
+		return a.writeJSON(sc)
+	}
+	switch sc.Kind {
+	case "systemd":
+		fmt.Fprint(a.Stdout, sc.TimerText)
 		if err != nil {
 			return err
 		}
 		fmt.Fprintln(a.Stdout)
-		journal, jerr := a.captureRaw(ctx, true, "journalctl", "--user", "-u", scheduleName+".service", "-n", "15", "--no-pager", "-o", "cat")
-		shown := 0
-		for _, l := range fileLines([]byte(journal)) {
-			if journalLines.MatchString(l) {
-				fmt.Fprintln(a.Stdout, l)
-				shown++
-			}
+		for _, l := range sc.Runs {
+			fmt.Fprintln(a.Stdout, l)
 		}
-		if jerr != nil || shown == 0 {
+		if sc.NoRuns {
 			fmt.Fprintln(a.Stdout, "(no runs yet)")
 		}
-		return nil
-	}
-	// crontab -l 2>/dev/null | grep -q "# <name>", then crontab -l | grep "# <name>" (errors shown;
-	// under pipefail a failure ends the command).
-	if table, err := a.crontabList(ctx); err == nil && strings.Contains(table, "# "+scheduleName) {
-		table, err := a.captureRaw(ctx, false, "crontab", "-l")
+	case "cron":
 		if err != nil {
 			return err
 		}
-		for _, l := range fileLines([]byte(table)) {
-			if strings.Contains(l, "# "+scheduleName) {
-				fmt.Fprintln(a.Stdout, l)
-			}
+		for _, l := range sc.Jobs {
+			fmt.Fprintln(a.Stdout, l)
 		}
-		fmt.Fprintf(a.Stdout, "log: %s/cron.log\n", a.backupsDir())
-		return nil
+		fmt.Fprintf(a.Stdout, "log: %s\n", sc.Log)
+	default:
+		fmt.Fprintf(a.Stdout, "No backup schedule. Set one with: %s schedule\n", Tool)
 	}
-	fmt.Fprintf(a.Stdout, "No backup schedule. Set one with: %s schedule\n", Tool)
 	return nil
 }
 

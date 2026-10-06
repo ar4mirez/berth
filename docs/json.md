@@ -12,11 +12,33 @@ berth --output json env acme ls
 berth --output json fw acme show
 berth --output json host ls
 berth --output json use
+berth --output json repo ls acme
+berth --output json repo audit acme
+berth --output json repo policy acme
+berth --output json fw acme presets
+berth --output json fw acme test pypi.org
+berth --output json schedule status
+berth --output json host guard box1 status
 ```
 
-Asking for JSON from a command that doesn't return data fails right away, with
-`--output json isn't available for "<command>" yet`, and changes nothing. `internal/ops` lists which commands return
-data (`JSON: true` in the catalog). The remaining read commands follow in #54.
+Every command that only reads returns data, except the few that can't. Asking one of those for JSON, or a command
+that changes things, fails right away and changes nothing:
+
+```console
+$ berth --output json logs acme
+berth: --output json isn't available for "logs": it is a stream of log lines
+```
+
+| No JSON for | Why |
+|---|---|
+| `logs`, `remote <org> logs` | a stream of log lines |
+| `completion` | a shell script |
+| `connect` | it holds an SSH tunnel open until interrupted |
+| `password <org>` | a secret, and secrets never appear in JSON |
+| `parity-check` | a line diff against ccenv, for the cutover |
+
+`internal/ops` holds the list (`JSON` or `NoJSON` on each operation), and a test fails for a reading command with
+neither.
 
 Each document below has a golden file in `test/parity/testdata/json/`, which the tests compare byte for byte.
 
@@ -191,3 +213,79 @@ because the service hasn't logged a capacity line yet, the JSON has `"capacity":
 ```json
 { "schema": "berth.image/v1", "tag": "berth/claude-env:0123456789ab" }
 ```
+
+## `berth.repos/v1`: `repo ls <org>`
+
+```json
+{
+  "schema": "berth.repos/v1",
+  "org": "acme",
+  "repos": [
+    { "dir": "app", "repo": "github.com/acme/app", "url": "git@github.com:acme/app.git", "local": false, "branch": "feature/x", "state": "cloned", "changed": 3 }
+  ],
+  "policy": "enforce",
+  "unregistered": ["stray"],
+  "quarantine_dir": "/path/to/orgs/acme/quarantine",
+  "quarantined": ["old.20260101-0000"]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `repo` | the canonical form, `host/path` ([Repo policy](repo-policy.md)); `""` for a local repo, or a URL with no canonical form |
+| `local` | `true` for a repo with no remote yet (`repo new --local`) |
+| `branch` | the checked-out branch when the running container reports it, else the registered one; `""` is the remote's default |
+| `state` | `cloned`, `missing`, or `unknown` (the container is down and the folder is there) |
+| `changed` | the number of uncommitted changes; `null` unless the running container reported it |
+| `policy`, `unregistered`, `quarantine_dir`, `quarantined` | the audit, as in `berth.repo-audit/v1` |
+
+## `berth.repo-audit/v1`: `repo audit <org>`
+
+```json
+{ "schema": "berth.repo-audit/v1", "org": "acme", "policy": "enforce", "unregistered": ["stray"], "quarantine_dir": "/path/to/orgs/acme/quarantine", "quarantined": [] }
+```
+
+`unregistered` are the folders in `/workspace` that aren't registered repos, and `quarantined` what the policy has
+moved out. `policy` is `""` when `org.env` has no `REPO_POLICY` line. An org that has never started has no
+quarantine folder: the command then fails with exit 2, as the text one does.
+
+## `berth.repo-policy/v1`: `repo policy <org>`
+
+```json
+{ "schema": "berth.repo-policy/v1", "org": "acme", "policy": "enforce" }
+```
+
+## `berth.firewall-presets/v1`: `fw <org> presets`
+
+```json
+{ "schema": "berth.firewall-presets/v1", "presets": [ { "name": "@python", "hosts": ["pypi.org", "files.pythonhosted.org"] } ] }
+```
+
+## `berth.firewall-test/v1`: `fw <org> test [host...]`
+
+```json
+{ "schema": "berth.firewall-test/v1", "org": "acme", "results": [ { "url": "https://pypi.org", "allowed": true } ] }
+```
+
+Each `url` is tried from inside the running container; a bare host is tried over `https`.
+
+## `berth.schedule/v1`: `schedule status`
+
+```json
+{ "schema": "berth.schedule/v1", "kind": "systemd", "timer": ["NEXT …", "Tue 2026-10-06 02:30:00 …"], "runs": ["== acme", "Wrote …"], "jobs": [], "log": "" }
+```
+
+| Field | Meaning |
+|---|---|
+| `kind` | `systemd` (a user timer), `cron` (a crontab line) or `none` |
+| `timer`, `runs` | systemd: `list-timers`' header and the timer's line, and the last runs' lines from the journal |
+| `jobs`, `log` | cron: the crontab's lines for the schedule, and where their output goes |
+
+## `berth.host-guard/v1`: `host guard <name> status`
+
+```json
+{ "schema": "berth.host-guard/v1", "host": "box1", "installed": true, "state": "running", "rules": "Chain BERTH-INPUT …" }
+```
+
+`rules` is the guard's own report of its chains. When the guard isn't installed, `installed` is `false` and the
+other two are `""`.
