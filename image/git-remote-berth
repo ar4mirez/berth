@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# git's HTTPS transport for github.com, in an org whose gh CLI is signed in (#103). git-transport
+# rewrites every github.com URL to berth::https://github.com/<path>, and git then runs this as
+# `git-remote-berth <remote> https://github.com/<path>`. It only connects for repos in
+# /config/repos.txt, as git-ssh-guard does for SSH, and hands the connection to git's own HTTPS
+# helper with gh's token, so a registered repo is writable whatever the org's SSH key can reach.
+# Runs as node: the token is node's (gh's own config).
+set -euo pipefail
+. /usr/local/lib/claude-env/repo-policy.sh
+
+ORG=$(cat /etc/claude-env/org 2>/dev/null || echo "<org>")
+deny() { echo "repo-guard: $*" >&2; exit 128; }
+
+[ $# -eq 2 ] || deny "usage: git-remote-berth <remote> https://github.com/<owner>/<repo>"
+[[ "$2" =~ ^https://github\.com/([A-Za-z0-9._~/-]+)$ ]] || deny "only https://github.com/<owner>/<repo> is allowed over this connection"
+path="${BASH_REMATCH[1]}"
+[[ "$path" != *..* ]] || deny "bad repo path"
+
+canon=$(repo_canon "$path" github.com)
+[ -n "$canon" ] || deny "bad repo path"
+if ! repo_allowed_canon "$canon"; then
+  deny "$canon is not in the allowed repo list for '$ORG'.
+  Only repos set up with berth may be used here. Ask the user to run on the host:
+    berth repo add $ORG ${canon#*/}"
+fi
+
+# gh's own login only (berth gh-login), as git-transport chose by it: a GH_TOKEN variable is ignored.
+unset GH_TOKEN GITHUB_TOKEN
+gh auth token --hostname github.com >/dev/null 2>&1 \
+  || deny "the gh CLI isn't signed in for '$ORG', so git can't use its token. Ask the user to run on the host:
+    berth gh-login $ORG"
+# The first, empty helper drops any other credential helper: only gh's token is offered.
+exec git -c credential.helper= -c 'credential.helper=!gh auth git-credential' \
+  remote-https "$1" "https://github.com/${canon#github.com/}.git"

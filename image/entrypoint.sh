@@ -35,6 +35,10 @@ as_node git config --global init.defaultBranch main
 as_node git config --global --replace-all safe.directory '*'
 [ -n "${GIT_USER_NAME:-}" ]  && as_node git config --global user.name  "$GIT_USER_NAME"
 [ -n "${GIT_USER_EMAIL:-}" ] && as_node git config --global user.email "$GIT_USER_EMAIL"
+# github.com over HTTPS with gh's token when gh is signed in, else SSH with the org's key (#103).
+# Re-checked every 30 seconds, so a sign-in or sign-out inside the container is picked up.
+/usr/local/bin/git-transport apply || echo "git: WARNING could not choose a transport; github.com stays as it was" >&2
+( while sleep 30; do /usr/local/bin/git-transport apply >/dev/null 2>&1 || true; done ) &
 
 # --- Workspace sweep: only registered repos may live in /workspace ------------------
 # REPO_POLICY=enforce moves anything else to /quarantine (orgs/<org>/quarantine on the host);

@@ -89,7 +89,7 @@ An org may only use the repos registered in `config/repos.txt`. It's enforced in
 
 | Layer | What it stops |
 |---|---|
-| **git** | Clone, fetch or push of any unregistered repo, by anyone in the container. The org's key is root-only, and git reaches it only through a guard that checks the list. |
+| **git** | Clone, fetch or push of any unregistered repo, by anyone in the container. The org's key is root-only, and git reaches it only through a guard that checks the list. With a gh login, git uses that login's token over HTTPS instead, through a second guard that checks the same list ([Repos](guides/repos.md#how-git-reaches-github)). |
 | **Claude** | Cloning, re-pointing remotes, reading unregistered `/workspace` folders, credential files, and code downloads from unregistered repos. A managed hook enforces it and can't be edited from inside. |
 | **workspace** | Anything else placed in `/workspace`: moved to `quarantine/` every 30 seconds. Nothing is deleted. |
 

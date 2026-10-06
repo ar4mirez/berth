@@ -35,6 +35,7 @@ const (
 	Credentials      = ClaudeDir + "/.credentials.json"  // Claude Code's full login ($CLAUDE_CONFIG_DIR)
 	SetupLog         = "/run/berth-setup.log"            // entrypoint.sh: the setup script's output
 	FirewallScript   = "init-firewall.sh"                // on PATH: `apply` (the default) and `presets`
+	GitTransport     = "git-transport"                   // on PATH: `apply` (the default) and `show` (#103)
 	TmuxSession      = "main"                            // entrypoint.sh; attach and ttyd join it
 	EnvKeys          = "CCENV_ENV_KEYS"                  // org.env: custom vars the entrypoint snapshots for SSH
 	SSHPortInside    = "2222"                            // compose.yml: ${SSH_PORT}:2222

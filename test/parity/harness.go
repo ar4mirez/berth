@@ -88,7 +88,7 @@ type Tool struct {
 	Content func(rel, content string) string
 	// SkipTree leaves paths out of the file tree (optional).
 	SkipTree func(rel string) bool
-	// Calls adjusts a normalized tool-call line before it is compared (optional).
+	// Calls adjusts a normalized tool-call line before it is compared (optional); "" drops it.
 	Calls func(string) string
 }
 
@@ -191,6 +191,11 @@ func Berth(bin string) Tool {
 		[2]string{"command -v berth || { [ -x ~/.local/bin/berth ] && echo ~/.local/bin/berth; }", "command -v ccenv || { [ -x ~/.local/bin/ccenv ] && echo ~/.local/bin/ccenv; }"})
 	t.SkipTree = func(rel string) bool { return rel == "state/berth" || strings.HasPrefix(rel, "state/berth/") }
 	t.Calls = func(c string) string {
+		// berth's own calls, which ccenv doesn't make (PARITY.md): left out of the comparison, and
+		// checked by berth-only tests on a Tool without this normalization.
+		if berthOnlyCall.MatchString(c) {
+			return ""
+		}
 		c = berthEnv.ReplaceAllString(c, "")
 		return berthTag.ReplaceAllString(c, `"claude-env"`)
 	}
@@ -198,8 +203,10 @@ func Berth(bin string) Tool {
 }
 
 var (
-	berthEnv = regexp.MustCompile(`  \[(CLAUDE_ENV_IMAGE|IMAGE_TAG|CLAUDE_ENV_IMAGE_DIR)="[^"]*"\]`)
-	berthTag = regexp.MustCompile(`"berth/claude-env:[0-9a-f]{12}"`)
+	// repo add's write-access check (#103): TestBerthRepoAddWriteCheck.
+	berthOnlyCall = regexp.MustCompile(`^docker "exec" "-u" "node" "-w" "/workspace/[^"]+" "claude-[^"]+" "git" "push" "--dry-run" `)
+	berthEnv      = regexp.MustCompile(`  \[(CLAUDE_ENV_IMAGE|IMAGE_TAG|CLAUDE_ENV_IMAGE_DIR)="[^"]*"\]`)
+	berthTag      = regexp.MustCompile(`"berth/claude-env:[0-9a-f]{12}"`)
 )
 
 // BerthUnowned is berth on the fixture as written: legacy-owned orgs (no MANAGER line).
@@ -286,9 +293,13 @@ func (e *Env) Run(ctx context.Context, base string, tool Tool, s Scenario) (Resu
 		return Result{}, err
 	}
 	if tool.Calls != nil {
-		for i, c := range res.Calls {
-			res.Calls[i] = tool.Calls(c)
+		kept := res.Calls[:0]
+		for _, c := range res.Calls {
+			if c = tool.Calls(c); c != "" { // "" drops the call from the comparison
+				kept = append(kept, c)
+			}
 		}
+		res.Calls = kept
 	}
 	if res.Tree, err = snapshot(run, s.Random, n, tool.Content, tool.SkipTree); err != nil {
 		return Result{}, err

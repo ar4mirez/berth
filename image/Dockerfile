@@ -84,18 +84,24 @@ RUN chmod +x /usr/local/bin/*.sh \
 # git-ssh-guard (via a single sudo rule), which checks every fetch/push against /config/repos.txt.
 # repo-guard.js is the Claude-side PreToolUse hook (wired in managed-settings.json).
 COPY repo-policy.sh repo-guard.js secrets-env.sh uid-remap.sh /usr/local/lib/claude-env/
-COPY git-ssh-guard /usr/local/bin/git-ssh-guard
-RUN chmod 755 /usr/local/bin/git-ssh-guard && chmod 644 /usr/local/lib/claude-env/* \
+# github.com has a second transport (#103): when the org's gh CLI is signed in, git-transport points
+# git at git-remote-berth, which uses gh's token over HTTPS for the same registered repos. Its rules
+# are in a file git's system config includes; the image ships the SSH ones.
+COPY git-ssh-guard git-remote-berth git-transport /usr/local/bin/
+RUN chmod 755 /usr/local/bin/git-ssh-guard /usr/local/bin/git-remote-berth /usr/local/bin/git-transport \
+    && chmod 644 /usr/local/lib/claude-env/* \
     && install -d -m 700 -o root -g root /opt/claude-secrets \
     && printf '%s\n' 'Defaults!/usr/local/bin/git-ssh-guard env_keep += "GIT_PROTOCOL"' \
          'node ALL=(root) NOPASSWD: /usr/local/bin/git-ssh-guard' > /etc/sudoers.d/git-ssh-guard \
     && chmod 440 /etc/sudoers.d/git-ssh-guard && visudo -cf /etc/sudoers.d/git-ssh-guard \
     && git config --system core.sshCommand "sudo -n /usr/local/bin/git-ssh-guard" \
     && git config --system ssh.variant ssh \
-    && git config --system url."git@github.com:".insteadOf "https://github.com/" \
-    && git config --system --add url."git@github.com:".insteadOf "http://github.com/" \
+    && git config --system protocol.berth.allow always \
     && git config --system url."git@gitlab.com:".insteadOf "https://gitlab.com/" \
-    && git config --system url."git@bitbucket.org:".insteadOf "https://bitbucket.org/"
+    && git config --system url."git@bitbucket.org:".insteadOf "https://bitbucket.org/" \
+    && mkdir -p /etc/claude-env \
+    && git config --system include.path /etc/claude-env/git-transport.gitconfig \
+    && GIT_TRANSPORT=ssh /usr/local/bin/git-transport apply
 
 ENV LANG=en_US.UTF-8 \
     SHELL=/bin/bash \
