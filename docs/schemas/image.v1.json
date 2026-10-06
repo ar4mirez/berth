@@ -1,0 +1,20 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/image.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth image-tag --output json",
+  "properties": {
+    "schema": {
+      "const": "berth.image/v1"
+    },
+    "tag": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "tag"
+  ],
+  "title": "berth.image/v1",
+  "type": "object"
+}

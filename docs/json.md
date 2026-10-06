@@ -51,6 +51,39 @@ Each document below has a golden file in `test/parity/testdata/json/`, which the
   `berth --output json … | jq` works.
 - **The text output is unchanged.** It's the same data rendered as ccenv did, and the parity suite checks it.
 
+## Schemas
+
+Every document has a [JSON Schema](https://json-schema.org) (draft 2020-12), generated from the Go type that
+produces it. In a schema every field is required and no other field is allowed, so a consumer can generate types
+from it; a field that may be `null` says so.
+
+| Document | From | Schema |
+|---|---|---|
+| `berth.orgs/v1` | `ls` | [`orgs.v1.json`](schemas/orgs.v1.json) |
+| `berth.info/v1` | `info <org>` | [`info.v1.json`](schemas/info.v1.json) |
+| `berth.whoami/v1` | `whoami [org...]` | [`whoami.v1.json`](schemas/whoami.v1.json) |
+| `berth.remote/v1` | `remote <org> status` | [`remote.v1.json`](schemas/remote.v1.json) |
+| `berth.env/v1` | `env <org> ls` | [`env.v1.json`](schemas/env.v1.json) |
+| `berth.firewall/v1` | `fw <org> show` | [`firewall.v1.json`](schemas/firewall.v1.json) |
+| `berth.firewall-presets/v1` | `fw <org> presets` | [`firewall-presets.v1.json`](schemas/firewall-presets.v1.json) |
+| `berth.firewall-test/v1` | `fw <org> test [host...]` | [`firewall-test.v1.json`](schemas/firewall-test.v1.json) |
+| `berth.repos/v1` | `repo ls <org>` | [`repos.v1.json`](schemas/repos.v1.json) |
+| `berth.repo-audit/v1` | `repo audit <org>` | [`repo-audit.v1.json`](schemas/repo-audit.v1.json) |
+| `berth.repo-policy/v1` | `repo policy <org>` | [`repo-policy.v1.json`](schemas/repo-policy.v1.json) |
+| `berth.schedule/v1` | `schedule status` | [`schedule.v1.json`](schemas/schedule.v1.json) |
+| `berth.hosts/v1` | `host ls` | [`hosts.v1.json`](schemas/hosts.v1.json) |
+| `berth.host-guard/v1` | `host guard <name> status` | [`host-guard.v1.json`](schemas/host-guard.v1.json) |
+| `berth.default-org/v1` | `use` | [`default-org.v1.json`](schemas/default-org.v1.json) |
+| `berth.image/v1` | `image-tag` | [`image.v1.json`](schemas/image.v1.json) |
+| `berth.error/v1` | any command that fails (on stderr) | [`error.v1.json`](schemas/error.v1.json) |
+| `berth.event/v1` | the long operations (one per line) | [`event.v1.json`](schemas/event.v1.json) |
+
+The files are in `docs/schemas/` and published with these docs. The tests keep them honest: a schema that no
+longer matches its type fails, and so does a golden document that doesn't validate against its schema
+(`internal/ops/schema_test.go`). `BERTH_UPDATE_GOLDEN=1 go test ./internal/ops` rewrites the files after an
+intended change. Adding a field changes the file and keeps the version, so read documents leniently: ignore fields
+you don't know.
+
 ## Errors: `berth.error/v1`
 
 With `--output json`, a failure is one document on **stderr**. stdout stays empty, and the exit code is the one

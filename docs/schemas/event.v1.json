@@ -1,0 +1,76 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/event.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth up, restart, build, pull, backup, restore, logs, remote <org> logs (one per line) --output json",
+  "properties": {
+    "error": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "integer"
+        },
+        "hint": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "kind",
+        "code",
+        "message",
+        "hint"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
+    "op": {
+      "type": "string"
+    },
+    "org": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "berth.event/v1"
+    },
+    "step": {
+      "type": "string"
+    },
+    "stream": {
+      "type": "string"
+    },
+    "time": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "time",
+    "op",
+    "org",
+    "type",
+    "step",
+    "stream",
+    "message",
+    "error"
+  ],
+  "title": "berth.event/v1",
+  "type": "object"
+}

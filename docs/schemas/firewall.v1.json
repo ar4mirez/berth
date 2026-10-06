@@ -1,0 +1,38 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/firewall.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth fw <org> show --output json",
+  "properties": {
+    "entries": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "file": {
+      "type": "string"
+    },
+    "live": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "org": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "berth.firewall/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "org",
+    "file",
+    "entries",
+    "live"
+  ],
+  "title": "berth.firewall/v1",
+  "type": "object"
+}

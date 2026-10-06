@@ -1,0 +1,45 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/schedule.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth schedule status --output json",
+  "properties": {
+    "jobs": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "log": {
+      "type": "string"
+    },
+    "runs": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "berth.schedule/v1"
+    },
+    "timer": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "kind",
+    "timer",
+    "runs",
+    "jobs",
+    "log"
+  ],
+  "title": "berth.schedule/v1",
+  "type": "object"
+}

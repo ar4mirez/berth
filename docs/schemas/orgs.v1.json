@@ -1,0 +1,110 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/orgs.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth ls --output json",
+  "properties": {
+    "destroyed": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "host",
+          "at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "orgs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "manager": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "remote": {
+            "type": "string"
+          },
+          "ssh_port": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "token": {
+            "type": "boolean"
+          },
+          "ttyd_port": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "manager",
+          "state",
+          "ssh_port",
+          "ttyd_port",
+          "token",
+          "remote",
+          "host"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "berth.orgs/v1"
+    },
+    "unreachable": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "host",
+          "error"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "orgs",
+    "unreachable",
+    "destroyed"
+  ],
+  "title": "berth.orgs/v1",
+  "type": "object"
+}

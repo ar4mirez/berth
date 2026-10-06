@@ -1,0 +1,23 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/default-org.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth use --output json",
+  "properties": {
+    "org": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema": {
+      "const": "berth.default-org/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "org"
+  ],
+  "title": "berth.default-org/v1",
+  "type": "object"
+}

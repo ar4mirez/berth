@@ -1,0 +1,67 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/hosts.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth host ls --output json",
+  "properties": {
+    "hosts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "docker": {
+            "type": "string"
+          },
+          "engine": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "home": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "orgs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reachable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "address",
+          "home",
+          "reachable",
+          "engine",
+          "docker",
+          "orgs",
+          "error"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "berth.hosts/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "hosts"
+  ],
+  "title": "berth.hosts/v1",
+  "type": "object"
+}

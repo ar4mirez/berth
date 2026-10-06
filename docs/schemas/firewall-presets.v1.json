@@ -1,0 +1,39 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/firewall-presets.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth fw <org> presets --output json",
+  "properties": {
+    "presets": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "hosts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "hosts"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "berth.firewall-presets/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "presets"
+  ],
+  "title": "berth.firewall-presets/v1",
+  "type": "object"
+}

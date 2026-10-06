@@ -1,6 +1,6 @@
 # PRD: the structured operations layer (#54)
 
-Status: **in progress** · Issue: [#54](https://github.com/ar4mirez/berth/issues/54) · Restarts orgs: no
+Status: **done** · Issue: [#54](https://github.com/ar4mirez/berth/issues/54) · Restarts orgs: no
 
 ## Problem
 
@@ -85,15 +85,17 @@ A read command returns data, reports events (`logs`, `remote logs`: PR 4), or sa
       (`TestBerthProgressEvents`)
 
 ### PR 5: schemas
-- [ ] A JSON Schema file per document, generated from the Go types
-- [ ] CI fails when a schema is stale, or a golden document doesn't validate
+- [x] `ops.Documents`: every document, its command and its Go type
+- [x] A JSON Schema file per document in `docs/schemas/`, generated from the type (published with the docs)
+- [x] Tests (run in CI) fail when a schema is stale, when a golden document doesn't validate, when a type with a
+      `schema` field isn't registered, and when `docs/json.md` lacks a document or its schema link
 
 ## Acceptance criteria
 
 | Criterion (from the issue) | How it is checked |
 |---|---|
 | The parity suite is unchanged | `TestParity` and `TestParityReadOnly` pass with no scenario edited |
-| Every read command has JSON output, covered by golden tests | `TestBerthJSONOutput`; the catalog test (PR 2) |
+| Every read command has JSON output, covered by golden tests | `TestBerthJSONGolden` (a golden file per document), `TestReadsReturnDataOrSayWhyNot`, `TestDocumentsValidate` |
 | Every operation declares its restart and write flags | `TestCatalogCoversEveryCommand` (already there) |
 
 ## Out of scope

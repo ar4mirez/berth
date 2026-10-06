@@ -1,0 +1,85 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/repos.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth repo ls <org> --output json",
+  "properties": {
+    "org": {
+      "type": "string"
+    },
+    "policy": {
+      "type": "string"
+    },
+    "quarantine_dir": {
+      "type": "string"
+    },
+    "quarantined": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "repos": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "changed": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "dir": {
+            "type": "string"
+          },
+          "local": {
+            "type": "boolean"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dir",
+          "repo",
+          "url",
+          "local",
+          "branch",
+          "state",
+          "changed"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "berth.repos/v1"
+    },
+    "unregistered": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "org",
+    "repos",
+    "policy",
+    "unregistered",
+    "quarantine_dir",
+    "quarantined"
+  ],
+  "title": "berth.repos/v1",
+  "type": "object"
+}

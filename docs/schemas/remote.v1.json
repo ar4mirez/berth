@@ -1,0 +1,32 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/remote.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth remote <org> status --output json",
+  "properties": {
+    "capacity": {
+      "type": "string"
+    },
+    "org": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "berth.remote/v1"
+    },
+    "state": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "org",
+    "state",
+    "url",
+    "capacity"
+  ],
+  "title": "berth.remote/v1",
+  "type": "object"
+}
