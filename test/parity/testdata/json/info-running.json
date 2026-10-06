@@ -1,0 +1,15 @@
+{
+  "schema": "berth.info/v1",
+  "org": "acme",
+  "container": "claude-acme",
+  "state": "running",
+  "remote_url": "https://claude.ai/code?environment=env_PARITY01",
+  "address": "100.64.0.7",
+  "local_only": false,
+  "ssh_port": 2201,
+  "ttyd_port": 7701,
+  "user": "node",
+  "ssh_host": "claude-acme",
+  "git_public_key": "ssh-ed25519 AAAAFAKE claude-acme@parity-host",
+  "tunnel": null
+}

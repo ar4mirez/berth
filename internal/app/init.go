@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/ar4mirez/berth/internal/contract"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // newPassword is ccenv's `head -c 64 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32`.
@@ -46,7 +47,7 @@ func (a *App) Init(ctx context.Context, args []string) error {
 	if len(args) > 0 {
 		o, args = args[0], args[1:]
 	}
-	if !orgName.MatchString(o) {
+	if !ops.OrgName.MatchString(o) {
 		return errors.New("org name must be lowercase [a-z0-9-]")
 	}
 	d := path.Join(a.Orgs.Dir, o)

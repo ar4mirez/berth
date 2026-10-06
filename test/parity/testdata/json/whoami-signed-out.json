@@ -1,0 +1,12 @@
+{
+  "schema": "berth.whoami/v1",
+  "orgs": [
+    {
+      "org": "acme",
+      "running": true,
+      "token": true,
+      "github": "",
+      "claude": null
+    }
+  ]
+}

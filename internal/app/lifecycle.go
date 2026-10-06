@@ -8,6 +8,7 @@ import (
 
 	"github.com/ar4mirez/berth/internal/contract"
 	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // needOwnedOrg is needOrg for commands that change an org or act as it: the org must be managed by
@@ -28,12 +29,7 @@ func (a *App) needOwnedOrg(o string) error {
 }
 
 // needUp is ccenv's need_up.
-func (a *App) needUp(ctx context.Context, o string) error {
-	if !a.running(ctx, o) {
-		return fmt.Errorf("claude-%s is not running (%s up %s)", o, Tool, o)
-	}
-	return nil
-}
+func (a *App) needUp(ctx context.Context, o string) error { return ops.NeedUp(ctx, a, o) }
 
 // Down is `ccenv down <org>`: compose down.
 func (a *App) Down(ctx context.Context, o string) error {

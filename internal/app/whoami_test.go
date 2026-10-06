@@ -3,6 +3,8 @@ package app
 import (
 	"strings"
 	"testing"
+
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // These are what real `jq -r` 1.6 printed for ccenv's whoami program, and whether it exited
@@ -29,7 +31,7 @@ func TestAuthStatusLines(t *testing.T) {
 		{`{"loggedIn":true} garbage {"loggedIn":false}`, "null  [null]", true},
 	}
 	for _, tt := range tests {
-		lines, err := authStatusLines([]byte(tt.in), out)
+		lines, err := ops.AuthStatusLines([]byte(tt.in), out)
 		if got := strings.Join(lines, "|"); got != tt.want || (err != nil) != tt.wantErr {
 			t.Errorf("%s: got %q, err=%v; want %q, err=%v", tt.in, got, err, tt.want, tt.wantErr)
 		}

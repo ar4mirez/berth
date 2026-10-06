@@ -1,0 +1,23 @@
+{
+  "schema": "berth.whoami/v1",
+  "orgs": [
+    {
+      "org": "acme",
+      "running": true,
+      "token": true,
+      "github": "octo-acme",
+      "claude": {
+        "email": "dev@example.com",
+        "organization": "Acme Corp",
+        "organization_id": "org-acme"
+      }
+    },
+    {
+      "org": "globex",
+      "running": false,
+      "token": false,
+      "github": "",
+      "claude": null
+    }
+  ]
+}

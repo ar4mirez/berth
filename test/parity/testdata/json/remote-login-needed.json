@@ -1,0 +1,7 @@
+{
+  "schema": "berth.remote/v1",
+  "org": "acme",
+  "state": "login-needed",
+  "url": "",
+  "capacity": ""
+}

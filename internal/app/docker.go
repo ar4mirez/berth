@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ar4mirez/berth/internal/contract"
 	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // Every call below uses exactly the argv legacy/ccenv uses, and the same stdio routing: a stream
@@ -45,46 +45,12 @@ func (a *App) passthrough(ctx context.Context, quiet bool, args ...string) error
 	return a.Host.Exec.Run(ctx, host.Cmd{Args: args, Stdout: stdout, Stderr: a.Stderr})
 }
 
-// running is `docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "claude-$1"` (under pipefail,
-// a failing docker ps means not running even if it printed the name).
-func (a *App) running(ctx context.Context, o string) bool {
-	out, err := a.capture(ctx, true, "docker", "ps", "--format", "{{.Names}}")
-	if err != nil {
-		return false
-	}
-	for _, l := range strings.Split(out, "\n") {
-		if l == "claude-"+o {
-			return true
-		}
-	}
-	return false
-}
+// running is `docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "claude-$1"` (ops.Running).
+func (a *App) running(ctx context.Context, o string) bool { return ops.Running(ctx, a, o) }
 
-// rcLoggedIn is `docker exec claude-$1 test -f /home/node/.claude/.credentials.json`.
-func (a *App) rcLoggedIn(ctx context.Context, o string) bool {
-	return a.passthrough(ctx, false, "docker", "exec", contract.Container(o), "test", "-f", contract.Credentials) == nil
-}
-
-// rcRunning is `docker exec claude-$1 pgrep -f "claude remote-control" >/dev/null`.
-func (a *App) rcRunning(ctx context.Context, o string) bool {
-	return a.passthrough(ctx, true, "docker", "exec", "claude-"+o, "pgrep", "-f", "claude remote-control") == nil
-}
-
-// rcBlocked is `docker exec … sh -c 'tail -n 2 …remote-control.log 2>/dev/null' | grep -q "blocked
-// by organization policy"`: true only if docker succeeds (pipefail) and a line matches.
-func (a *App) rcBlocked(ctx context.Context, o string) bool {
-	out, err := a.capture(ctx, false, "docker", "exec", "claude-"+o, "sh", "-c",
-		"tail -n 2 "+contract.RemoteControlLog+" 2>/dev/null")
-	return err == nil && strings.Contains(out, contract.RemoteControlBlocked)
-}
-
-// rcURL is `docker exec … sh -c 'grep -ao "https://claude.ai/code?environment=[A-Za-z0-9_]*" … |
-// tail -1' || true`: whatever it printed, even if it failed.
-func (a *App) rcURL(ctx context.Context, o string) string {
-	out, _ := a.capture(ctx, false, "docker", "exec", "claude-"+o, "sh", "-c",
-		`grep -ao "https://claude.ai/code?environment=[A-Za-z0-9_]*" `+contract.RemoteControlLog+` 2>/dev/null | tail -1`)
-	return out
-}
+// rcRunning and rcURL are ccenv's rc_* checks (internal/ops).
+func (a *App) rcRunning(ctx context.Context, o string) bool { return ops.RemoteRunning(ctx, a, o) }
+func (a *App) rcURL(ctx context.Context, o string) string   { return ops.RemoteURL(ctx, a, o) }
 
 // errBindTailscale is resolve_bind's die message.
 var errBindTailscale = errors.New("BIND_ADDR=tailscale but tailscale is not up on this host")

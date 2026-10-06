@@ -10,6 +10,7 @@ import (
 
 	"github.com/ar4mirez/berth/internal/assets"
 	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/ops"
 	"github.com/ar4mirez/berth/internal/upgrade"
 	"github.com/ar4mirez/berth/internal/version"
 )
@@ -173,10 +174,13 @@ func (a *App) imageNote(ctx context.Context, bin string) {
 
 // ImageTag is the hidden `berth image-tag`: the image tag this berth uses, for `upgrade`'s note.
 func (a *App) ImageTag() error {
-	set, err := assets.Embedded(a.State.Home.Path) // computed, never written: this only reads
+	img, err := ops.GetImage(a)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(a.Stdout, set.Tag)
+	if a.Output == OutputJSON {
+		return a.writeJSON(img)
+	}
+	fmt.Fprintln(a.Stdout, img.Tag)
 	return nil
 }

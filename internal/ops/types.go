@@ -11,6 +11,8 @@ type Orgs struct {
 	Unreachable []HostError `json:"unreachable"`
 	// Destroyed are the orgs `destroy` removed (offboarded) that don't exist again since.
 	Destroyed []DestroyedOrg `json:"destroyed"`
+	// MultiHost is true when hosts are registered: the text table then has a HOST column.
+	MultiHost bool `json:"-"`
 }
 
 // DestroyedOrg is an org `destroy` removed, where, and when (RFC 3339, UTC).
@@ -43,6 +45,9 @@ type OrgStatus struct {
 	Remote string `json:"remote"`
 	// Host is where the org is: "local" or a registered host's name (#45).
 	Host string `json:"host"`
+	// SSHRaw and TTYDRaw are the ports exactly as org.env has them: what the text table prints.
+	SSHRaw  string `json:"-"`
+	TTYDRaw string `json:"-"`
 }
 
 // Env is `berth env <org> ls --output json`: the custom variables' names, never their values.
@@ -95,4 +100,100 @@ type HostStatus struct {
 	Orgs *int `json:"orgs"`
 	// Error says what failed, if anything ("" otherwise).
 	Error string `json:"error"`
+}
+
+// Info is `berth info <org> --output json`: every way to connect.
+type Info struct {
+	Schema    string `json:"schema"` // "berth.info/v1"
+	Org       string `json:"org"`
+	Container string `json:"container"`
+	// State is "running" or "stopped".
+	State string `json:"state"`
+	// RemoteURL is the org's claude.ai/code environment ("" until Remote Control is set up, or
+	// when the org is stopped).
+	RemoteURL string `json:"remote_url"`
+	// Address is where other devices reach the org's ports ("" if its bind can't be resolved).
+	Address string `json:"address"`
+	// LocalOnly is true when the ports are bound to this machine only.
+	LocalOnly bool `json:"local_only"`
+	// Ports are nil when org.env has no parseable value.
+	SSHPort  *int `json:"ssh_port"`
+	TTYDPort *int `json:"ttyd_port"`
+	// User is the account in the container that SSH and the browser terminal use.
+	User string `json:"user"`
+	// SSHHost is the Host alias berth suggests for ~/.ssh/config.
+	SSHHost string `json:"ssh_host"`
+	// GitPublicKey is the org's git key ("" if it can't be read).
+	GitPublicKey string `json:"git_public_key"`
+	// Tunnel is set when the org is reached through an SSH tunnel (#58).
+	Tunnel *Tunnel `json:"tunnel"`
+
+	// What only the text needs: the address as ccenv words it, the ports as org.env has them, and
+	// why the key couldn't be read.
+	AddressText string `json:"-"`
+	SSHRaw      string `json:"-"`
+	TTYDRaw     string `json:"-"`
+	KeyError    string `json:"-"`
+}
+
+// Tunnel is how to reach an org whose ports are bound to localhost.
+type Tunnel struct {
+	// Connect is the argument for `berth connect` ("acme", or "acme@box1").
+	Connect string `json:"connect"`
+	// SSHTarget is user@host for doing it by hand with `ssh -N -L` ("" when unknown).
+	SSHTarget string `json:"ssh_target"`
+}
+
+// Whoami is `berth whoami [org...] --output json`: which accounts each org uses.
+type Whoami struct {
+	Schema string    `json:"schema"` // "berth.whoami/v1"
+	Orgs   []Account `json:"orgs"`
+}
+
+// Account is one org in `whoami`.
+type Account struct {
+	Org     string `json:"org"`
+	Running bool   `json:"running"`
+	// Token is true when a Claude token is set (the value is never returned).
+	Token bool `json:"token"`
+	// GitHub is the gh CLI's login in the container ("" when not signed in, or the org is down).
+	GitHub string `json:"github"`
+	// Claude is the org's Remote Control login (nil when not logged in, or the org is down).
+	Claude *ClaudeAccount `json:"claude"`
+
+	// The two columns as ccenv words them.
+	GitHubText string `json:"-"`
+	ClaudeText string `json:"-"`
+}
+
+// ClaudeAccount is a Claude login.
+type ClaudeAccount struct {
+	Email          string `json:"email"`
+	Organization   string `json:"organization"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// RemoteStatus is `berth remote <org> status --output json`: Remote Control in a running org.
+type RemoteStatus struct {
+	Schema string `json:"schema"` // "berth.remote/v1"
+	Org    string `json:"org"`
+	// State is "login-needed", "on", "blocked-by-org" or "restarting".
+	State string `json:"state"`
+	// URL is the org's claude.ai/code environment, when on ("" otherwise, or not yet logged).
+	URL string `json:"url"`
+	// Capacity is the service's last capacity line, when on ("" if it hasn't logged one).
+	Capacity string `json:"capacity"`
+}
+
+// DefaultOrg is `berth use --output json`: the saved default org.
+type DefaultOrg struct {
+	Schema string `json:"schema"` // "berth.default-org/v1"
+	// Org is "acme" or "acme@box1", or null when there is none.
+	Org *string `json:"org"`
+}
+
+// Image is `berth image-tag --output json`.
+type Image struct {
+	Schema string `json:"schema"` // "berth.image/v1"
+	Tag    string `json:"tag"`
 }

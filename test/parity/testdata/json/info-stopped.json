@@ -1,0 +1,15 @@
+{
+  "schema": "berth.info/v1",
+  "org": "globex",
+  "container": "claude-globex",
+  "state": "stopped",
+  "remote_url": "",
+  "address": "127.0.0.1",
+  "local_only": true,
+  "ssh_port": 2202,
+  "ttyd_port": 7702,
+  "user": "node",
+  "ssh_host": "claude-globex",
+  "git_public_key": "ssh-ed25519 AAAAFAKE claude-globex@parity-host",
+  "tunnel": null
+}

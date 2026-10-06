@@ -8,6 +8,8 @@ import (
 	"path"
 	"regexp"
 	"strings"
+
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // The default org (#55): `berth use acme@box1` saves it, and org commands take it when their org
@@ -45,8 +47,12 @@ func OrgMissing(x string, present bool, verbs []string) bool {
 func (a *App) Use(ctx context.Context, args []string) error {
 	switch {
 	case len(args) == 0:
-		if c := a.ContextOrg(); c != "" {
-			fmt.Fprintf(a.Stdout, "%s (org commands take it when you leave the org out)\n", c)
+		d := ops.GetDefaultOrg(a)
+		if a.Output == OutputJSON {
+			return a.writeJSON(d)
+		}
+		if d.Org != nil {
+			fmt.Fprintf(a.Stdout, "%s (org commands take it when you leave the org out)\n", *d.Org)
 		} else {
 			fmt.Fprintf(a.Stdout, "No default org. Set one: %s use <org>[@host]\n", Tool)
 		}

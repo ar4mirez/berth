@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"path"
-	"strconv"
 
 	"github.com/ar4mirez/berth/internal/ops"
 )
@@ -14,128 +12,45 @@ import (
 // (#45), their orgs follow this machine's, with a HOST column; a host that can't be reached is
 // reported, never hidden. Without any, the output is ccenv's.
 func (a *App) Ls(ctx context.Context) error {
-	rows := a.orgRows(ctx)
-	destroyed := a.destroyedOrgs()
-	others := a.otherHosts()
-	var unreachable []ops.HostError
-	for _, e := range others {
-		h, err := a.dialHost(ctx, e, e.Key)
-		if err != nil {
-			unreachable = append(unreachable, ops.HostError{Host: e.Name, Error: err.Error()})
-			continue
-		}
-		b := a.On(e.Name, h, e.Home)
-		rows = append(rows, b.orgRows(ctx)...)
-		destroyed = append(destroyed, b.destroyedOrgs()...)
-		_ = h.Close()
-	}
+	out := ops.ListOrgs(ctx, a)
 	if a.Output == OutputJSON {
-		out := ops.Orgs{Schema: "berth.orgs/v1", Orgs: []ops.OrgStatus{}, Unreachable: []ops.HostError{}, Destroyed: []ops.DestroyedOrg{}}
-		for _, r := range rows {
-			out.Orgs = append(out.Orgs, r.OrgStatus)
-		}
-		out.Unreachable = append(out.Unreachable, unreachable...)
-		out.Destroyed = append(out.Destroyed, destroyed...)
 		return a.writeJSON(out)
 	}
 	format, head := "%-14s %-6s %-6s %-6s %-8s %s\n", []any{"ORG", "STATE", "SSH", "TTYD", "TOKEN", "REMOTE"}
-	if len(others) > 0 {
+	if out.MultiHost {
 		format, head = "%-14s %-6s %-6s %-6s %-8s %-14s %s\n", append(head, "HOST")
 	}
 	fmt.Fprintf(a.Stdout, format, head...)
-	for _, r := range rows {
+	for _, r := range out.Orgs {
 		token := "MISSING"
 		if r.Token {
 			token = "set"
 		}
-		cols := []any{r.Name, r.State, r.ssh, r.ttyd, token, r.Remote}
-		if len(others) > 0 {
+		cols := []any{r.Name, r.State, r.SSHRaw, r.TTYDRaw, token, r.Remote}
+		if out.MultiHost {
 			cols = append(cols, r.Host)
 		}
 		fmt.Fprintf(a.Stdout, format, cols...)
 	}
-	for _, u := range unreachable {
+	for _, u := range out.Unreachable {
 		fmt.Fprintf(a.Stderr, "%s: host %s is unreachable, its orgs aren't listed: %s\n", Tool, u.Host, u.Error)
 	}
 	return nil
 }
 
-// orgRow is an org's status, plus the raw port values the text table prints as they are.
-type orgRow struct {
-	ops.OrgStatus
-	ssh, ttyd string
-}
-
-// orgRows is ls's data: every dir with an org.env, in byte order, with the same checks (and the
-// same docker calls, in the same order) as ccenv's cmd_ls.
-func (a *App) orgRows(ctx context.Context) []orgRow {
-	var rows []orgRow
-	for _, o := range a.orgDirs() {
-		if !a.isFile(a.Orgs.EnvPath(o)) {
-			continue
-		}
-		r := orgRow{OrgStatus: ops.OrgStatus{Name: o, Manager: "ccenv", State: "down", Remote: "-", Host: a.hostLabel()}}
-		if m := a.env(o, "MANAGER"); m != "" {
-			r.Manager = m
-		}
-		if a.running(ctx, o) {
-			r.State = "up"
-			switch {
-			case a.env(o, "REMOTE_CONTROL") == "0":
-				r.Remote = "off"
-			case !a.rcLoggedIn(ctx, o):
-				r.Remote = "login-needed"
-			case a.rcRunning(ctx, o):
-				r.Remote = "on"
-			case a.rcBlocked(ctx, o):
-				r.Remote = "blocked-by-org"
-			default:
-				r.Remote = "restarting"
-			}
-		}
-		r.Token = a.secret(o, "CLAUDE_CODE_OAUTH_TOKEN")+a.secret(o, "ANTHROPIC_API_KEY") != ""
-		r.ssh, r.ttyd = a.env(o, "SSH_PORT"), a.env(o, "TTYD_PORT")
-		r.SSHPort, r.TTYDPort = portOf(r.ssh), portOf(r.ttyd)
-		rows = append(rows, r)
-	}
-	return rows
-}
-
-// portOf is a port value as a number, or nil if it isn't one.
-func portOf(v string) *int {
-	n, err := strconv.Atoi(v)
-	if err != nil || n <= 0 || n > 65535 {
-		return nil
-	}
-	return &n
-}
-
 // Info is `ccenv info <org>`: every way to connect.
 func (a *App) Info(ctx context.Context, o string) error {
-	if err := a.needOrg(o); err != nil {
+	in, err := ops.GetInfo(ctx, a, o)
+	if err != nil {
 		return err
 	}
-	h := a.hostAddr(ctx, o)
-	// ccenv: `sp=$(envval "$org" SSH_PORT)` at function level under set -e -o pipefail, so a missing
-	// key ends the command with exit 1 and no message (PARITY.md, legacy quirks).
-	sp, ok, _ := a.Orgs.Get(o, "SSH_PORT")
-	if !ok {
-		return &Exit{Code: 1}
+	if in.KeyError != "" {
+		fmt.Fprintln(a.Stderr, in.KeyError)
 	}
-	tp, ok, _ := a.Orgs.Get(o, "TTYD_PORT")
-	if !ok {
-		return &Exit{Code: 1}
+	if a.Output == OutputJSON {
+		return a.writeJSON(in)
 	}
-	url := ""
-	if a.running(ctx, o) {
-		url = a.rcURL(ctx, o)
-	}
-	// The heredoc is expanded in full (a second docker ps, then cat) before anything is printed.
-	state := "stopped"
-	if a.running(ctx, o) {
-		state = "running"
-	}
-	pub := a.catFile(path.Join(a.Orgs.Dir, o, "ssh", "id_ed25519.pub"))
+	url := in.RemoteURL
 	if url == "" {
 		url = "not set up yet; run: " + Tool + " login " + o
 	}
@@ -155,8 +70,13 @@ Host claude-%[1]s
   User node
 
 Git public key:  %[8]s
-`, o, state, url, Tool, sp, h, tp, pub)
-	a.tunnelHint(ctx, o, sp, tp)
+`, o, in.State, url, Tool, in.SSHRaw, in.AddressText, in.TTYDRaw, in.GitPublicKey)
+	if t := in.Tunnel; t != nil {
+		fmt.Fprintf(a.Stdout, "\nSSH tunnel              %s connect %s   (then SSH and the browser terminal above, on 127.0.0.1)\n", Tool, t.Connect)
+		if t.SSHTarget != "" {
+			fmt.Fprintf(a.Stdout, "                        or by hand: ssh -N -L %[1]s:127.0.0.1:%[1]s -L %[2]s:127.0.0.1:%[2]s %[3]s\n", in.SSHRaw, in.TTYDRaw, t.SSHTarget)
+		}
+	}
 	return nil
 }
 
@@ -170,31 +90,4 @@ func sshTarget(user, addr string) string {
 		return "-p " + p + " " + user + "@" + h
 	}
 	return user + "@" + h
-}
-
-// tunnelHint is info's last section for an org reached through an SSH tunnel (#58): bound to
-// localhost, or to 127.0.0.1 on a registered host. ccenv's sheet is unchanged otherwise.
-func (a *App) tunnelHint(ctx context.Context, o, sp, tp string) {
-	// Only these can need a tunnel, and only they resolve the bind again (ccenv's sheet makes no
-	// other calls: the parity suite checks it).
-	if a.env(o, "BIND_ADDR") != BindLocalhost && a.HostName == "" {
-		return
-	}
-	if b, err := a.resolveBind(ctx, o); err != nil || b != "127.0.0.1" {
-		return
-	}
-	target, via := "", o
-	if a.HostName != "" {
-		if e, err := a.base().registered(a.HostName); err == nil {
-			target = sshTarget(e.User, e.Addr)
-		}
-		via = o + "@" + a.HostName
-	} else {
-		h, _ := a.capture(ctx, true, "hostname")
-		target = a.Getenv("USER") + "@" + h
-	}
-	fmt.Fprintf(a.Stdout, "\nSSH tunnel              %s connect %s   (then SSH and the browser terminal above, on 127.0.0.1)\n", Tool, via)
-	if target != "" {
-		fmt.Fprintf(a.Stdout, "                        or by hand: ssh -N -L %s:127.0.0.1:%s -L %s:127.0.0.1:%s %s\n", sp, sp, tp, tp, target)
-	}
 }

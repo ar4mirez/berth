@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/ops"
 	"github.com/ar4mirez/berth/internal/org"
 )
 
@@ -127,12 +128,12 @@ func (a *App) Restore(ctx context.Context, args []string) error {
 	if err := json.Unmarshal(raw, &manifest); err != nil {
 		return fmt.Errorf("not a ccenv backup (bad manifest: %w)", err)
 	}
-	field := func(k string) string { return jqString(manifest[k]) } // jq -r .k: null when missing
+	field := func(k string) string { return ops.JQString(manifest[k]) } // jq -r .k: null when missing
 	name := as
 	if name == "" {
 		name = field("org")
 	}
-	if !orgName.MatchString(name) {
+	if !ops.OrgName.MatchString(name) {
 		return fmt.Errorf("invalid org name '%s'", name)
 	}
 	format := a.catFile(stage + "/.ccenv-format")
