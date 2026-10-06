@@ -1,0 +1,72 @@
+name: pinbump
+
+# Bumps the image's pinned tools (gh, ttyd, mise, Claude Code) together with their checksums (#69):
+# GitHub's own Actions and this repo's token, no third-party apps. One PR per tool, on its own
+# branch (pinbump/<tool>), so a newer release replaces an unmerged bump. tools/pinbump takes each
+# checksum from the project's own published file (or npm's signed integrity) and refuses a mismatch.
+#
+# A PR opened with GITHUB_TOKEN starts no workflows by itself, so this starts ci and image on the
+# branch (workflow_dispatch): their checks show on the PR. Needs the repo setting "Allow GitHub
+# Actions to create and approve pull requests".
+on:
+  schedule:
+    - cron: "23 7 * * 1" # Mondays
+  workflow_dispatch:
+
+permissions:
+  contents: write # push pinbump/<tool>
+  pull-requests: write # open and update the PRs
+  actions: write # start ci and image on the branch
+
+concurrency:
+  group: pinbump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - name: test tools/pinbump
+        run: go test ./tools/pinbump/
+      - name: one PR per tool with a newer release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          go build -o "$RUNNER_TEMP/pinbump" ./tools/pinbump
+          base=$(git rev-parse HEAD)
+          failed=0
+          for dep in $("$RUNNER_TEMP/pinbump" -list); do
+            git checkout -q --detach "$base"
+            out="$RUNNER_TEMP/bump.json"
+            if ! "$RUNNER_TEMP/pinbump" -only "$dep" -write -out "$out"; then
+              echo "::error::$dep: not bumped (see above)"; failed=1; git checkout -q -- image/Dockerfile; continue
+            fi
+            [ -s "$out" ] || continue
+            branch=$(jq -r .branch "$out"); title=$(jq -r .title "$out")
+            jq -r .body "$out" > "$RUNNER_TEMP/body.md"
+            pr=$(gh pr list --head "$branch" --state open --json number -q '.[0].number')
+            # Already proposed, for the same Dockerfile: leave the PR and its checks alone.
+            if [ -n "$pr" ] && git fetch -q origin "$branch" && git diff --quiet FETCH_HEAD -- image/Dockerfile; then
+              echo "$dep: #$pr already proposes this"; continue
+            fi
+            git switch -q -C "$branch"
+            git commit -q -m "$title" -F "$RUNNER_TEMP/body.md" image/Dockerfile
+            git push -q -f origin "$branch"
+            if [ -n "$pr" ]; then
+              gh pr edit "$pr" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+            else
+              gh pr create --base "${{ github.event.repository.default_branch }}" --head "$branch" --title "$title" \
+                --body-file "$RUNNER_TEMP/body.md" --label area:image --label restarts-orgs --label dependencies
+            fi
+            gh workflow run ci.yml --ref "$branch"
+            gh workflow run image.yml --ref "$branch"
+            echo "$dep: proposed on $branch"
+          done
+          exit "$failed"
