@@ -15,7 +15,16 @@ import (
 	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/host/local"
 	"github.com/ar4mirez/berth/internal/ops"
+	"github.com/ar4mirez/berth/internal/upgrade"
 )
+
+// newUpgrader is what `berth upgrade` (and `schedule --host`, which installs this release on a
+// host) fetches and verifies releases with: berth's releases on GitHub, and their Sigstore
+// signatures. Tests replace it with a fake release. Without it every upgrade ended with "upgrade
+// isn't available in this build" (#81).
+var newUpgrader = func() *app.Upgrader {
+	return &app.Upgrader{Client: upgrade.NewClient(), Verifier: upgrade.Sigstore{}}
+}
 
 // appFor builds the App a command runs against: the resolved state, on the local host.
 func appFor(cmd *cobra.Command) *app.App {
@@ -26,6 +35,7 @@ func appFor(cmd *cobra.Command) *app.App {
 	a.Self, _ = os.Executable()
 	a.Invoked = invokedPath()
 	a.Output = outputFrom(cmd.Context())
+	a.Upgrader = newUpgrader()
 	if h := progressFrom(cmd.Context()); h != nil && h.op != "" {
 		// The operation's own output, and that of the commands it runs, becomes events on stdout.
 		if h.p == nil {
