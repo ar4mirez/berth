@@ -87,8 +87,8 @@ COPY repo-policy.sh repo-guard.js secrets-env.sh uid-remap.sh /usr/local/lib/cla
 # github.com has a second transport (#103): when the org's gh CLI is signed in, git-transport points
 # git at git-remote-berth, which uses gh's token over HTTPS for the same registered repos. Its rules
 # are in a file git's system config includes; the image ships the SSH ones.
-COPY git-ssh-guard git-remote-berth git-transport /usr/local/bin/
-RUN chmod 755 /usr/local/bin/git-ssh-guard /usr/local/bin/git-remote-berth /usr/local/bin/git-transport \
+COPY git-ssh-guard git-remote-berth git-transport berth-secret-drop /usr/local/bin/
+RUN chmod 755 /usr/local/bin/git-ssh-guard /usr/local/bin/git-remote-berth /usr/local/bin/git-transport /usr/local/bin/berth-secret-drop \
     && chmod 644 /usr/local/lib/claude-env/* \
     && install -d -m 700 -o root -g root /opt/claude-secrets \
     && printf '%s\n' 'Defaults!/usr/local/bin/git-ssh-guard env_keep += "GIT_PROTOCOL"' \

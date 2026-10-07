@@ -93,7 +93,7 @@ var examples = map[string][]string{
 	"clone":              {"berth clone acme acme/widgets --branch main"},
 	"fw":                 {"berth fw acme show", "berth fw acme allow pypi.org @python", "berth fw acme test"},
 	"pkg":                {"berth pkg acme add @playwright-chromium", "berth pkg acme add libpq-dev", "berth pkg acme", "berth restart acme"},
-	"env":                {"berth env acme ls", "berth env acme set OPENROUTER_API_KEY", "berth env acme unset OPENROUTER_API_KEY"},
+	"env":                {"berth env acme ls", "berth env acme set OPENROUTER_API_KEY", "berth env acme unset OPENROUTER_API_KEY", "berth env acme accept"},
 	"secrets":            {"berth secrets migrate acme"},
 	"backup":             {"berth backup acme", "berth backup --all --keep 14", "berth backup acme -o - > acme.tar.zst.age"},
 	"restore":            {"berth restore backups/acme-20260101-030000.tar.zst.age", "berth restore - --as acme2 < acme.tar.zst.age"},
