@@ -22,6 +22,11 @@ Use **mise** for language toolchains and CLIs. Don't use apt (you have no root) 
   `berth pkg <org> add <package>...` and then `berth restart <org>`. For Playwright's Chromium there is a preset:
   `berth pkg <org> add @playwright-chromium`. The packages installed that way are listed in `/config/packages.txt`.
 
+## Secrets
+If a task needs an API key or another secret this org doesn't have, don't ask for it in the conversation. Ask the user
+to run `berth-secret-drop KEY` in this org's terminal (it reads the value hidden), then `berth env <org> accept` on the
+host. The variable is there after the org's next restart.
+
 ## Network
 Outbound traffic goes through an allowlist firewall. If a download or API call fails with a connection error or
 "Connection refused"/"administratively prohibited", it is probably blocked. Don't try to work around it. Instead, tell the user

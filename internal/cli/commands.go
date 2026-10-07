@@ -325,9 +325,13 @@ func addCommands(root *cobra.Command) {
 			RunE: orgArgs(nthArg(0), nil, false, func(a *app.App, cmd *cobra.Command, args []string) error { return a.Init(cmd.Context(), args) }),
 		}),
 		reads(&cobra.Command{
-			Use: "env <org> [ls | set KEY | unset KEY] [--no-restart]", Short: "custom env vars for the container", DisableFlagParsing: true,
-			ValidArgsFunction: completeArgs(orgArg, []string{"ls", "set", "unset"}),
-			RunE:              onOrgV(nthArg(0), []string{"ls", "list", "set", "unset", "rm"}, func(a *app.App, cmd *cobra.Command, args []string) error { return a.Env(cmd.Context(), args) }),
+			Use: "env <org> [ls | set KEY | unset KEY | accept [KEY...]] [--no-restart]", Short: "custom env vars for the container", DisableFlagParsing: true,
+			Long: "Custom variables (API keys) for an org's sessions. set reads the value hidden, or from stdin.\n\n" +
+				"accept takes secrets typed inside the org instead: in the org's terminal, `berth-secret-drop KEY`\n" +
+				"reads the value hidden and leaves a one-time drop; `berth env <org> accept` then stores what is\n" +
+				"waiting (accept --list shows the names, accept KEY takes one). The value is never typed on the host.",
+			ValidArgsFunction: completeArgs(orgArg, []string{"ls", "set", "unset", "accept"}),
+			RunE:              onOrgV(nthArg(0), []string{"ls", "list", "set", "unset", "rm", "accept"}, func(a *app.App, cmd *cobra.Command, args []string) error { return a.Env(cmd.Context(), args) }),
 		}),
 		reads(&cobra.Command{
 			Use: "password <org> [show|rotate]", Short: "browser-terminal password", Args: cobra.ArbitraryArgs,

@@ -10,12 +10,16 @@ custom env vars for the container
 
 ### Synopsis
 
-custom env vars for the container
+Custom variables (API keys) for an org's sessions. set reads the value hidden, or from stdin.
+
+accept takes secrets typed inside the org instead: in the org's terminal, `berth-secret-drop KEY`
+reads the value hidden and leaves a one-time drop; `berth env <org> accept` then stores what is
+waiting (accept --list shows the names, accept KEY takes one). The value is never typed on the host.
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_env/
 
 ```
-berth env <org> [ls | set KEY | unset KEY] [--no-restart] [flags]
+berth env <org> [ls | set KEY | unset KEY | accept [KEY...]] [--no-restart] [flags]
 ```
 
 ### Examples
@@ -24,6 +28,7 @@ berth env <org> [ls | set KEY | unset KEY] [--no-restart] [flags]
   berth env acme ls
   berth env acme set OPENROUTER_API_KEY
   berth env acme unset OPENROUTER_API_KEY
+  berth env acme accept
 ```
 
 ### Options

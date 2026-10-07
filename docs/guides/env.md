@@ -16,6 +16,36 @@ SSH.
 
 **What's refused:** berth's own keys (tokens, ports, `GH_TOKEN`, …) can't be set here, and values can't contain `'`.
 
+## Setting a secret from inside the org
+
+When the value is on your phone or another machine, and not on the host, type it in the org's own terminal (the
+browser terminal, SSH, `berth attach`):
+
+```console
+(acme) /workspace $ berth-secret-drop OPENROUTER_API_KEY
+Value for OPENROUTER_API_KEY (hidden):
+Dropped OPENROUTER_API_KEY. It isn't set yet: on the host, run  berth env acme accept
+```
+
+Then, on the host:
+
+```bash
+berth env acme accept --list              # the names waiting (never the values)
+berth env acme accept                     # set them all, as env set would; or: accept OPENROUTER_API_KEY
+berth env acme accept --no-restart        # apply at the next restart instead
+```
+
+- **The value is never typed, pasted or passed on a command line on the host**, and it doesn't go through a chat
+  or a shell history. `accept` reads it from the container and stores it where `env set` does.
+- **The host decides.** Until you accept, nothing in the org changes. Each name is checked as `env set` checks it,
+  so berth's own keys are refused, and a value must be one line of text. If any drop is refused, none is accepted.
+- **Claude can't read a pending drop**, and a drop is removed once it is accepted. In the org,
+  `berth-secret-drop --list` shows what is waiting and `--cancel KEY` takes one back.
+- A running org is recreated so the variable reaches its sessions, as with `env set`.
+
+With the value in a password manager on the host, a pipe does it without the drop: `op read 'op://vault/item/field'
+| berth env acme set OPENROUTER_API_KEY`.
+
 ## Where tokens and variables live
 
 By default, the Claude token, `GH_TOKEN` and custom variables are in `org.env` (0600). They reach the container as its

@@ -35,6 +35,7 @@ const (
 	Credentials      = ClaudeDir + "/.credentials.json"  // Claude Code's full login ($CLAUDE_CONFIG_DIR)
 	SetupLog         = "/run/berth-setup.log"            // entrypoint.sh: the setup script's output
 	FirewallScript   = "init-firewall.sh"                // on PATH: `apply` (the default) and `presets`
+	SecretDrop       = "berth-secret-drop"               // on PATH: --list and --show KEY, for `env accept` (#10)
 	RemoteRetry      = "/run/rc-retry"                   // rc-supervisor.sh: created to end its wait now (#7)
 	GitTransport     = "git-transport"                   // on PATH: `apply` (the default) and `show` (#103)
 	TmuxSession      = "main"                            // entrypoint.sh; attach and ttyd join it

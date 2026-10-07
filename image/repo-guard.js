@@ -10,7 +10,8 @@ const path = require('path');
 
 const WS = '/workspace';
 const REPOS = '/config/repos.txt';
-const SECRET_DIRS = ['/opt/claude-secrets', '/config/secrets'];
+// Pending secret drops (berth-secret-drop, #10) are for the host to read, not for Claude.
+const SECRET_DIRS = ['/opt/claude-secrets', '/config/secrets', '/home/node/.config/berth-drop'];
 const mode = (process.env.REPO_POLICY || 'enforce').toLowerCase();
 const org = (() => { try { return fs.readFileSync('/etc/claude-env/org', 'utf8').trim(); } catch { return '<org>'; } })();
 

@@ -200,6 +200,28 @@ jobs:
             rm /tmp/blocked; touch /run/rc-retry; sleep 5
             [ "$(starts)" -gt "$n" ] && up || { echo "the supervisor no longer retries:"; cat $log; exit 1; }
             echo "ok: a retry ends the blocked wait; a restart is immediate; the supervisor survives"'
+      - name: secrets - a drop typed in the org is only for the host to take (#10)
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint bash berth-image-ci -c '
+            set -euo pipefail
+            mkdir -p /etc/claude-env; echo t-ci > /etc/claude-env/org
+            n() { runuser -u node -- "$@"; }
+            echo "sk-ci-value" | n berth-secret-drop CI_KEY | grep -q "on the host, run  berth env t-ci accept"
+            [ "$(n berth-secret-drop --list)" = CI_KEY ] && [ "$(n berth-secret-drop --show CI_KEY)" = sk-ci-value ]
+            [ "$(stat -c "%a %U" /home/node/.config/berth-drop)" = "700 node" ] && [ "$(stat -c %a /home/node/.config/berth-drop/CI_KEY)" = 600 ]
+            # A link in the drop folder is never a drop, whatever it points at.
+            n ln -s /etc/hostname /home/node/.config/berth-drop/LINKED
+            [ "$(n berth-secret-drop --list)" = CI_KEY ]
+            if n berth-secret-drop --show LINKED 2>/dev/null; then echo "a link was shown"; exit 1; fi
+            if echo v | n berth-secret-drop lower 2>/dev/null; then echo "a bad name was dropped"; exit 1; fi
+            # Claude may not read a pending drop.
+            for c in "{\"tool_name\":\"Read\",\"cwd\":\"/tmp\",\"tool_input\":{\"file_path\":\"/home/node/.config/berth-drop/CI_KEY\"}}" \
+                     "{\"tool_name\":\"Bash\",\"cwd\":\"/tmp\",\"tool_input\":{\"command\":\"cat ~/.config/berth-drop/CI_KEY\"}}"; do
+              echo "$c" | n node /usr/local/lib/claude-env/repo-guard.js | grep -q "\"permissionDecision\":\"deny\"" || { echo "the hook allows: $c"; exit 1; }
+            done
+            n berth-secret-drop --cancel CI_KEY >/dev/null && [ -z "$(n berth-secret-drop --list)" ]
+            echo "ok: a drop is private to the org user, links are not drops, and Claude cannot read one"'
       - name: git - github.com over HTTPS with gh's token, for registered repos only (#103)
         run: |
           set -euo pipefail

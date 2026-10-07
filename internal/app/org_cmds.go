@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 
 	"golang.org/x/term"
@@ -105,9 +106,12 @@ func (a *App) Env(ctx context.Context, args []string) error {
 	if sub == "" {
 		sub = "ls"
 	}
-	if sub == "set" || sub == "unset" || sub == "rm" {
+	if sub == "set" || sub == "unset" || sub == "rm" || sub == "accept" {
 		if err := a.writable(o, "change "+o+"'s env"); err != nil {
 			return err
+		}
+		if sub == "accept" {
+			return a.envAccept(ctx, o, args[2:])
 		}
 	} else if err := a.needOrg(o); err != nil {
 		return err
@@ -240,6 +244,12 @@ func (a *App) Env(ctx context.Context, args []string) error {
 	}
 	unlock()
 	unlock = func() {}
+	return a.applyEnv(ctx, o, restart)
+}
+
+// applyEnv is how env set and unset end: a running org is recreated so the change reaches its
+// sessions, unless told not to.
+func (a *App) applyEnv(ctx context.Context, o string, restart bool) error {
 	if restart && a.running(ctx, o) {
 		// compose … >/dev/null 2>&1 && echo …: a failure ends the command with exit 1, silently.
 		q := *a
@@ -252,6 +262,134 @@ func (a *App) Env(ctx context.Context, args []string) error {
 	}
 	fmt.Fprintf(a.Stdout, "applies on: %s restart %s\n", Tool, o)
 	return nil
+}
+
+// maxDropped is the longest value env accept takes from a drop.
+const maxDropped = 16 << 10
+
+// checkEnvKey refuses a name env set refuses: not a variable name, or one berth manages.
+func (a *App) checkEnvKey(o, key string) error {
+	if !envKey.MatchString(key) {
+		return fmt.Errorf("'%s' isn't a variable name (KEY like OPENROUTER_API_KEY)", key)
+	}
+	for _, r := range append(envReserved, berthReserved...) {
+		if r == key {
+			return fmt.Errorf("%s is managed by %s; edit it in %s if you really mean to", key, Tool, a.Orgs.EnvPath(o))
+		}
+	}
+	return nil
+}
+
+// envAccept is `berth env <org> accept [KEY...] [--list] [--no-restart]` (#10; berth-only): take
+// the secrets dropped inside the org with berth-secret-drop, and set them as env set would. The
+// value is typed in the org's own terminal and read here through the container, so it is never
+// typed, pasted or passed on a command line on the host.
+//
+// What comes out of the container is not trusted: each name is checked as env set checks it, and
+// each value must be one line of printable text. The drop is read inside the container (docker
+// exec), never as a file of the host's, so a link planted in the drop folder can't make the host
+// read a file of its own.
+func (a *App) envAccept(ctx context.Context, o string, args []string) error {
+	restart, list := true, false
+	var want []string
+	for _, x := range args {
+		switch {
+		case x == "--no-restart":
+			restart = false
+		case x == "--list":
+			list = true
+		case strings.HasPrefix(x, "-"):
+			return fmt.Errorf("usage: %s env %s accept [KEY...] [--list] [--no-restart]", Tool, o)
+		default:
+			want = append(want, x)
+		}
+	}
+	if err := a.needUp(ctx, o); err != nil {
+		return err
+	}
+	out, err := a.capture(ctx, true, "docker", "exec", "-u", "node", "claude-"+o, contract.SecretDrop, "--list")
+	if err != nil {
+		return &ops.Error{Kind: ops.KindState, Code: 1, Msg: o + "'s container has no " + contract.SecretDrop + " (it was started by an older " + Tool + ")",
+			Hint: Tool + " restart " + o + " recreates it, which stops the work running in it"}
+	}
+	var pending []string
+	for _, k := range strings.Fields(out) {
+		if envKey.MatchString(k) { // anything else isn't a drop: never echoed back
+			pending = append(pending, k)
+		}
+	}
+	if len(pending) == 0 {
+		fmt.Fprintf(a.Stdout, "Nothing is waiting in %s. In its terminal: %s KEY\n", o, contract.SecretDrop)
+		return nil
+	}
+	if list {
+		for _, k := range pending {
+			note := ""
+			if err := a.checkEnvKey(o, k); err != nil {
+				note = "   (will be refused: " + err.Error() + ")"
+			}
+			fmt.Fprintln(a.Stdout, k+note)
+		}
+		return nil
+	}
+	keys := pending
+	if len(want) > 0 {
+		keys = nil
+		for _, k := range want {
+			if !slices.Contains(pending, k) {
+				return fmt.Errorf("nothing dropped for %s in %s (waiting: %s)", k, o, strings.Join(pending, " "))
+			}
+			keys = append(keys, k)
+		}
+	}
+	// Every name and value is checked before anything is stored.
+	vals := map[string]string{}
+	for _, k := range keys {
+		if err := a.checkEnvKey(o, k); err != nil {
+			return fmt.Errorf("%w; nothing was accepted (in the org: %s --cancel %s)", err, contract.SecretDrop, k)
+		}
+		v, err := a.captureRaw(ctx, true, "docker", "exec", "-u", "node", "claude-"+o, contract.SecretDrop, "--show", k)
+		if err != nil {
+			return fmt.Errorf("couldn't read the drop for %s; nothing was accepted", k)
+		}
+		v = strings.TrimSuffix(v, "\n")
+		switch {
+		case v == "":
+			return fmt.Errorf("the value dropped for %s is empty; nothing was accepted", k)
+		case len(v) > maxDropped:
+			return fmt.Errorf("the value dropped for %s is longer than %d bytes; nothing was accepted", k, maxDropped)
+		case strings.Contains(v, "'"):
+			return fmt.Errorf("the value dropped for %s has a single quote ('), which isn't supported; nothing was accepted", k)
+		case strings.ContainsFunc(v, func(r rune) bool { return r < 0x20 || r == 0x7f }):
+			return fmt.Errorf("the value dropped for %s isn't one line of text; nothing was accepted", k)
+		}
+		vals[k] = v
+	}
+	unlock, err := a.lock(ctx)
+	if err != nil {
+		return err
+	}
+	listed := strings.Fields(a.env(o, contract.EnvKeys))
+	for _, k := range keys {
+		if err := a.setSecret(o, k, vals[k], "'"+vals[k]+"'"); err != nil {
+			unlock()
+			return err
+		}
+		if !slices.Contains(listed, k) {
+			listed = append(listed, k)
+		}
+	}
+	err = a.Orgs.Set(o, contract.EnvKeys, strings.Join(listed, " "))
+	unlock()
+	if err != nil {
+		return err
+	}
+	for _, k := range keys {
+		// Stored: the drop has done its job. Best effort: a leftover is offered again, and is the same value.
+		_ = a.quietRun(ctx, "docker", "exec", "-u", "node", "claude-"+o, contract.SecretDrop, "--cancel", k)
+		fmt.Fprintln(a.Stdout, "accepted: "+k)
+	}
+	return a.applyEnv(ctx, o, restart)
 }
 
 // readValue is env set's value: a hidden prompt on a terminal, else one line of stdin
