@@ -26,12 +26,13 @@ func GetEnv(s System, org string) (Env, error) {
 	return out, nil
 }
 
-// FirewallTemplate is ccenv's write_firewall_template: a new org's firewall.txt.
+// FirewallTemplate is ccenv's write_firewall_template: a new org's firewall.txt. One line differs
+// (PARITY.md): ccenv's says wildcards aren't supported, which stopped being true with #104.
 func FirewallTemplate(org string) string {
 	return `# Egress allowlist for ` + org + `, applied live by: ` + Tool + ` fw ` + org + ` ...
 # One entry per line:  domain (pypi.org) | IP or CIDR (10.0.0.0/8) | @preset (@python) | mode on|off
 # Always allowed: Anthropic/Claude, GitHub, npm.  List presets: ` + Tool + ` fw ` + org + ` presets
-# Entries are resolved to IPs, so wildcards (*.example.com) are not supported.
+# A domain allows that name and every name under it; *.example.com means the same.
 mode on
 # Toolchain installs via mise, plus package registries for common languages:
 @mise

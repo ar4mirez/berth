@@ -112,3 +112,20 @@ func TestBerthFwAllowRefusesBadEntries(t *testing.T) {
 		t.Errorf("leading wildcard: exit %d, stdout %q, stderr %q\n%s", r.Exit, r.Stdout, r.Stderr, strings.Join(r.Tree, "\n"))
 	}
 }
+
+// TestBerthFirewallTemplate: a new firewall.txt says what the firewall does with a domain since
+// #104, where ccenv's template still says wildcards aren't supported (PARITY.md).
+func TestBerthFirewallTemplate(t *testing.T) {
+	raw := Berth(berthBin)
+	raw.Content = nil // the text as berth writes it
+	r := run(t, raw, Scenario{Args: []string{"fw", "globex", "allow", "@node"}, Files: withoutFile(twoOrgs, "state/orgs/globex/config/firewall.txt")})
+	var file string
+	for _, l := range r.Tree {
+		if strings.HasPrefix(l, "state/orgs/globex/config/firewall.txt ") {
+			file = l
+		}
+	}
+	if r.Exit != 0 || !strings.Contains(file, `# A domain allows that name and every name under it; *.example.com means the same.\n`) || strings.Contains(file, "not supported") {
+		t.Errorf("exit %d, firewall.txt: %s", r.Exit, file)
+	}
+}
