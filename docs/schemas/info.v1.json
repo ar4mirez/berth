@@ -1,0 +1,86 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/info.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth info <org> --output json",
+  "properties": {
+    "address": {
+      "type": "string"
+    },
+    "container": {
+      "type": "string"
+    },
+    "git_public_key": {
+      "type": "string"
+    },
+    "local_only": {
+      "type": "boolean"
+    },
+    "org": {
+      "type": "string"
+    },
+    "remote_url": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "berth.info/v1"
+    },
+    "ssh_host": {
+      "type": "string"
+    },
+    "ssh_port": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "state": {
+      "type": "string"
+    },
+    "ttyd_port": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "tunnel": {
+      "additionalProperties": false,
+      "properties": {
+        "connect": {
+          "type": "string"
+        },
+        "ssh_target": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connect",
+        "ssh_target"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "user": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "org",
+    "container",
+    "state",
+    "remote_url",
+    "address",
+    "local_only",
+    "ssh_port",
+    "ttyd_port",
+    "user",
+    "ssh_host",
+    "git_public_key",
+    "tunnel"
+  ],
+  "title": "berth.info/v1",
+  "type": "object"
+}

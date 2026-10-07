@@ -1,0 +1,32 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/host-guard.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth host guard <name> status --output json",
+  "properties": {
+    "host": {
+      "type": "string"
+    },
+    "installed": {
+      "type": "boolean"
+    },
+    "rules": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "berth.host-guard/v1"
+    },
+    "state": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "host",
+    "installed",
+    "state",
+    "rules"
+  ],
+  "title": "berth.host-guard/v1",
+  "type": "object"
+}

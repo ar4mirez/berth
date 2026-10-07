@@ -1,0 +1,42 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/repo-audit.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth repo audit <org> --output json",
+  "properties": {
+    "org": {
+      "type": "string"
+    },
+    "policy": {
+      "type": "string"
+    },
+    "quarantine_dir": {
+      "type": "string"
+    },
+    "quarantined": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "berth.repo-audit/v1"
+    },
+    "unregistered": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "org",
+    "policy",
+    "unregistered",
+    "quarantine_dir",
+    "quarantined"
+  ],
+  "title": "berth.repo-audit/v1",
+  "type": "object"
+}

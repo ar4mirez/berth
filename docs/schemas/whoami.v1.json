@@ -1,0 +1,68 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/whoami.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth whoami [org...] --output json",
+  "properties": {
+    "orgs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "claude": {
+            "additionalProperties": false,
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "organization": {
+                "type": "string"
+              },
+              "organization_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "email",
+              "organization",
+              "organization_id"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "github": {
+            "type": "string"
+          },
+          "org": {
+            "type": "string"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "token": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "org",
+          "running",
+          "token",
+          "github",
+          "claude"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "berth.whoami/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "orgs"
+  ],
+  "title": "berth.whoami/v1",
+  "type": "object"
+}

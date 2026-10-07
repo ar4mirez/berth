@@ -1,0 +1,32 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/error.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth any command that fails (on stderr) --output json",
+  "properties": {
+    "code": {
+      "type": "integer"
+    },
+    "hint": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "berth.error/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "kind",
+    "code",
+    "message",
+    "hint"
+  ],
+  "title": "berth.error/v1",
+  "type": "object"
+}

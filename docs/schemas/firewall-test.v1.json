@@ -1,0 +1,40 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/firewall-test.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth fw <org> test [host...] --output json",
+  "properties": {
+    "org": {
+      "type": "string"
+    },
+    "results": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "allowed"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "berth.firewall-test/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "org",
+    "results"
+  ],
+  "title": "berth.firewall-test/v1",
+  "type": "object"
+}
