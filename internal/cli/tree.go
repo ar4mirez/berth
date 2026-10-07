@@ -416,10 +416,12 @@ func layout(root *cobra.Command) {
 	}
 	t.kept("image-tag")
 
-	mcp := t.take("mcp")
-	mcp.GroupID = "commands"
-	setExample(mcp, "mcp")
-	root.AddCommand(mcp)
+	for _, name := range []string{"tui", "mcp"} {
+		c := t.take(name)
+		c.GroupID = "commands"
+		setExample(c, name)
+		root.AddCommand(c)
+	}
 
 	// One spelling per command: ccenv's others name their replacement.
 	for _, g := range [][2]string{

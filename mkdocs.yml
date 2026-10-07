@@ -57,6 +57,7 @@ nav:
       - Hosts, leases and moving orgs: hosts.md
       - Container engines (Docker, Podman): engines.md
       - Toolchains and Claude Code: guides/tools.md
+      - The dashboard: guides/tui.md
       - MCP, for agents: guides/mcp.md
   - Troubleshooting: troubleshooting.md
   - Reference:

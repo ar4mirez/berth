@@ -1,0 +1,24 @@
+berth
+
+  ORG      HOST   STATE  SSH   TTYD  TOKEN  REMOTE
+  acme     local  up     2201  7701  set    on
+▸ globex   local  down   2202  7702  -      -
+  initech  box1   up     2201  7701  set    login-needed
+  box2 is unreachable: ssh: connection refused
+
+Hosts
+  NAME   KIND   REACHABLE  ENGINE         ORGS  ADDRESS
+  local  local  yes        docker 29.0.0  2
+  box1   ssh    yes        docker 28.1.0  1     ops@box1.example:22
+  box2   ssh    no                        -     ops@box2.example:22
+
+
+
+
+
+
+
+
+
+
+↑↓ select · enter open · u/d/r up/down/restart · A attach · S shell · ? help · q quit

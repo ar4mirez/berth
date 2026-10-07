@@ -22,6 +22,7 @@ Every command lives in one group, and each group's `--help` lists its verbs. The
 | `berth backup` | `create` `restore` `keygen` `schedule on\|off\|status\|run` |
 | `berth host` | `add` `ls` `rm` `guard` `rotate-access` |
 | `berth system` | `install` `upgrade` `pull` `build` `completion` `parity-check` |
+| `berth tui` | (the dashboard: [guide](guides/tui.md)) |
 | `berth mcp` | (the MCP server: [guide](guides/mcp.md)) |
 
 **Everyday shortcuts.** Nine `berth org` commands also work on their own, since you type them all day:

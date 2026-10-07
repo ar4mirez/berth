@@ -1,0 +1,24 @@
+berth  acme
+
+╭─────────────────────────────────────╮
+│ berth fw deny acme pypi.org         │
+│                                     │
+│ Run it? y = yes, anything else = no │
+╰─────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+y run it · any other key cancels

@@ -1,0 +1,24 @@
+berth
+
+Everywhere
+  ?            this help                 q, ctrl+c   quit
+  R            read again now            (every page refreshes by itself)
+  u / d / r    start, stop, restart the org: each says what stops and asks first
+  A / S        attach to its tmux session / open a shell: the terminal is theirs until you leave
+
+The list
+  ↑ ↓ (k j)    select an org            enter       open it
+
+An org's page
+  tab, 1-6     switch tab               esc         back to the list
+  Firewall     a allow entries          x deny the selected entry
+  Repos        a add a repo             x remove the selected one     y sync
+  Backups      b back up now
+  Logs         follows the container's log
+
+Nothing that restarts a container, or removes something, runs without a "y".
+With --read-only the dashboard only reads.
+
+
+
+any key closes

@@ -1,0 +1,24 @@
+berth
+
+╭─────────────────────────────────────╮
+│ berth restart acme                  │
+│                                     │
+│ This recreates the container.       │
+│ It stops the work running in acme.  │
+│                                     │
+│ Run it? y = yes, anything else = no │
+╰─────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+y run it · any other key cancels
