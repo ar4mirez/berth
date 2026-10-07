@@ -7,7 +7,8 @@ name: packages
 #   - the generated AUR PKGBUILDs, checked with makepkg;
 #   - install.sh against the latest release, on Linux and macOS: it installs with the signature and
 #     checksum checked, and refuses a tampered archive;
-#   - mise (ubi:) against the latest release;
+#   - mise (ubi:) against the latest release, asking GitHub for it directly (mise's own versions
+#     host can lag a new release; that only warns);
 #   - Homebrew and the AUR once they're published (the HOMEBREW_TAP / AUR repository variables).
 # Weekly as well, so a channel that breaks between releases shows up.
 on:
@@ -142,9 +143,28 @@ jobs:
       - uses: jdx/mise-action@v5
         with:
           install: false
-      - run: |
+      # mise's versions host caches each tool's release list and can lag a new release by up to a
+      # day: right after v0.4.1 this job installed 0.3.0 (#102). Asking GitHub directly, the latest
+      # release is what must be installed.
+      - name: mise installs the latest release
+        env:
+          MISE_USE_VERSIONS_HOST: "0"
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          latest=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/ar4mirez/berth/releases/latest); latest=${latest##*/v}
           mise use -g ubi:ar4mirez/berth
-          mise exec -- berth --version
+          got=$(mise exec -- berth --version)
+          echo "$got"
+          case "$got" in "berth $latest "*) ;; *) echo "mise installed that, and the latest release is $latest"; exit 1 ;; esac
+      # What a user gets by default, through the versions host. A lag there isn't berth's to fix, so
+      # it is a warning on the run, not a failure.
+      - name: what mise resolves by default
+        run: |
+          latest=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/ar4mirez/berth/releases/latest); latest=${latest##*/v}
+          seen=$(mise ls-remote ubi:ar4mirez/berth | tail -1)
+          echo "the latest release is $latest; mise's versions host lists up to $seen"
+          [ "$seen" = "$latest" ] || echo "::warning::mise's versions host lags: it lists $seen, and the latest release is $latest (docs/getting-started.md says how to pin)"
 
   homebrew:
     if: vars.HOMEBREW_TAP == 'true'
