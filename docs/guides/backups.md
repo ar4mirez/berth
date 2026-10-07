@@ -14,11 +14,11 @@ They **keep everything else**:
 A 2 GB org typically backs up to a few MB.
 
 ```bash
-berth backup acme --plan                  # what's kept and skipped, and how big
-berth backup acme                         # encrypted, to <state root>/backups/acme-<date>.tar.zst.age
-berth backup --all -o /mnt/nas/berth/     # every org berth manages
-berth backup acme -o - > acme.tar.zst.age # to stdout
-berth backup --all --keep 7               # and prune to the newest 7 per org
+berth backup create acme --plan                  # what's kept and skipped, and how big
+berth backup create acme                         # encrypted, to <state root>/backups/acme-<date>.tar.zst.age
+berth backup create --all -o /mnt/nas/berth/     # every org berth manages
+berth backup create acme -o - > acme.tar.zst.age # to stdout
+berth backup create --all --keep 7               # and prune to the newest 7 per org
 ```
 
 ## Encryption
@@ -28,11 +28,11 @@ wrong key, a corrupted file or any tampering fails the restore, and nothing is l
 
 | Method | Used when | Good for |
 |---|---|---|
-| **Key** (age, X25519) | `berth keygen` made `~/.config/berth/backup.key`, or you pass `-r <age1…\|ssh-ed25519 …\|file>`, or `BERTH_BACKUP_RECIPIENTS` is set | unattended backups, no prompts |
+| **Key** (age, X25519) | `berth backup keygen` made `~/.config/berth/backup.key`, or you pass `-r <age1…\|ssh-ed25519 …\|file>`, or `BERTH_BACKUP_RECIPIENTS` is set | unattended backups, no prompts |
 | **Passphrase** (GnuPG, AES-256) | there's no key, or `--passphrase`, or `BERTH_BACKUP_PASSPHRASE` is set | one-off backups |
 
 ```bash
-berth keygen      # once; then keep a copy of ~/.config/berth/backup.key somewhere safe (a password manager)
+berth backup keygen      # once; then keep a copy of ~/.config/berth/backup.key somewhere safe (a password manager)
 ```
 
 **The key is the only way back.** Without `backup.key` or the passphrase, an encrypted backup can't be restored. Keep
@@ -47,12 +47,12 @@ Things to know:
 ## Restore
 
 ```bash
-berth restore backups/acme-20260101-030000.tar.zst.age            # restores, starts it, reinstalls toolchains and deps
-berth restore file.age --as acme-copy                               # under another name (free ports are picked)
-berth restore file.age -i ~/backup.key                              # with a key from elsewhere
-berth restore - < file.age                                          # from stdin
-berth restore file.age --no-start --no-rehydrate                    # restore only
-berth rehydrate acme                                                # reinstall mise tools and project dependencies
+berth backup restore backups/acme-20260101-030000.tar.zst.age            # restores, starts it, reinstalls toolchains and deps
+berth backup restore file.age --as acme-copy                               # under another name (free ports are picked)
+berth backup restore file.age -i ~/backup.key                              # with a key from elsewhere
+berth backup restore - < file.age                                          # from stdin
+berth backup restore file.age --no-start --no-rehydrate                    # restore only
+berth org rehydrate acme                                                # reinstall mise tools and project dependencies
 ```
 
 The restored org is berth's, with its ports and bind address fitted to this machine. `--force` replaces an existing
@@ -61,11 +61,11 @@ org of that name: it's stopped, and moved to `backups/.replaced/`.
 ## Scheduled backups
 
 ```bash
-berth schedule                              # nightly at 03:00, keep the newest 14 per org (needs a key)
-berth schedule --at 01:30 --keep 30 -o /mnt/nas/berth
-berth schedule status                       # next run, and the last runs' output
-berth schedule run                          # run it now
-berth schedule off
+berth backup schedule on                              # nightly at 03:00, keep the newest 14 per org (needs a key)
+berth backup schedule on --at 01:30 --keep 30 -o /mnt/nas/berth
+berth backup schedule status                       # next run, and the last runs' output
+berth backup schedule run                          # run it now
+berth backup schedule off
 ```
 
 **How it runs:** through a systemd user timer where there is one, and cron otherwise. A run missed while the machine
@@ -76,12 +76,12 @@ berth tells you when it's off.
 
 **Pruning:** it only touches that org's `<org>-<date>.tar.zst*` files.
 
-**On a registered host:** `berth schedule --host box1` sets up the same schedule on that host, with only your public
+**On a registered host:** `berth backup schedule on --host box1` sets up the same schedule on that host, with only your public
 key ([Hosts](../hosts.md#backups-on-a-host)).
 
 ## Moving an org to another machine
 
-`berth migrate acme box1` moves an org to a registered host, with a rehearsal first and an announced switch
-([Hosts](../hosts.md#moving-an-org-between-hosts)). To a machine that isn't registered, `berth migrate acme
+`berth org migrate acme box1` moves an org to a registered host, with a rehearsal first and an announced switch
+([Hosts](../hosts.md#moving-an-org-between-hosts)). To a machine that isn't registered, `berth org migrate acme
 me@newbox` streams it to berth there over SSH (ccenv's way). Stop the old copy afterwards (`berth down acme`), so two
 containers don't share one Remote Control login.

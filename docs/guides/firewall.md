@@ -4,15 +4,15 @@ Each org's egress is **default-deny**. GitHub, npm and the model provider (Anthr
 allowlist, `config/firewall.txt`. Changes apply to the running container at once, with no restart.
 
 ```bash
-berth fw acme                               # the allowlist, and the live status (on, and how many networks)
-berth fw acme allow @python pypi.org        # presets, domains, IPs, CIDRs, or URLs (the host is taken)
-berth fw acme allow https://sentry.example.com/api
-berth fw acme deny pypi.org                 # take an entry out
-berth fw acme test pypi.org example.com     # can the org reach them now?
-berth fw acme presets                       # the presets and what each allows
-berth fw acme off                           # full access, until: berth fw acme on
-berth fw acme edit                          # edit firewall.txt in $EDITOR, then apply
-berth fw acme reload                        # re-apply (a host's addresses changed)
+berth fw show acme                          # the allowlist, and the live status (on, and how many networks)
+berth fw allow acme @python pypi.org        # presets, domains, IPs, CIDRs, or URLs (the host is taken)
+berth fw allow acme https://sentry.example.com/api
+berth fw deny acme pypi.org                 # take an entry out
+berth fw test acme pypi.org example.com     # can the org reach them now?
+berth fw presets acme                       # the presets and what each allows
+berth fw off acme                           # full access, until: berth fw on acme
+berth fw edit acme                          # edit firewall.txt in $EDITOR, then apply
+berth fw reload acme                        # re-apply (a host's addresses changed)
 ```
 
 ## Presets
@@ -23,14 +23,14 @@ New orgs start with `@mise @python @go @rust @ruby`, which cover toolchain downl
 
 ## When something is blocked
 
-Claude is told about the firewall. When it hits a blocked host, it tells you the `berth fw <org> allow …` command to
+Claude is told about the firewall. When it hits a blocked host, it tells you the `berth fw allow <org> …` command to
 run. If a site still fails after you allow it:
 
-- **Dependencies:** it may depend on other hosts (a CDN, an auth domain). `berth fw acme test <host>` shows what
+- **Dependencies:** it may depend on other hosts (a CDN, an auth domain). `berth fw test acme <host>` shows what
   answers.
-- **Changed addresses:** its addresses may have changed since the last resolve. `berth fw acme reload` re-resolves now
+- **Changed addresses:** its addresses may have changed since the last resolve. `berth fw reload acme` re-resolves now
   (it happens every 5 minutes anyway).
-- **Guessing the host:** `berth fw acme off`, try it, then `berth fw acme on`. That tells you whether the firewall is
+- **Guessing the host:** `berth fw off acme`, try it, then `berth fw on acme`. That tells you whether the firewall is
   the problem, then close it again.
 
 ## Domains and wildcards
@@ -39,7 +39,7 @@ A domain allows that name **and every name under it**: `example.com` also allows
 means the same thing. The firewall matches whole labels only, so a `*` anywhere else is refused:
 
 ```console
-$ berth fw acme allow 'web-git-*.example.app'
+$ berth fw allow acme 'web-git-*.example.app'
 berth: 'web-git-*.example.app': a wildcard only works as a leading '*.' (the firewall can't match part of a label). List each host, or allow the whole domain, like '*.example.com'
 ```
 
@@ -54,17 +54,17 @@ other characters. Nothing is written when an entry is refused.
 One entry per line: `mode on|off`, a domain, an IPv4 address or range, an `@preset`, or a `provider` line. Lines
 starting with `#` are comments. `/config` is mounted read-only, so nothing inside the container can change it.
 
-An entry the firewall can't use (written by `berth fw acme edit`, or by an older berth) is **skipped**, and the
+An entry the firewall can't use (written by `berth fw edit acme`, or by an older berth) is **skipped**, and the
 rest of the list applies. berth says so each time the list is applied, and ends with exit code 3:
 
 ```console
-$ berth fw acme reload
+$ berth fw reload acme
 firewall: skipping 'web-git-*.example.app': a wildcard only works as a leading '*.' (list each host, or allow the whole domain, like '*.example.com')
 firewall: ON (187 allowlisted networks)
-firewall: WARNING skipped (see above): web-git-*.example.app. Remove each with: berth fw acme deny '<entry>'
+firewall: WARNING skipped (see above): web-git-*.example.app. Remove each with: berth fw deny acme '<entry>'
 ```
 
-`berth fw acme` then shows `live: on 187 (1 skipped)`. At a container start, the same lines are in `berth logs acme`.
+`berth fw show acme` then shows `live: on 187 (1 skipped)`. At a container start, the same lines are in `berth logs acme`.
 
 ## DNS
 
@@ -80,8 +80,8 @@ exit code 3. While DNS is down, the addresses already allowed stay allowed
 ## The model provider
 
 Anthropic's endpoints are allowed unless the file has a `provider` line. With one, that provider's endpoints replace
-Anthropic's; GitHub and npm stay. `berth init --profile` writes it ([Profiles](profiles.md)); you can also add it with
-`berth fw acme edit`.
+Anthropic's; GitHub and npm stay. `berth org create --profile` writes it ([Profiles](profiles.md)); you can also add it with
+`berth fw edit acme`.
 
 | Line | Allowed |
 |---|---|
@@ -90,7 +90,7 @@ Anthropic's; GitHub and npm stay. `berth init --profile` writes it ([Profiles](p
 | `provider vertex <region>` | `<region>-aiplatform.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com`, `www.googleapis.com` |
 | `provider openrouter` | `openrouter.ai` |
 
-A line with an unknown provider, or without the region Bedrock and Vertex need, is reported by `berth fw acme reload`,
+A line with an unknown provider, or without the region Bedrock and Vertex need, is reported by `berth fw reload acme`,
 and Anthropic's endpoints stay.
 
 ## On a registered host

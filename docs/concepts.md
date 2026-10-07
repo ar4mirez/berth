@@ -15,7 +15,7 @@ orgs/<org>/
 │   ├── firewall.txt     the egress allowlist (berth fw)
 │   ├── repos.txt        the repo allowlist (berth repo)
 │   ├── authorized_keys  devices allowed to SSH in
-│   └── secrets/         the browser-terminal password; tokens and custom variables (berth secrets)
+│   └── secrets/         the browser-terminal password; tokens and custom variables (berth env migrate)
 ├── workspace/       /workspace: the registered repos
 ├── claude/          ~/.claude: settings, sessions, memory, the Remote Control login
 ├── mise/            toolchains and build caches
@@ -113,7 +113,7 @@ reference is matched, [Repo policy](repo-policy.md).
 
 Backups are encrypted by default:
 
-- **With an age key:** `berth keygen` makes one at `~/.config/berth/backup.key`.
+- **With an age key:** `berth backup keygen` makes one at `~/.config/berth/backup.key`.
 - **With a passphrase:** when no key is set up, or with `--passphrase`.
 
 They skip what can be regenerated (toolchains, `node_modules`, caches) and keep everything else: repos with their

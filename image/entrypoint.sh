@@ -22,7 +22,7 @@ echo "$ORG" > /etc/claude-env/org
 # --- Env snapshot for SSH sessions (they don't inherit container env) --------
 : > /etc/claude-env/env
 for v in ORG CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY GH_TOKEN CLAUDE_CONFIG_DIR \
-         DISABLE_AUTOUPDATER LANG ANTHROPIC_MODEL REPO_POLICY ${CCENV_ENV_KEYS:-}; do   # + custom: berth env <org> set
+         DISABLE_AUTOUPDATER LANG ANTHROPIC_MODEL REPO_POLICY ${CCENV_ENV_KEYS:-}; do   # + custom: berth env set <org>
   [ -n "${!v:-}" ] && printf '%s=%q\n' "$v" "${!v}" >> /etc/claude-env/env
 done
 chown root:node /etc/claude-env/env && chmod 640 /etc/claude-env/env
@@ -75,7 +75,7 @@ jq '.hasCompletedOnboarding = true
   "$CFG/.claude.json" > "$tmp" && cat "$tmp" > "$CFG/.claude.json" && rm -f "$tmp"
 chown -R node:node "$CFG"
 
-# --- Profile setup (berth init --profile): as node, at every start, before any session opens ---
+# --- Profile setup (berth org create --profile): as node, at every start, before any session opens ---
 # Its output goes to /run/berth-setup.log. A failure or a timeout is logged; the container still starts.
 # Root copies it first: node may not be able to read /config (another owner, a 0700 dir).
 if [ -s /config/setup.sh ]; then
@@ -115,7 +115,7 @@ fi
   done ) &
 
 # --- Remote Control service: new sessions are started from claude.ai/code -------
-# Needs a full-scope login (`berth login`); the inference-only token can't do it.
+# Needs a full-scope login (`berth account login`); the inference-only token can't do it.
 RC_LOG="$CFG/remote-control.log"
 if [ "${REMOTE_CONTROL:-1}" = "1" ]; then
   # Its own script, not a subshell of this one: it must outlive any command that fails (#7).

@@ -1,6 +1,6 @@
 # PRD: an organized command line (#140)
 
-Status: **in progress** · Issue: [#140](https://github.com/ar4mirez/berth/issues/140) · Restarts orgs: no
+Status: **done** · Issue: [#140](https://github.com/ar4mirez/berth/issues/140) · Restarts orgs: no
 
 ## Problem
 
@@ -74,8 +74,8 @@ way, so the rule "behaviour matches ccenv" keeps its meaning and its tests.
 - [x] T2. The new tree; removed spellings; ccenv's spellings for the alias; tests; `docs/cli.md`; the reference.
 - [x] T3. berth's own messages and hints use the new spellings (`ops.Respell`: errors, their JSON form, what
       berth prints, MCP tool descriptions, and the files a new org starts with).
-- [ ] T4. Guides, README and the image's instructions use the new spellings (the image change reaches an org at
-      its next restart).
+- [x] T4. Guides, README, `install.sh` and the image's instructions use the new spellings. The image's text
+      reaches an org at its next restart; until then its old instructions still work or name their replacement.
 
 ## Acceptance criteria
 

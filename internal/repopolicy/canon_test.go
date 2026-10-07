@@ -431,7 +431,7 @@ func TestHTTPSGuardRefuses(t *testing.T) {
 	}
 	// Signed out of gh: refused, with what to run.
 	got, stderr := g.run(t, repos, "https://github.com/acme/app", "FAKE_GH_SIGNED_OUT=1")
-	if got != "" || !strings.Contains(stderr, "berth gh-login") {
+	if got != "" || !strings.Contains(stderr, "berth account gh") {
 		t.Errorf("signed out: let through %q, stderr %q", got, stderr)
 	}
 	// An empty registry allows nothing.

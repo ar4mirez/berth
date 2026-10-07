@@ -40,7 +40,7 @@ Things that also recreate the container, under either tool:
 - `env set`/`unset` without `--no-restart`;
 - `password rotate`;
 - `repo policy <mode>`;
-- `token`, `auth`, and `logout --all` on a running org.
+- `account token`, `account signin`, and `account logout --all` on a running org.
 
 **Avoid these on an org until you've planned its phase D.** Everything else (`fw`, `repo add`/`rm`/`sync`, `ls`,
 `info`, `attach`, `shell`, `login`, backups) runs without a restart.
@@ -52,7 +52,7 @@ Things that also recreate the container, under either tool:
 - **Before touching an org, it has a fresh backup that was test-restored** (phase C, step 1).
 - **Don't use ccenv's writing commands on an org while you're taking it over.**
 - **After each step, verify. If anything looks off, stop and undo that step** (each step lists its undo).
-- `berth parity-check` only compares orgs ccenv still manages. For orgs berth manages, the checks are in phase C.
+- `berth system parity-check` only compares orgs ccenv still manages. For orgs berth manages, the checks are in phase C.
 
 ## A. Preflight (no restarts)
 
@@ -60,7 +60,7 @@ Things that also recreate the container, under either tool:
 berth --version                                    # the build you'll use; stage 1 installed it
 git -C "$LEGACY" status --short                    # must be empty
 grep -c berth_owned "$LEGACY/ccenv"                # must be > 0: ccenv refuses berth's orgs
-berth --home "$LEGACY" parity-check                # must end "N checks, 0 differ"
+berth --home "$LEGACY" system parity-check                # must end "N checks, 0 differ"
 df -h "$LEGACY"                                    # room for one extra copy of your largest org (phase C, step 1)
 docker images berth/claude-env                     # berth's image; built in stage 2
 ```
@@ -93,7 +93,7 @@ cp -a /tmp/berth-src/image/. "$LEGACY/image/"
 cp /tmp/berth-src/compose.yml "$LEGACY/compose.yml"
 /tmp/berth-src/scripts/drift.sh "$LEGACY"                           # after: "drift: none"
 git -C "$LEGACY" add image compose.yml && git -C "$LEGACY" commit -m "Port berth #9 and #19 (cutover)"
-berth --home "$LEGACY" parity-check                                 # still 0 differ
+berth --home "$LEGACY" system parity-check                                 # still 0 differ
 ```
 
 **Undo:** `git -C "$LEGACY" revert --no-edit HEAD`. That restarts nothing either.
@@ -109,9 +109,9 @@ ORG=<org>
 **1. Back up, and test the backup** by restoring it as a stopped clone. That takes as much disk as the org, briefly.
 
 ```bash
-berth --home "$LEGACY" backup "$ORG"                                # key-encrypted, into $LEGACY/backups
+berth --home "$LEGACY" backup create "$ORG"                                # key-encrypted, into $LEGACY/backups
 f=$(ls -t "$LEGACY"/backups/"$ORG"-*.tar.zst* | head -1); echo "$f"
-berth --home "$LEGACY" restore "$f" --as "t-verify-$ORG" --no-start # must end "Restored to …"
+berth --home "$LEGACY" backup restore "$f" --as "t-verify-$ORG" --no-start # must end "Restored to …"
 du -sh "$LEGACY/orgs/$ORG" "$LEGACY/orgs/t-verify-$ORG"             # the clone is smaller by the skipped data only
 docker run --rm -v "$LEGACY/orgs:/orgs" --entrypoint rm claude-env -rf "/orgs/t-verify-$ORG"
 ```
@@ -130,7 +130,7 @@ done
 **3. Take it over.**
 
 ```bash
-berth --home "$LEGACY" takeover "$ORG"
+berth --home "$LEGACY" org takeover "$ORG"
 ```
 
 `takeover` only sets `MANAGER=berth` in the org's `org.env`, in place. It never touches the container, and it
@@ -142,7 +142,7 @@ refuses if the checkout's ccenv lacks the guard.
 for c in "info $ORG" "repo ls $ORG" "fw $ORG show" "env $ORG ls" "remote $ORG status"; do
   berth --read-only --home "$LEGACY" $c 2>&1 | diff -u "$snap/$(echo "$c" | tr ' ' _)" - && echo "same: $c"
 done
-"$LEGACY/ccenv" info "$ORG"        # must refuse: "managed by berth (MANAGER=berth); use: berth ... <org>"
+"$LEGACY/ccenv" info "$ORG"       # must refuse: "managed by berth (MANAGER=berth); use: berth ... <org>"
 berth --home "$LEGACY" ls          # the org is still up, on the same ports
 ```
 
@@ -150,7 +150,7 @@ Every line should say `same:`. `remote status` may differ in its Capacity count 
 connected in between. The container, its uptime and your running work are untouched: `docker ps` shows the
 same container, up for the same time.
 
-**Undo:** `berth --home "$LEGACY" handback "$ORG"`. That sets `MANAGER=ccenv`, restarts nothing, and ccenv manages
+**Undo:** `berth --home "$LEGACY" org handback "$ORG"`. That sets `MANAGER=ccenv`, restarts nothing, and ccenv manages
 the org again.
 
 ## C′. Backup schedule, right after the first takeover (no restarts)
@@ -165,16 +165,16 @@ Run both schedules until the last org has moved:
 Use ccenv's `--keep` and `-o` from phase A, and a time 30 minutes after ccenv's, so the two don't run at once.
 
 ```bash
-berth --home "$LEGACY" schedule --at 03:30 --keep 14        # same --keep (and -o dir, if ccenv has one) as ccenv's
-berth --home "$LEGACY" schedule run                         # one run now: backs up the berth orgs
-berth --home "$LEGACY" schedule status                      # the timer, and "Wrote …" lines for each berth org
+berth --home "$LEGACY" backup schedule on --at 03:30 --keep 14        # same --keep (and -o dir, if ccenv has one) as ccenv's
+berth --home "$LEGACY" backup schedule run                         # one run now: backs up the berth orgs
+berth --home "$LEGACY" backup schedule status                      # the timer, and "Wrote …" lines for each berth org
 ```
 
-If ccenv's job sets `CCENV_BACKUP_RECIPIENTS`, set it the same way in the shell before `berth schedule`, and
+If ccenv's job sets `CCENV_BACKUP_RECIPIENTS`, set it the same way in the shell before `berth backup schedule on`, and
 berth's job carries it too. Otherwise both jobs use the key file (`~/.config/ccenv/backup.key`). The job runs
 `~/.local/bin/berth`, the link, so upgrading berth doesn't break it.
 
-**Undo:** `berth --home "$LEGACY" schedule off`. It only removes `berth-backup`.
+**Undo:** `berth --home "$LEGACY" backup schedule off`. It only removes `berth-backup`.
 
 ## D. Image switch, per org (a restart: plan it)
 
@@ -182,12 +182,12 @@ This is the only downtime: about 10 seconds for this org, and everything running
 quiet moment and save your work in it first.
 
 ```bash
-berth --home "$LEGACY" build          # builds berth's current image beforehand (no restart), so the restart doesn't have to
+berth --home "$LEGACY" system build          # builds berth's current image beforehand (no restart), so the restart doesn't have to
 berth --home "$LEGACY" restart "$ORG" # the restart: about 10 seconds
 berth --home "$LEGACY" ls             # up, same ports
-berth --home "$LEGACY" remote "$ORG" status
-berth --home "$LEGACY" fw "$ORG" show # ends with "live: on <N>": the firewall is on, with N allowed networks
-berth --home "$LEGACY" attach "$ORG"  # the tmux session is new; your files are all there
+berth --home "$LEGACY" account remote status "$ORG"
+berth --home "$LEGACY" fw show "$ORG" # ends with "live: on <N>": the firewall is on, with N allowed networks
+berth --home "$LEGACY" attach "$ORG" # the tmux session is new; your files are all there
 ```
 
 N can change with the restart, and that's expected. The firewall rebuilds its list when the container starts:
@@ -201,10 +201,10 @@ org's registered repos are all accepted by them.
 **Undo, if the org misbehaves on the new image:** a second short restart, back to `claude-env`.
 
 ```bash
-berth --home "$LEGACY" handback "$ORG" && "$LEGACY/ccenv" restart "$ORG"
+berth --home "$LEGACY" org handback "$ORG" && "$LEGACY/ccenv" restart "$ORG"
 ```
 
-Last resort, if its files are damaged: restore it from `$f` with `berth --home "$LEGACY" restore "$f" --force`.
+Last resort, if its files are damaged: restore it from `$f` with `berth --home "$LEGACY" backup restore "$f" --force`.
 - That is a restart too: it stops the container, then starts and rehydrates the restored org.
 - The current org folder moves to `$LEGACY/backups/.replaced/`, so it's kept.
 - The restore point is from before the takeover, so anything written since then is only in that kept folder.
@@ -216,7 +216,7 @@ Every org is berth's now, even if some still wait for their phase D. ccenv's sch
 ```bash
 "$LEGACY/ccenv" schedule off              # removes ccenv-backup; berth-backup already covers every org
 mkdir -p ~/.config/berth && printf 'home: %s\n' "$LEGACY" > ~/.config/berth/config.yaml   # plain `berth …` works now
-berth ls && berth schedule status
+berth ls && berth backup schedule status
 ```
 
 Keep `$LEGACY` and its `backups/` exactly where they are: the orgs' bind mounts use those absolute paths.
@@ -237,14 +237,14 @@ grep -L '^MANAGER=berth$' "$LEGACY"/orgs/*/org.env                        # prin
 docker ps -a --filter name='^claude-' --format '{{.Names}} {{.Image}}'    # every container on berth/claude-env:…
 docker ps -a --filter ancestor=claude-env --format '{{.Names}}'            # prints nothing: no container uses claude-env
 ls -t "$LEGACY"/backups/ | head -20                                        # a recent backup for every org
-berth schedule status                                                      # berth-backup's runs: "Wrote …", no "failed"
+berth backup schedule status                                                      # berth-backup's runs: "Wrote …", no "failed"
 systemctl --user list-timers ccenv-backup.timer --no-pager 2>/dev/null; crontab -l 2>/dev/null | grep ccenv-backup   # both empty
 ```
 
 **Retire:**
 
 ```bash
-berth install --alias ccenv          # `ccenv …` now runs berth (the images' CLAUDE.md still tells you "ccenv fw …")
+berth system install --alias ccenv   # `ccenv …` now runs berth (the images' CLAUDE.md still tells you "ccenv fw …")
 ccenv --version                      # prints berth's version
 docker image rm claude-env:latest    # the legacy image; docker refuses if a container still uses it
 ls ~/.local/opt/berth/               # old berth versions: keep the current one and the one before, remove the rest
@@ -314,5 +314,5 @@ Rules, no exceptions:
 - Stop at the first failure or unexpected output, and report it.
 
 Report: the check outputs, each retire command with its output, what ~/.local/bin/ccenv and ~/.local/bin/berth now
-point to, `berth ls`, and `berth schedule status`.
+point to, `berth ls`, and `berth backup schedule status`.
 ```

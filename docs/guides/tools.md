@@ -12,12 +12,12 @@ mise use -g aqua:mikefarah/yq                                      # any CLI fro
 ```
 
 Tools live in the org's `mise/` folder, so they survive restarts and rebuilds. Backups skip them, and
-`berth rehydrate` (which `restore` runs) reinstalls them. Each org has its own set.
+`berth org rehydrate` (which `backup restore` runs) reinstalls them. Each org has its own set.
 
 ## System packages
 
 mise doesn't install system libraries, and nothing in the container has root for apt. For those, see
-[System packages](packages.md): `berth pkg acme add <package>` builds them into the org's image.
+[System packages](packages.md): `berth pkg add acme <package>` builds them into the org's image.
 
 ## The model
 
@@ -31,7 +31,7 @@ its image has.
 
 | To | Do |
 |---|---|
-| **Get a newer pinned version** | Upgrade berth (`berth upgrade`), then restart each org when it suits you (`berth restart acme`). A new image reaches an org only at its restart. |
-| **Try another version locally** | `CLAUDE_CODE_VERSION=<version> berth build`, then restart the org. |
+| **Get a newer pinned version** | Upgrade berth (`berth system upgrade`), then restart each org when it suits you (`berth restart acme`). A new image reaches an org only at its restart. |
+| **Try another version locally** | `CLAUDE_CODE_VERSION=<version> berth system build`, then restart the org. |
 
 [Image rollout](../image-update.md) walks through rolling a new image out across orgs, one at a time.

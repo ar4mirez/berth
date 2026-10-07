@@ -13,7 +13,7 @@ CONF=/config/firewall.txt
 STATUS=/run/firewall.status
 
 # Always allowed: GitHub, npm, and the model provider's endpoints (Anthropic's unless the file has a
-# `provider` line, which `berth init --profile` writes).
+# `provider` line, which `berth org create --profile` writes).
 BASE="registry.npmjs.org
 api.github.com raw.githubusercontent.com objects.githubusercontent.com codeload.github.com uploads.github.com"
 ANTHROPIC="api.anthropic.com console.anthropic.com statsig.anthropic.com mcp-proxy.anthropic.com
@@ -181,7 +181,7 @@ finish() {
   echo "$1${problems:+ ($problems)}" > "$STATUS"
   echo "firewall: $2"
   [ -n "$problems" ] || exit 0
-  [ ${#skipped[@]} -eq 0 ] || echo "firewall: WARNING skipped (see above): ${skipped[*]}. Remove each with: berth fw ${ORG:-<org>} deny '<entry>'" >&2
+  [ ${#skipped[@]} -eq 0 ] || echo "firewall: WARNING skipped (see above): ${skipped[*]}. Remove each with: berth fw deny ${ORG:-<org>} '<entry>'" >&2
   exit 3
 }
 

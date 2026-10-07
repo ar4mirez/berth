@@ -17,7 +17,7 @@ LEGACY=~/Work/claude-envs     # the ccenv checkout that runs the live orgs
 
 - **Every berth command against the live checkout runs with `--read-only --home "$LEGACY"`.** Two exceptions are
   covered by stage 2: the `backup` command, and anything run on the `t-*` clone.
-- Don't write `~/.config/berth/config.yaml`, don't run `berth install --alias ccenv`, and don't run `berth schedule`.
+- Don't write `~/.config/berth/config.yaml`, don't run `berth system install --alias ccenv`, and don't run `berth backup schedule on`.
   All three are cutover steps.
 - Don't edit a live org's `org.env`, and don't set `MANAGER` on a live org.
 - berth refuses to change an org it doesn't own anyway (no `MANAGER=berth` means ccenv's), and `--read-only` refuses
@@ -73,7 +73,7 @@ tar -xzf "$dl"/berth_*_linux_"$arch".tar.gz -C "$dl" berth
 
 ### 2. Install it
 
-The binary goes in a versioned directory, and `berth install` links it onto your PATH with bash completion. To
+The binary goes in a versioned directory, and `berth system install` links it onto your PATH with bash completion. To
 upgrade later, repeat steps 1 and 2 with the new version; the link moves to it.
 
 ```bash
@@ -97,23 +97,24 @@ alias berthro='berth --read-only --home "$LEGACY"'
 berthro ls                 # same table as `ccenv ls`
 berthro info <org>         # same sheet as `ccenv info <org>`
 berthro whoami
-berth --read-only --home "$LEGACY" fw <org> allow example.com   # must be refused: "read-only mode …"
+berth --read-only --home "$LEGACY" fw allow <org> example.com   # must be refused: "read-only mode …"
 ```
 
 ### 4. The automated parity check
 
-`berth parity-check` runs every command that only reads through both tools, on the same checkout, and compares
+`berth system parity-check` runs every command that only reads through both tools, on the same checkout, and compares
 stdout, stderr and the exit code. The commands are:
-- `ls` and `whoami`;
-- for each org, `info`, `whoami`, `repo ls`, `repo audit`, `repo policy`, `fw show`, `env ls` and `remote status`.
+- `ls` and `account whoami` (ccenv's `whoami`);
+- for each org, `info`, `account whoami`, `repo ls`, `repo audit`, `repo policy`, `fw show`, `env ls` and
+  `account remote status`.
 
 It normalizes only what is meant to differ: the `ccenv:`/`berth:` error prefix, and command hints such as
 `run: ccenv up acme`. A difference counts only if a second run shows it too, because container state can change
 between two runs. The check itself changes nothing.
 
 ```bash
-berth --home "$LEGACY" parity-check                 # every ccenv org; or: parity-check <org> [<org>...]
-berth --home "$LEGACY" parity-check --legacy "$LEGACY/ccenv"   # if it doesn't find ccenv by itself
+berth --home "$LEGACY" system parity-check                 # every ccenv org; or: parity-check <org> [<org>...]
+berth --home "$LEGACY" system parity-check --legacy "$LEGACY/ccenv"   # if it doesn't find ccenv by itself
 ```
 
 Every line should say `ok`, and the last line should read `N checks, 0 differ` (exit 0). A `DIFF` shows a
@@ -156,11 +157,11 @@ ORG=<small org>; T=t-$ORG; bk=$(mktemp -d)   # a private dir (0700) for the back
 
 # 1. Back up the source org. With ~/.config/ccenv/backup.key present, this is key-encrypted and needs no prompt.
 #    Without a key, add --no-encrypt (the file stays in $bk and is deleted in step 5).
-berth --home "$LEGACY" backup "$ORG" -o "$bk"
+berth --home "$LEGACY" backup create "$ORG" -o "$bk"
 
 # 2. Restore it as the clone, stopped, then sign the clone out and turn Remote Control off.
-berth --home "$LEGACY" restore "$bk"/"$ORG"-*.tar.zst* --as "$T" --no-start
-berth --home "$LEGACY" logout "$T" --all
+berth --home "$LEGACY" backup restore "$bk"/"$ORG"-*.tar.zst* --as "$T" --no-start
+berth --home "$LEGACY" account logout "$T" --all
 sed -i 's/^REMOTE_CONTROL=.*/REMOTE_CONTROL=0/' "$LEGACY/orgs/$T/org.env"
 rm -rf "$LEGACY/orgs/$T/home-config/gh"                 # the clone's gh login (its ~/.config/gh)
 
@@ -168,17 +169,17 @@ rm -rf "$LEGACY/orgs/$T/home-config/gh"                 # the clone's gh login (
 berth --home "$LEGACY" up "$T"
 berth --home "$LEGACY" ls
 berth --home "$LEGACY" info "$T"
-berth --home "$LEGACY" shell "$T"                           # needs a terminal (as ccenv's); look around, then exit
-berth --home "$LEGACY" fw "$T" allow example.com && berth --home "$LEGACY" fw "$T" test example.com
-berth --home "$LEGACY" fw "$T" deny example.com
+berth --home "$LEGACY" shell "$T"                          # needs a terminal (as ccenv's); look around, then exit
+berth --home "$LEGACY" fw allow "$T" example.com && berth --home "$LEGACY" fw test "$T" example.com
+berth --home "$LEGACY" fw deny "$T" example.com
 berth --home "$LEGACY" repo ls "$T"
-berth --home "$LEGACY" env "$T" ls
+berth --home "$LEGACY" env ls "$T"
 berth --home "$LEGACY" restart "$T"
 berth --home "$LEGACY" down "$T"
 
 # 4. ccenv must refuse the clone (it is berth's now), if its checkout has the guard (stage 1, step 5: berth_owned > 0).
 #    If it doesn't, skip this, and never run ccenv on the clone: port the guard before cutover.
-"$LEGACY/ccenv" info "$T"         # expected: "org 't-…' is managed by berth (MANAGER=berth); use: berth ... t-…"
+"$LEGACY/ccenv" info "$T"        # expected: "org 't-…' is managed by berth (MANAGER=berth); use: berth ... t-…"
 
 # 5. Clean up: the clone's sshd/ is root-owned, so remove it through docker. Then remove the backup.
 docker run --rm -v "$LEGACY/orgs:/orgs" --entrypoint rm claude-env -rf "/orgs/$T"
@@ -205,13 +206,13 @@ Rules, no exceptions:
 - Don't run any ccenv command that changes anything (up, down, restart, init, fw allow/deny, repo add/rm, env set,
   backup, restore, schedule, …). Reading commands are fine.
 - Don't edit anything under ~/Work/claude-envs, don't create ~/.config/berth/config.yaml, and don't run
-  `berth install --alias` or `berth schedule`.
+  `berth system install --alias` or `berth backup schedule on`.
 - Install berth only from the CI artifact as in step 1, and check its checksum. If a download is blocked, or a
   checksum or command fails, stop and tell me; don't work around it.
 
 Report back:
 1. the berth version and commit, and where it's installed;
-2. the full output of `berth --home "$LEGACY" parity-check` (the summary line, and every DIFF block verbatim);
+2. the full output of `berth --home "$LEGACY" system parity-check` (the summary line, and every DIFF block verbatim);
 3. step 5: git status, the two grep counts, and what drift.sh printed, with anything beyond #9 and #19 called out.
 Don't paste account emails or Remote Control URLs outside this report.
 ```

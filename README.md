@@ -17,9 +17,9 @@ browser terminal, VS Code or Cursor Remote-SSH, or Claude Remote Control (claude
 [troubleshooting](docs/troubleshooting.md). The sources are in [`docs/`](docs).
 
 ```bash
-berth init acme --name "Ada Lovelace" --email ada@example.com
+berth org create acme --name "Ada Lovelace" --email ada@example.com
 berth up acme
-berth auth acme                  # the org's Claude account, then Remote Control
+berth account signin acme        # the org's Claude account, then Remote Control
 berth repo add acme acme/widgets
 berth attach acme                # or: berth info acme, for every other way in
 ```
