@@ -207,7 +207,7 @@ func (t *tree) gone(name, now string) {
 		Use: name, Hidden: true, DisableFlagParsing: true, Args: cobra.ArbitraryArgs,
 		Annotations: map[string]string{goneKey: now},
 		RunE: func(*cobra.Command, []string) error {
-			return &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: fmt.Sprintf("'berth %s' is now 'berth %s' (berth %s --help)", name, now, now)}
+			return &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: fmt.Sprintf("'%s' is now 'berth %s' (berth %s --help)", name, now, now)}
 		},
 	})
 }
@@ -438,6 +438,15 @@ func layout(root *cobra.Command) {
 			panic("cli: the flat command " + name + " has no place in the tree")
 		}
 	}
+	respellHelp(root)
 	linkDocs(root, nil)
 	root.Long += "\n\nDocs: " + docgen.Site + "/"
+}
+
+// respellHelp: the commands a help text names, as this command line spells them.
+func respellHelp(c *cobra.Command) {
+	for _, s := range c.Commands() {
+		s.Short, s.Long = ops.Respell(s.Short), ops.Respell(s.Long)
+		respellHelp(s)
+	}
 }

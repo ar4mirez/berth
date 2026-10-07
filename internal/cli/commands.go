@@ -207,7 +207,7 @@ func orgArgs(pick func([]string) int, verbs []string, useContext bool, fn func(a
 				at := min(max(i, 0), len(args))
 				args = slices.Insert(slices.Clone(args), at, def)
 				i, present = at, true
-				fmt.Fprintf(cmd.ErrOrStderr(), "(%s, the default org: berth use)\n", def)
+				fmt.Fprint(cmd.ErrOrStderr(), ops.Respell(fmt.Sprintf("(%s, the default org: berth use)\n", def)))
 			}
 		}
 		if !present {

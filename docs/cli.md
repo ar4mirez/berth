@@ -38,7 +38,7 @@ There is one spelling now. A removed one tells you its replacement and runs noth
 
 ```console
 $ berth init acme
-berth: 'berth init' is now 'berth org create' (berth org create --help)
+berth: 'init' is now 'berth org create' (berth org create --help)
 ```
 
 | Before | Now |

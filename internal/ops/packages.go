@@ -23,8 +23,8 @@ func PackagesFile(s System, org string) string {
 
 // PackagesHeader starts a new packages.txt.
 func PackagesHeader(org string) string {
-	return "# System packages installed in " + org + "'s image, managed with: " + Tool + " pkg " + org + " add|rm ...\n" +
-		"# One Debian package or @preset per line. Presets: " + Tool + " pkg " + org + " presets\n"
+	return Respell("# System packages installed in " + org + "'s image, managed with: " + Tool + " pkg " + org + " add|rm ...\n" +
+		"# One Debian package or @preset per line. Presets: " + Tool + " pkg " + org + " presets\n")
 }
 
 // PackagePresets are named sets of packages.

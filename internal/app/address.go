@@ -121,7 +121,7 @@ func (a *App) otherHosts() []hosts.Entry {
 	reg, err := hosts.Load(a.Operator.FS, a.hostPaths())
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
-			fmt.Fprintf(a.Stderr, "%s: %v\n", Tool, err)
+			sayf(a.Stderr, "%s: %v\n", Tool, err)
 		}
 		return nil
 	}

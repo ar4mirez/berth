@@ -60,7 +60,7 @@ func (a *App) Password(ctx context.Context, o, sub string) error {
 		if err != nil || len(b) == 0 { // [ -s "$f" ]
 			return fmt.Errorf("no password set (%s password %s rotate)", Tool, o)
 		}
-		fmt.Fprintf(a.Stdout, "user: node\npass: %s\n", cutField2(b))
+		sayf(a.Stdout, "user: node\npass: %s\n", cutField2(b))
 		return nil
 	case "rotate":
 		pw, err := newPassword()
@@ -74,7 +74,7 @@ func (a *App) Password(ctx context.Context, o, sub string) error {
 			_ = a.passthrough(ctx, false, "docker", "exec", "claude-"+o, "pkill", "-x", "ttyd") // || true
 		}
 		b, _ := a.Host.FS.ReadFile(f)
-		fmt.Fprintf(a.Stdout, "Rotated; the browser terminal restarts with it in ~3s.\npass: %s\n", cutField2(b))
+		sayf(a.Stdout, "Rotated; the browser terminal restarts with it in ~3s.\npass: %s\n", cutField2(b))
 		return nil
 	}
 	return fmt.Errorf("usage: %s password <org> [show|rotate]", Tool)
@@ -141,7 +141,7 @@ func (a *App) Env(ctx context.Context, args []string) error {
 			return a.writeJSON(vars)
 		}
 		if keys == "" {
-			fmt.Fprintf(a.Stdout, "(no custom variables; add one: %s env %s set KEY)\n", Tool, o)
+			sayf(a.Stdout, "(no custom variables; add one: %s env %s set KEY)\n", Tool, o)
 			return nil
 		}
 		for _, v := range vars.Vars {
@@ -257,10 +257,10 @@ func (a *App) applyEnv(ctx context.Context, o string, restart bool) error {
 		if err := q.compose(ctx, o, "up", "-d", "--force-recreate"); err != nil {
 			return &Exit{Code: 1}
 		}
-		fmt.Fprintf(a.Stdout, "claude-%s recreated; the change is live (new sessions)\n", o)
+		sayf(a.Stdout, "claude-%s recreated; the change is live (new sessions)\n", o)
 		return nil
 	}
-	fmt.Fprintf(a.Stdout, "applies on: %s restart %s\n", Tool, o)
+	sayf(a.Stdout, "applies on: %s restart %s\n", Tool, o)
 	return nil
 }
 
@@ -319,7 +319,7 @@ func (a *App) envAccept(ctx context.Context, o string, args []string) error {
 		}
 	}
 	if len(pending) == 0 {
-		fmt.Fprintf(a.Stdout, "Nothing is waiting in %s. In its terminal: %s KEY\n", o, contract.SecretDrop)
+		sayf(a.Stdout, "Nothing is waiting in %s. In its terminal: %s KEY\n", o, contract.SecretDrop)
 		return nil
 	}
 	if list {
@@ -396,7 +396,7 @@ func (a *App) envAccept(ctx context.Context, o string, args []string) error {
 // (`IFS= read -r val`, a last line without a newline included).
 func (a *App) readValue(key string) (string, error) {
 	if f, ok := a.Stdin.(*os.File); ok && term.IsTerminal(int(f.Fd())) {
-		fmt.Fprintf(a.Stderr, "Value for %s (hidden): ", key)
+		sayf(a.Stderr, "Value for %s (hidden): ", key)
 		b, err := term.ReadPassword(int(f.Fd()))
 		fmt.Fprintln(a.Stderr)
 		return string(b), err
@@ -454,22 +454,22 @@ func (a *App) remoteStatus(ctx context.Context, o string) error {
 	}
 	switch st.State {
 	case "login-needed":
-		fmt.Fprintf(a.Stdout, "Remote Control: not logged in. Run: %s login %s\n", Tool, o)
+		sayf(a.Stdout, "Remote Control: not logged in. Run: %s login %s\n", Tool, o)
 	case "on":
 		fmt.Fprintln(a.Stdout, "Remote Control: running")
 		fmt.Fprintln(a.Stdout, "  Open:  "+st.URL)
-		fmt.Fprintf(a.Stdout, "  Or:    claude.ai/code or the Claude app -> pick environment '%s' -> New session\n", o)
+		sayf(a.Stdout, "  Or:    claude.ai/code or the Claude app -> pick environment '%s' -> New session\n", o)
 		if st.Capacity != "" {
 			fmt.Fprintln(a.Stdout, "  "+st.Capacity)
 		}
 	case "blocked-by-org":
-		fmt.Fprintf(a.Stdout, `Remote Control: BLOCKED by the Claude organization's policy for this account.
+		sayf(a.Stdout, `Remote Control: BLOCKED by the Claude organization's policy for this account.
   An admin of that Claude organization must enable Remote Control. The service retries hourly and
   recovers on its own. Meanwhile use SSH, the browser terminal, VS Code or '%[1]s attach %[2]s'.
   To stop trying: set REMOTE_CONTROL=0 in orgs/%[2]s/org.env, then %[1]s restart %[2]s
 `, Tool, o)
 	default:
-		fmt.Fprintf(a.Stdout, "Remote Control: restarting (see: %s remote %s logs)\n", Tool, o)
+		sayf(a.Stdout, "Remote Control: restarting (see: %s remote %s logs)\n", Tool, o)
 	}
 	return err
 }

@@ -80,7 +80,7 @@ func (a *App) Schedule(ctx context.Context, args []string) error {
 		if err := a.passthrough(ctx, false, "systemctl", "--user", "start", scheduleName+".service"); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.Stdout, "Ran. See: %s schedule status\n", Tool)
+		sayf(a.Stdout, "Ran. See: %s schedule status\n", Tool)
 		return nil
 	case "off":
 		if hasTimer {
@@ -143,11 +143,11 @@ func (a *App) Schedule(ctx context.Context, args []string) error {
 		if out != "" {
 			in = " in " + out
 		}
-		fmt.Fprintf(a.Stdout, "Scheduled (systemd user timer): daily at %s, keeping the newest %s backups per org%s.\n", at, keep, in)
-		fmt.Fprintf(a.Stdout, "Missed runs (machine off) catch up at next boot. Logs: %s schedule status\n", Tool)
+		sayf(a.Stdout, "Scheduled (systemd user timer): daily at %s, keeping the newest %s backups per org%s.\n", at, keep, in)
+		sayf(a.Stdout, "Missed runs (machine off) catch up at next boot. Logs: %s schedule status\n", Tool)
 		user := a.Getenv("USER")
 		if linger, _ := a.capture(ctx, true, "loginctl", "show-user", user, "-p", "Linger", "--value"); linger != "yes" {
-			fmt.Fprintf(a.Stdout, "Note: runs only while you're logged in. To run even when logged out: sudo loginctl enable-linger %s\n", user)
+			sayf(a.Stdout, "Note: runs only while you're logged in. To run even when logged out: sudo loginctl enable-linger %s\n", user)
 		}
 		return nil
 	}
@@ -169,7 +169,7 @@ func (a *App) Schedule(ctx context.Context, args []string) error {
 	if err := a.crontabInstall(ctx, withoutJob(table)+job); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "Scheduled (cron): daily at %s, keeping the newest %s backups per org. Log: %s\n", at, keep, logFile)
+	sayf(a.Stdout, "Scheduled (cron): daily at %s, keeping the newest %s backups per org. Log: %s\n", at, keep, logFile)
 	return nil
 }
 
@@ -204,9 +204,9 @@ func (a *App) scheduleStatus(ctx context.Context) error {
 		for _, l := range sc.Jobs {
 			fmt.Fprintln(a.Stdout, l)
 		}
-		fmt.Fprintf(a.Stdout, "log: %s\n", sc.Log)
+		sayf(a.Stdout, "log: %s\n", sc.Log)
 	default:
-		fmt.Fprintf(a.Stdout, "No backup schedule. Set one with: %s schedule\n", Tool)
+		sayf(a.Stdout, "No backup schedule. Set one with: %s schedule\n", Tool)
 	}
 	return nil
 }

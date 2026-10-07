@@ -102,7 +102,7 @@ func (a *App) checkLease(ctx context.Context, o string) error {
 	// the lease just moves, and says so.
 	for _, n := range others {
 		if !isHost(n, entries) {
-			fmt.Fprintf(a.Stdout, "%s's lease was on %s, which is no longer a registered host; moving it here.\n", o, n)
+			sayf(a.Stdout, "%s's lease was on %s, which is no longer a registered host; moving it here.\n", o, n)
 			continue
 		}
 		b, done, err := a.appOn(ctx, n)
@@ -110,7 +110,7 @@ func (a *App) checkLease(ctx context.Context, o string) error {
 			return fmt.Errorf("can't reach %s to stop %s there, so the lease stays: %w", n, o, err)
 		}
 		if b.running(ctx, o) {
-			fmt.Fprintf(a.Stdout, "Stopping %s on %s first (the lease moves here; its work there stops).\n", o, n)
+			sayf(a.Stdout, "Stopping %s on %s first (the lease moves here; its work there stops).\n", o, n)
 			if err := b.Down(ctx, o); err != nil {
 				done()
 				return fmt.Errorf("stopping %s on %s: %w; the lease stays there", o, n, err)
@@ -125,7 +125,7 @@ func (a *App) checkLease(ctx context.Context, o string) error {
 	}
 	a.markLease(o, here)
 	if len(others) > 0 {
-		fmt.Fprintf(a.Stdout, "%s's lease is now on %s.\n", o, here)
+		sayf(a.Stdout, "%s's lease is now on %s.\n", o, here)
 	}
 	return nil
 }

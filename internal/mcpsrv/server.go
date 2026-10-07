@@ -139,7 +139,7 @@ func addQuery[In, Out any](s *server, name, description string, h func(ctx conte
 func register[In, Out any](s *server, spec Spec, description string, h func(ctx context.Context, c *call, in In) (Out, error)) {
 	name, op := spec.Name, spec.Op
 	s.specs = append(s.specs, spec)
-	tool := &mcp.Tool{Name: name, Description: description, Annotations: &mcp.ToolAnnotations{
+	tool := &mcp.Tool{Name: name, Description: ops.Respell(description), Annotations: &mcp.ToolAnnotations{
 		ReadOnlyHint:    op.Access == ops.Read,
 		DestructiveHint: boolp(op.Restart != ops.Never || destructive[name]),
 		IdempotentHint:  op.Access == ops.Read,
@@ -187,7 +187,7 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 			} else if o := c.output(); o != "" {
 				msg = o + "\n" + msg
 			}
-			err = fmt.Errorf("%s", msg)
+			err = fmt.Errorf("%s", ops.Respell(msg))
 			record("failed", err)
 			return nil, zero, err
 		}

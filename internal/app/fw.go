@@ -209,7 +209,7 @@ func (a *App) fwApply(ctx context.Context, o string) error {
 	if a.running(ctx, o) {
 		return a.passthrough(ctx, false, "docker", "exec", "claude-"+o, contract.FirewallScript, "apply")
 	}
-	fmt.Fprintf(a.Stdout, "(saved; applies on: %s up %s)\n", Tool, o)
+	sayf(a.Stdout, "(saved; applies on: %s up %s)\n", Tool, o)
 	return nil
 }
 

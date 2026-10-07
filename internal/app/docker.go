@@ -145,7 +145,7 @@ func CheckBind(b string) error {
 func (a *App) bindOrWarn(ctx context.Context, o string) string {
 	b, err := a.resolveBind(ctx, o)
 	if err != nil {
-		fmt.Fprintf(a.Stderr, "%s: %v\n", Tool, err)
+		sayf(a.Stderr, "%s: %v\n", Tool, err)
 	}
 	return b
 }

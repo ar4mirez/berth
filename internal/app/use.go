@@ -52,9 +52,9 @@ func (a *App) Use(ctx context.Context, args []string) error {
 			return a.writeJSON(d)
 		}
 		if d.Org != nil {
-			fmt.Fprintf(a.Stdout, "%s (org commands take it when you leave the org out)\n", *d.Org)
+			sayf(a.Stdout, "%s (org commands take it when you leave the org out)\n", *d.Org)
 		} else {
-			fmt.Fprintf(a.Stdout, "No default org. Set one: %s use <org>[@host]\n", Tool)
+			sayf(a.Stdout, "No default org. Set one: %s use <org>[@host]\n", Tool)
 		}
 		return nil
 	case len(args) > 1:
@@ -87,6 +87,6 @@ func (a *App) Use(ctx context.Context, args []string) error {
 	if err := a.Operator.FS.WriteFileAtomic(a.contextFile(), []byte(args[0]+"\n"), 0o600); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "Default org: %s. Org commands take it when you leave the org out (berth up, berth fw show, …).\n", args[0])
+	sayf(a.Stdout, "Default org: %s. Org commands take it when you leave the org out (berth up, berth fw show, …).\n", args[0])
 	return nil
 }

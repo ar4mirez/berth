@@ -275,7 +275,7 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 		Addr: addr, User: user, KnownHosts: p.KnownHosts(), IdentityFiles: identities,
 		AcceptNewHostKey: acceptNew, ExpectFingerprint: fingerprint, Timeout: 15 * time.Second,
 	}
-	fmt.Fprintf(a.Stdout, "Connecting to %s@%s…\n", user, addr)
+	sayf(a.Stdout, "Connecting to %s@%s…\n", user, addr)
 	h, err := sshhost.Dial(ctx, cfg, a.Operator)
 	var ue *sshhost.UnknownHostError
 	if errors.As(err, &ue) && fingerprint == "" && !acceptNew {
@@ -414,7 +414,7 @@ func (a *App) confirmHostKey(ue *sshhost.UnknownHostError) (string, error) {
 			"then run this again with --fingerprint %s", ue.Host, Tool, ue.KeyType, ue.Fingerprint, check, ue.Fingerprint)
 	}
 	defer func() { _ = tty.Close() }()
-	fmt.Fprintf(a.Stderr, "%s isn't known to %s yet. It presents this %s key:\n  %s\nCompare it with the host's own (%s).\nTrust it? [y/N] ",
+	sayf(a.Stderr, "%s isn't known to %s yet. It presents this %s key:\n  %s\nCompare it with the host's own (%s).\nTrust it? [y/N] ",
 		ue.Host, Tool, ue.KeyType, ue.Fingerprint, check)
 	ans, _ := bufio.NewReader(tty).ReadString('\n')
 	if a := strings.ToLower(strings.TrimSpace(ans)); a != "y" && a != "yes" {
@@ -567,7 +567,7 @@ func (a *App) HostRm(ctx context.Context, args []string) error {
 		}
 		// Take the host guard's rules out, then revoke berth's access (its line in authorized_keys).
 		if err := a.removeGuard(ctx, a.On(name, h, e.Home)); err != nil {
-			fmt.Fprintf(a.Stderr, "warning: couldn't remove the host guard from %s: %v (there: docker rm -f %s)\n", name, err, hosts.GuardContainer)
+			sayf(a.Stderr, "warning: couldn't remove the host guard from %s: %v (there: docker rm -f %s)\n", name, err, hosts.GuardContainer)
 		}
 		if pub, err := a.hostKeyPub(e.Key); err == nil {
 			if err := editAuthorized(ctx, h, func(b []byte) []byte { out, _ := hosts.RemoveAuthorized(b, pub); return out }); err != nil {
@@ -582,19 +582,19 @@ func (a *App) HostRm(ctx context.Context, args []string) error {
 		return err
 	}
 	if err := sshhost.ForgetHost(a.Operator.FS, p.KnownHosts(), e.Addr); err != nil {
-		fmt.Fprintf(a.Stderr, "warning: couldn't remove %s from %s: %v\n", e.Addr, p.KnownHosts(), err)
+		sayf(a.Stderr, "warning: couldn't remove %s from %s: %v\n", e.Addr, p.KnownHosts(), err)
 	}
 	a.removeKey(e.Key)
-	fmt.Fprintf(a.Stdout, "Removed %s (%s). Nothing on it was stopped.\n", name, e.Address())
+	sayf(a.Stdout, "Removed %s (%s). Nothing on it was stopped.\n", name, e.Address())
 	if orgs, err := a.dropLeases(name); err != nil {
-		fmt.Fprintf(a.Stderr, "warning: couldn't drop %s's leases: %v\n", name, err)
+		sayf(a.Stderr, "warning: couldn't drop %s's leases: %v\n", name, err)
 	} else if len(orgs) > 0 {
 		sort.Strings(orgs)
-		fmt.Fprintf(a.Stdout, "It held the lease for %s: the next up on another host takes it (with --take-lease if the org is elsewhere too).\n", strings.Join(orgs, ", "))
+		sayf(a.Stdout, "It held the lease for %s: the next up on another host takes it (with --take-lease if the org is elsewhere too).\n", strings.Join(orgs, ", "))
 	}
 	if keyLeft {
-		fmt.Fprintf(a.Stdout, "berth's key may still be in its authorized_keys: remove the line ending %q there by hand.\n", hosts.Comment(name))
-		fmt.Fprintf(a.Stdout, "The host guard may still run there too: docker rm -f %s on it (its rules then last until the host reboots; docs/hosts.md).\n", hosts.GuardContainer)
+		sayf(a.Stdout, "berth's key may still be in its authorized_keys: remove the line ending %q there by hand.\n", hosts.Comment(name))
+		sayf(a.Stdout, "The host guard may still run there too: docker rm -f %s on it (its rules then last until the host reboots; docs/hosts.md).\n", hosts.GuardContainer)
 	}
 	return nil
 }
@@ -665,17 +665,17 @@ func (a *App) HostRotateAccess(ctx context.Context, args []string) (err error) {
 	if err := a.Operator.FS.Rename(next+".pub", e.Key+".pub"); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "berth's key for %s is now %s.\n", name, gossh.FingerprintSHA256(k.Public))
+	sayf(a.Stdout, "berth's key for %s is now %s.\n", name, gossh.FingerprintSHA256(k.Public))
 	nh, err := a.dialHost(ctx, e, e.Key)
 	if err == nil {
 		defer func() { _ = nh.Close() }()
 		err = editAuthorized(ctx, nh, func(b []byte) []byte { out, _ := hosts.RemoveAuthorized(b, old); return out })
 	}
 	if err != nil {
-		fmt.Fprintf(a.Stderr, "warning: couldn't remove the old key (%s) from %s: %v. Remove that line from its authorized_keys by hand.\n",
+		sayf(a.Stderr, "warning: couldn't remove the old key (%s) from %s: %v. Remove that line from its authorized_keys by hand.\n",
 			gossh.FingerprintSHA256(old), name, err)
 		return nil
 	}
-	fmt.Fprintf(a.Stdout, "The old key (%s) was removed from %s.\n", gossh.FingerprintSHA256(old), name)
+	sayf(a.Stdout, "The old key (%s) was removed from %s.\n", gossh.FingerprintSHA256(old), name)
 	return nil
 }

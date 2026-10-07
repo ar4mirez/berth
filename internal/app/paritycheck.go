@@ -79,7 +79,7 @@ func (a *App) ParityCheck(ctx context.Context, args []string) error {
 	if len(orgs) == 0 {
 		for _, o := range a.OrgNames() {
 			if a.env(o, "MANAGER") == "berth" {
-				fmt.Fprintf(a.Stdout, "skip %s: MANAGER=berth (ccenv refuses it)\n", o)
+				sayf(a.Stdout, "skip %s: MANAGER=berth (ccenv refuses it)\n", o)
 				continue
 			}
 			orgs = append(orgs, o)
@@ -88,7 +88,7 @@ func (a *App) ParityCheck(ctx context.Context, args []string) error {
 			return fmt.Errorf("no ccenv orgs under %s (is --home the legacy checkout?)", home)
 		}
 	}
-	fmt.Fprintf(a.Stdout, "Comparing %s with %s --read-only --home %s\n\n", legacy, a.Self, home)
+	sayf(a.Stdout, "Comparing %s with %s --read-only --home %s\n\n", legacy, a.Self, home)
 
 	checks := [][]string{{"ls"}, {"whoami"}}
 	for _, o := range orgs {
@@ -110,13 +110,13 @@ func (a *App) ParityCheck(ctx context.Context, args []string) error {
 			}
 		}
 		if same {
-			fmt.Fprintf(a.Stdout, "ok    %s\n", strings.Join(c, " "))
+			sayf(a.Stdout, "ok    %s\n", strings.Join(c, " "))
 			continue
 		}
 		differ++
-		fmt.Fprintf(a.Stdout, "DIFF  %s\n%s\n", strings.Join(c, " "), indent(lineDiff("ccenv", l.String(), "berth", b.String())))
+		sayf(a.Stdout, "DIFF  %s\n%s\n", strings.Join(c, " "), indent(lineDiff("ccenv", l.String(), "berth", b.String())))
 	}
-	fmt.Fprintf(a.Stdout, "\n%d checks, %d differ\n", len(checks), differ)
+	sayf(a.Stdout, "\n%d checks, %d differ\n", len(checks), differ)
 	if differ > 0 {
 		return &Exit{Code: 1}
 	}

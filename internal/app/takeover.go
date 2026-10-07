@@ -26,7 +26,7 @@ func (a *App) Takeover(ctx context.Context, o string) error {
 	}
 	defer unlock()
 	if a.env(o, "MANAGER") == "berth" {
-		fmt.Fprintf(a.Stdout, "%s is already berth's (MANAGER=berth); nothing to do.\n", o)
+		sayf(a.Stdout, "%s is already berth's (MANAGER=berth); nothing to do.\n", o)
 		return nil
 	}
 	if legacy := path.Join(a.State.Home.Path, "ccenv"); a.isFile(legacy) {
@@ -41,8 +41,8 @@ func (a *App) Takeover(ctx context.Context, o string) error {
 	if err := a.setManager(o, "berth"); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "%s is now berth's (MANAGER=berth). Nothing was restarted: the container keeps running as it is.\n", o)
-	fmt.Fprintf(a.Stdout, "Its next %s restart %s moves it to berth's image (a short restart: plan it). Undo: %s handback %s\n", Tool, o, Tool, o)
+	sayf(a.Stdout, "%s is now berth's (MANAGER=berth). Nothing was restarted: the container keeps running as it is.\n", o)
+	sayf(a.Stdout, "Its next %s restart %s moves it to berth's image (a short restart: plan it). Undo: %s handback %s\n", Tool, o, Tool, o)
 	return nil
 }
 
@@ -66,8 +66,8 @@ func (a *App) Handback(ctx context.Context, o string) error {
 	if err := a.setManager(o, "ccenv"); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "%s is ccenv's again (MANAGER=ccenv). Nothing was restarted.\n", o)
-	fmt.Fprintf(a.Stdout, "If berth had restarted it on berth's image, its next `ccenv restart %s` moves it back to claude-env.\n", o)
+	sayf(a.Stdout, "%s is ccenv's again (MANAGER=ccenv). Nothing was restarted.\n", o)
+	sayf(a.Stdout, "If berth had restarted it on berth's image, its next `ccenv restart %s` moves it back to claude-env.\n", o)
 	return nil
 }
 

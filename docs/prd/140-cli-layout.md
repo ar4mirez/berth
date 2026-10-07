@@ -45,7 +45,7 @@ Every verb is a real subcommand with its own help, usage and examples.
 of them under its new name, or calls one with its arguments put in ccenv's order. `internal/ops`'s catalog, the
 `--read-only` guard and the MCP tools are keyed by those operations and don't change.
 
-**A removed spelling answers with the new one**: `berth init` → `'berth init' is now 'berth org create'`, exit 1. It
+**A removed spelling answers with the new one**: `berth init` → `'init' is now 'berth org create'`, exit 1. It
 runs nothing. The instructions inside images built before this change name some of them.
 
 **What keeps working, and why** (hidden from help):
@@ -58,6 +58,12 @@ runs nothing. The instructions inside images built before this change name some 
 - `berth completion`: shell start-up files source it.
 - `berth image-tag`.
 
+**Messages.** The code's messages are written with ccenv's spellings, which the parity suite compares with ccenv's
+own. `ops.Respell` turns the commands a message names into berth's (`berth init acme` → `berth org create acme`,
+`berth env acme set KEY` → `berth env set acme KEY`) where berth prints: errors and their JSON form, hints, MCP tool
+descriptions, and the files a new org starts with. A generated per-org Dockerfile keeps its header, so no org's
+image is rebuilt because of a spelling.
+
 **ccenv's spellings, for the `ccenv` alias.** Run as `ccenv` (`system install --alias ccenv`), or with
 `BERTH_SPELLINGS=ccenv`, berth has ccenv's flat command line, exactly as before. The parity suite runs berth that
 way, so the rule "behaviour matches ccenv" keeps its meaning and its tests.
@@ -65,8 +71,9 @@ way, so the rule "behaviour matches ccenv" keeps its meaning and its tests.
 ## Tasks
 
 - [x] T1. `--help` never runs the command (#139).
-- [ ] T2. The new tree; removed spellings; ccenv's spellings for the alias; tests; `docs/cli.md`; the reference.
-- [ ] T3. berth's own messages and hints use the new spellings.
+- [x] T2. The new tree; removed spellings; ccenv's spellings for the alias; tests; `docs/cli.md`; the reference.
+- [x] T3. berth's own messages and hints use the new spellings (`ops.Respell`: errors, their JSON form, what
+      berth prints, MCP tool descriptions, and the files a new org starts with).
 - [ ] T4. Guides, README and the image's instructions use the new spellings (the image change reaches an org at
       its next restart).
 
@@ -79,4 +86,5 @@ way, so the rule "behaviour matches ccenv" keeps its meaning and its tests.
 | Every verb has its own help with usage and an example | `TestEveryCommandHasAnExample`, the generated reference |
 | Verb first works with and without a default org; org first still works for `fw`, `env`, `pkg` | `TestVerbFirst`, `TestDefaultOrg` |
 | A removed spelling names the new one and runs nothing | `TestOneSpellingPerCommand` |
+| Messages name commands as this command line spells them | `TestRespell`, `TestMessagesNameBerthsCommands` |
 | Behaviour is unchanged: each native command runs the same operation with the same arguments | `TestVerbFirst` (the operation and arguments each spelling resolves to), `TestCatalogCoversEveryCommand`; the parity suite, on ccenv's spellings |

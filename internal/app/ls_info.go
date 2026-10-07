@@ -20,7 +20,7 @@ func (a *App) Ls(ctx context.Context) error {
 	if out.MultiHost {
 		format, head = "%-14s %-6s %-6s %-6s %-8s %-14s %s\n", append(head, "HOST")
 	}
-	fmt.Fprintf(a.Stdout, format, head...)
+	sayf(a.Stdout, format, head...)
 	for _, r := range out.Orgs {
 		token := "MISSING"
 		if r.Token {
@@ -30,10 +30,10 @@ func (a *App) Ls(ctx context.Context) error {
 		if out.MultiHost {
 			cols = append(cols, r.Host)
 		}
-		fmt.Fprintf(a.Stdout, format, cols...)
+		sayf(a.Stdout, format, cols...)
 	}
 	for _, u := range out.Unreachable {
-		fmt.Fprintf(a.Stderr, "%s: host %s is unreachable, its orgs aren't listed: %s\n", Tool, u.Host, u.Error)
+		sayf(a.Stderr, "%s: host %s is unreachable, its orgs aren't listed: %s\n", Tool, u.Host, u.Error)
 	}
 	return nil
 }
@@ -54,7 +54,7 @@ func (a *App) Info(ctx context.Context, o string) error {
 	if url == "" {
 		url = "not set up yet; run: " + Tool + " login " + o
 	}
-	fmt.Fprintf(a.Stdout, `== %[1]s ==  (container claude-%[1]s, %[2]s)
+	sayf(a.Stdout, `== %[1]s ==  (container claude-%[1]s, %[2]s)
 
 claude.ai / Claude app  %[3]s
 Terminal on this host   %[4]s attach %[1]s
@@ -72,9 +72,9 @@ Host claude-%[1]s
 Git public key:  %[8]s
 `, o, in.State, url, Tool, in.SSHRaw, in.AddressText, in.TTYDRaw, in.GitPublicKey)
 	if t := in.Tunnel; t != nil {
-		fmt.Fprintf(a.Stdout, "\nSSH tunnel              %s connect %s   (then SSH and the browser terminal above, on 127.0.0.1)\n", Tool, t.Connect)
+		sayf(a.Stdout, "\nSSH tunnel              %s connect %s   (then SSH and the browser terminal above, on 127.0.0.1)\n", Tool, t.Connect)
 		if t.SSHTarget != "" {
-			fmt.Fprintf(a.Stdout, "                        or by hand: ssh -N -L %[1]s:127.0.0.1:%[1]s -L %[2]s:127.0.0.1:%[2]s %[3]s\n", in.SSHRaw, in.TTYDRaw, t.SSHTarget)
+			sayf(a.Stdout, "                        or by hand: ssh -N -L %[1]s:127.0.0.1:%[1]s -L %[2]s:127.0.0.1:%[2]s %[3]s\n", in.SSHRaw, in.TTYDRaw, t.SSHTarget)
 		}
 	}
 	return nil

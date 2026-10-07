@@ -107,7 +107,7 @@ func TestOneSpellingPerCommand(t *testing.T) {
 		}
 		for _, args := range [][]string{p, append(append([]string{}, p...), "acme"), append(append([]string{}, p...), "--help")} {
 			out, errOut, code := run(t, args...)
-			if code != 1 || out != "" || !strings.Contains(errOut, "'berth "+p[0]+"' is now 'berth "+now+"'") {
+			if code != 1 || out != "" || !strings.Contains(errOut, "berth: '"+p[0]+"' is now 'berth "+now+"' (berth "+now+" --help)") {
 				t.Errorf("berth %v: exit %d, %q %q", args, code, out, errOut)
 			}
 		}
@@ -328,5 +328,55 @@ func TestHelpNeverRunsTheCommand(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, "orgs")); err == nil {
 		t.Error("something was created in the state root")
+	}
+}
+
+// TestMessagesNameBerthsCommands: what berth prints names commands as this command line spells
+// them (ops.Respell): errors, their JSON form, hints and the files a new org starts with; and with
+// ccenv's spellings they stay ccenv's.
+func TestMessagesNameBerthsCommands(t *testing.T) {
+	home := t.TempDir()
+	state := filepath.Join(home, "state")
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("BERTH_HOME", state)
+	t.Setenv("PATH", t.TempDir())
+	if err := os.MkdirAll(filepath.Join(state, "orgs", "acme", "config"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(state, "orgs", "acme", "org.env"), []byte("MANAGER=berth\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		args []string
+		want string // in stdout or stderr
+	}{
+		{[]string{"fw", "show", "nope"}, "unknown org 'nope' (run: berth org create nope)"},
+		{[]string{"--output", "json", "info", "nope"}, `"hint": "run: berth org create nope"`},
+		{[]string{"env", "ls", "acme"}, "add one: berth env set acme KEY"},
+		{[]string{"fw", "allow", "acme"}, "usage: berth fw allow acme <domain|ip|cidr|@preset>..."},
+		{[]string{"fw", "acme", "frob"}, "usage: berth fw show|allow|deny|on|off|edit|reload|presets|test <org>"},
+		{[]string{"org", "use"}, "Set one: berth org use <org>[@host]"},
+		{[]string{"backup", "schedule", "status"}, "Set one with: berth backup schedule on"},
+		{[]string{"org", "destroy", "acme", "--frob"}, "usage: berth org destroy <org> [--yes] [--keep-backups]"},
+	} {
+		out, errOut, _ := run(t, tc.args...)
+		if !strings.Contains(out+errOut, tc.want) {
+			t.Errorf("berth %s: no %q in %q %q", strings.Join(tc.args, " "), tc.want, out, errOut)
+		}
+	}
+	t.Setenv(spellingsEnv, "ccenv")
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"fw", "nope", "show"}, "unknown org 'nope' (run: berth init nope)"},
+		{[]string{"env", "acme", "ls"}, "add one: berth env acme set KEY"},
+		{[]string{"use"}, "Set one: berth use <org>[@host]"},
+	} {
+		out, errOut, _ := run(t, tc.args...)
+		if !strings.Contains(out+errOut, tc.want) {
+			t.Errorf("ccenv's spellings, berth %s: no %q in %q %q", strings.Join(tc.args, " "), tc.want, out, errOut)
+		}
 	}
 }

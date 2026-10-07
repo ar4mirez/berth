@@ -58,27 +58,27 @@ func (a *App) Destroy(ctx context.Context, args []string) error {
 		backups = a.orgBackups(o)
 	}
 
-	fmt.Fprintf(a.Stdout, "This permanently removes %s:\n", o)
+	sayf(a.Stdout, "This permanently removes %s:\n", o)
 	state := "stopped"
 	if a.running(ctx, o) {
 		state = "running: its sessions stop now"
 	}
-	fmt.Fprintf(a.Stdout, "  - the container claude-%s (%s)\n", o, state)
-	fmt.Fprintf(a.Stdout, "  - %s: the workspace, Claude's config and history, keys, secrets, toolchains\n", d)
+	sayf(a.Stdout, "  - the container claude-%s (%s)\n", o, state)
+	sayf(a.Stdout, "  - %s: the workspace, Claude's config and history, keys, secrets, toolchains\n", d)
 	for _, b := range backups {
-		fmt.Fprintf(a.Stdout, "  - backup %s\n", b)
+		sayf(a.Stdout, "  - backup %s\n", b)
 	}
 	if keepBackups {
-		fmt.Fprintf(a.Stdout, "Its backups in %s stay (--keep-backups).\n", a.backupsDir())
+		sayf(a.Stdout, "Its backups in %s stay (--keep-backups).\n", a.backupsDir())
 	} else {
-		fmt.Fprintf(a.Stdout, "Backups written elsewhere (backup -o) aren't known to %s: delete them yourself.\n", Tool)
+		sayf(a.Stdout, "Backups written elsewhere (backup -o) aren't known to %s: delete them yourself.\n", Tool)
 	}
 	if !yes {
 		f, ok := a.Stdin.(*os.File)
 		if !ok || !term.IsTerminal(int(f.Fd())) {
 			return errors.New("nothing was removed: confirm in a terminal, or pass --yes")
 		}
-		fmt.Fprintf(a.Stderr, "Type %s to destroy it: ", o)
+		sayf(a.Stderr, "Type %s to destroy it: ", o)
 		line, err := bufio.NewReader(a.Stdin).ReadString('\n')
 		if err != nil && !errors.Is(err, io.EOF) {
 			return err
@@ -111,9 +111,9 @@ func (a *App) Destroy(ctx context.Context, args []string) error {
 	if err := a.recordDestroyed(o); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "Destroyed %s", o)
+	sayf(a.Stdout, "Destroyed %s", o)
 	if len(backups) > 0 {
-		fmt.Fprintf(a.Stdout, ", and %d backup(s)", len(backups))
+		sayf(a.Stdout, ", and %d backup(s)", len(backups))
 	}
 	fmt.Fprintln(a.Stdout, ".")
 	return nil

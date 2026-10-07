@@ -58,6 +58,7 @@ func newRoot(ccenv bool) *cobra.Command {
 	root.SetVersionTemplate("berth {{.Version}}\n")
 	addGlobalFlags(root)
 	addCommands(root)
+	ops.BerthSpellings = !ccenv // how messages name commands
 	if ccenv {
 		organize(root)
 		sortCommands(root) // ccenv's help lists them by name
@@ -165,7 +166,7 @@ func execute(root *cobra.Command, args []string, stdin io.Reader, stdout, stderr
 		return e.Code
 	}
 	if !e.Quiet {
-		_, _ = fmt.Fprintf(stderr, "berth: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "berth: %s\n", ops.Respell(err.Error()))
 	}
 	return e.Code
 }

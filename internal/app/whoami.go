@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ar4mirez/berth/internal/ops"
 )
@@ -17,13 +16,13 @@ func (a *App) Whoami(ctx context.Context, orgs []string) error {
 		}
 		return a.writeJSON(who)
 	}
-	fmt.Fprintf(a.Stdout, "%-12s %-7s %-14s %s\n", "ORG", "TOKEN", "GITHUB (gh)", "REMOTE-CONTROL LOGIN (account)")
+	sayf(a.Stdout, "%-12s %-7s %-14s %s\n", "ORG", "TOKEN", "GITHUB (gh)", "REMOTE-CONTROL LOGIN (account)")
 	for _, r := range who.Orgs {
 		token := "MISSING"
 		if r.Token {
 			token = "set"
 		}
-		fmt.Fprintf(a.Stdout, "%-12s %-7s %-14s %s\n", r.Org, token, r.GitHubText, r.ClaudeText)
+		sayf(a.Stdout, "%-12s %-7s %-14s %s\n", r.Org, token, r.GitHubText, r.ClaudeText)
 	}
 	return err
 }

@@ -109,5 +109,6 @@ type ErrorDoc struct {
 
 // Doc is the error as a document.
 func (e *Error) Doc() ErrorDoc {
-	return ErrorDoc{Schema: "berth.error/v1", Kind: e.Kind, Code: e.Code, Message: e.Msg, Hint: e.Hint}
+	// The commands a message names, as this command line spells them (spell.go).
+	return ErrorDoc{Schema: "berth.error/v1", Kind: e.Kind, Code: e.Code, Message: Respell(e.Msg), Hint: Respell(e.Hint)}
 }

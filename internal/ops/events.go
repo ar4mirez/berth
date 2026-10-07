@@ -99,7 +99,7 @@ func (p *Progress) Done(err error) int {
 	p.flush()
 	if e := AsError(err); e != nil {
 		doc := e.Doc()
-		p.emit(Event{Type: EventFailed, Message: e.Msg, Error: &doc})
+		p.emit(Event{Type: EventFailed, Message: doc.Message, Error: &doc})
 		return e.Code
 	}
 	p.emit(Event{Type: EventDone})

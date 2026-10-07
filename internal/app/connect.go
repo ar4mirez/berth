@@ -29,10 +29,10 @@ func (a *App) Connect(ctx context.Context, o string) error {
 		bind = "127.0.0.1" // listening everywhere: the host's loopback is one of them
 	}
 	if a.HostName == "" {
-		fmt.Fprintf(a.Stdout, "%s runs on this machine: ssh -p %s node@%s, or http://%s:%s (password: %s password %s)\n",
+		sayf(a.Stdout, "%s runs on this machine: ssh -p %s node@%s, or http://%s:%s (password: %s password %s)\n",
 			o, sp, bind, bind, tp, Tool, o)
 		if b := a.env(o, "BIND_ADDR"); b == BindLocalhost || b == "127.0.0.1" || b == "" {
-			fmt.Fprintf(a.Stdout, "From another device: %s info %s shows the ssh -L command.\n", Tool, o)
+			sayf(a.Stdout, "From another device: %s info %s shows the ssh -L command.\n", Tool, o)
 		}
 		return nil
 	}
@@ -49,7 +49,7 @@ func (a *App) Connect(ctx context.Context, o string) error {
 		"-o", "IdentitiesOnly=yes", "-o", "ExitOnForwardFailure=yes", "-o", "BatchMode=yes",
 		"-o", "UserKnownHostsFile=" + a.hostPaths().KnownHosts(), "-o", "StrictHostKeyChecking=yes",
 		"-L", "127.0.0.1:" + fwd(sp), "-L", "127.0.0.1:" + fwd(tp), e.User + "@" + h}
-	fmt.Fprintf(a.Stdout, "Tunnel to %s on %s (Ctrl-C closes it):\n  SSH                ssh -p %s node@127.0.0.1\n  Browser terminal   http://127.0.0.1:%s   (password: %s password %s@%s)\n",
+	sayf(a.Stdout, "Tunnel to %s on %s (Ctrl-C closes it):\n  SSH                ssh -p %s node@127.0.0.1\n  Browser terminal   http://127.0.0.1:%s   (password: %s password %s@%s)\n",
 		o, a.HostName, sp, tp, Tool, o, a.HostName)
 	return a.Operator.Exec.Run(ctx, host.Cmd{Args: args, TTY: true})
 }

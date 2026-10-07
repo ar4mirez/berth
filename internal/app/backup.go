@@ -135,10 +135,10 @@ func (a *App) Keygen(ctx context.Context) error {
 		return err
 	}
 	pub, _ := a.publicKey(kf)
-	fmt.Fprintf(a.Stdout, "Created %s\nPublic key: %s\n\n", kf, pub)
+	sayf(a.Stdout, "Created %s\nPublic key: %s\n\n", kf, pub)
 	fmt.Fprintln(a.Stdout, "Backups now encrypt to this key automatically (no prompts).")
-	fmt.Fprintf(a.Stdout, "IMPORTANT: store a copy of %s somewhere safe (e.g. your password manager).\n", kf)
-	fmt.Fprintf(a.Stdout, "Without it, key-encrypted backups cannot be restored. Copy it to a new machine before '%s restore'.\n", Tool)
+	sayf(a.Stdout, "IMPORTANT: store a copy of %s somewhere safe (e.g. your password manager).\n", kf)
+	sayf(a.Stdout, "Without it, key-encrypted backups cannot be restored. Copy it to a new machine before '%s restore'.\n", Tool)
 	return nil
 }
 
@@ -442,7 +442,7 @@ func (a *App) Backup(ctx context.Context, args []string) error {
 			size = fi.Size()
 		}
 		kind := map[string]string{"gpg": "passphrase-encrypted", "age": "key-encrypted", "none": "NOT encrypted"}[mode]
-		fmt.Fprintf(a.Stderr, "Wrote %s (%s, %s)\n", f, human(size), kind)
+		sayf(a.Stderr, "Wrote %s (%s, %s)\n", f, human(size), kind)
 		if keep > 0 && toDir {
 			dir := out
 			if dir == "" {
@@ -458,7 +458,7 @@ func (a *App) Backup(ctx context.Context, args []string) error {
 func (a *App) createBackup(ctx context.Context, sec *secrets, o, mode, mount, f string) error {
 	w, err := a.Host.FS.Create(f, 0o600)
 	if err != nil {
-		fmt.Fprintf(a.Stderr, "%s: %v\n", Tool, err)
+		sayf(a.Stderr, "%s: %v\n", Tool, err)
 		return err
 	}
 	err = a.archive(ctx, sec, o, mode, mount, a.Stdin, w, "create")
@@ -501,7 +501,7 @@ func (a *App) pruneBackups(dir, o string, keep int) {
 	}
 	for _, n := range names[keep:] {
 		_ = a.Host.FS.Remove(dir + "/" + n)
-		fmt.Fprintf(a.Stderr, "Pruned %s (keeping newest %d)\n", n, keep)
+		sayf(a.Stderr, "Pruned %s (keeping newest %d)\n", n, keep)
 	}
 }
 
