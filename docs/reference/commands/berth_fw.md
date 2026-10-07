@@ -15,15 +15,14 @@ the egress allowlist (changes apply live)
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_fw/
 
 ```
-berth fw <org> [show|allow|deny|on|off|edit|reload|presets|test] [entries...] [flags]
+berth fw [flags]
 ```
 
 ### Examples
 
 ```
-  berth fw acme show
-  berth fw acme allow pypi.org @python
-  berth fw acme test
+  berth fw show acme
+  berth fw allow acme pypi.org @python
 ```
 
 ### Options
@@ -43,4 +42,13 @@ berth fw <org> [show|allow|deny|on|off|edit|reload|presets|test] [entries...] [f
 ### SEE ALSO
 
 * [berth](berth.md)	 - berth: one Claude Code container per organization
+* [berth fw allow](berth_fw_allow.md)	 - add entries to the allowlist
+* [berth fw deny](berth_fw_deny.md)	 - remove entries from the allowlist
+* [berth fw edit](berth_fw_edit.md)	 - edit the allowlist in $EDITOR, then apply it
+* [berth fw off](berth_fw_off.md)	 - turn the firewall off: the org can reach anything
+* [berth fw on](berth_fw_on.md)	 - turn the firewall on
+* [berth fw presets](berth_fw_presets.md)	 - the presets allow takes (@python, @node, …)
+* [berth fw reload](berth_fw_reload.md)	 - resolve the allowlist again (a host's addresses changed)
+* [berth fw show](berth_fw_show.md)	 - the allowlist, and whether the firewall is on
+* [berth fw test](berth_fw_test.md)	 - check from inside the org which hosts it can reach
 

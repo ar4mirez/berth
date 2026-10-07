@@ -6,23 +6,19 @@ title: berth org password
 
 ## berth org password
 
-browser-terminal password
+the browser terminal's password
 
 ### Synopsis
 
-browser-terminal password
+the browser terminal's password
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_org_password/
-
-```
-berth org password <org> [show|rotate] [flags]
-```
 
 ### Examples
 
 ```
-  berth org password acme
-  berth org password acme rotate
+  berth org password show acme
+  berth org password rotate acme
 ```
 
 ### Options
@@ -42,4 +38,6 @@ berth org password <org> [show|rotate] [flags]
 ### SEE ALSO
 
 * [berth org](berth_org.md)	 - orgs: create, start, stop, connect, move
+* [berth org password rotate](berth_org_password_rotate.md)	 - set a new password (restarts a running org)
+* [berth org password show](berth_org_password_show.md)	 - print the browser terminal's password
 

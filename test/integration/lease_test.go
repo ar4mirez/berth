@@ -22,7 +22,7 @@ func TestLease(t *testing.T) {
 	const fixture, o = "berth-t-sshd", "t-lease"
 	home := t.TempDir()
 	env := append(os.Environ(), "HOME="+home, "XDG_CONFIG_HOME="+filepath.Join(home, "cfg"),
-		"BERTH_HOME="+filepath.Join(home, "state"), "SSH_AUTH_SOCK=", "BERTH_PUBLISHED_IMAGE="+publishedImage)
+		"BERTH_SPELLINGS=ccenv", "BERTH_HOME="+filepath.Join(home, "state"), "SSH_AUTH_SOCK=", "BERTH_PUBLISHED_IMAGE="+publishedImage)
 	berth := func(args ...string) (string, error) {
 		cmd := exec.Command(bin, args...)
 		cmd.Env = env

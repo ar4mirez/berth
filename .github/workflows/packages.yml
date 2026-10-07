@@ -85,7 +85,7 @@ jobs:
           test -f /usr/share/fish/vendor_completions.d/berth.fish
           test -f /usr/share/licenses/berth/LICENSE
           # A package manager's install is upgraded there, not by berth upgrade.
-          if out=$(berth upgrade 2>&1); then echo "berth upgrade didn't defer: $out"; exit 1; fi
+          if out=$(berth system upgrade 2>&1); then echo "berth upgrade didn't defer: $out"; exit 1; fi
           echo "$out" | grep -q "package manager"
 
   # The apt and yum repositories (tools/pkgrepo): built, signed and installed from, end to end.

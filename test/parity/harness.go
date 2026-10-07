@@ -227,7 +227,8 @@ func BerthUnowned(bin string) Tool {
 		Command: func(run string, args []string) []string {
 			return append([]string{bin, "--home", filepath.Join(run, "state")}, args...)
 		},
-		Env:     func(string) []string { return []string{"PARITY_SCHEDULE=berth-backup"} },
+		// ccenv's command line (#140): what this suite compares with ccenv's.
+		Env:     func(string) []string { return []string{"PARITY_SCHEDULE=berth-backup", "BERTH_SPELLINGS=ccenv"} },
 		Replace: [][2]string{{bin, "<SELF>"}},
 	}
 }

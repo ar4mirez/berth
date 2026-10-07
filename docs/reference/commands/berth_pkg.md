@@ -6,7 +6,7 @@ title: berth pkg
 
 ## berth pkg
 
-system packages in the org's image (applied at its next restart)
+system packages in an org's image (applied at its next restart)
 
 ### Synopsis
 
@@ -19,16 +19,14 @@ image applies at the org's next restart.
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_pkg/
 
 ```
-berth pkg <org> [ls|add|rm|presets|build] [packages...] [flags]
+berth pkg [flags]
 ```
 
 ### Examples
 
 ```
-  berth pkg acme add @playwright-chromium
-  berth pkg acme add libpq-dev
-  berth pkg acme
-  berth restart acme
+  berth pkg add acme libpq-dev
+  berth pkg ls acme
 ```
 
 ### Options
@@ -48,4 +46,9 @@ berth pkg <org> [ls|add|rm|presets|build] [packages...] [flags]
 ### SEE ALSO
 
 * [berth](berth.md)	 - berth: one Claude Code container per organization
+* [berth pkg add](berth_pkg_add.md)	 - add packages and build the org's image
+* [berth pkg build](berth_pkg_build.md)	 - build the org's image now
+* [berth pkg ls](berth_pkg_ls.md)	 - the packages an org's image adds
+* [berth pkg presets](berth_pkg_presets.md)	 - the presets add takes
+* [berth pkg rm](berth_pkg_rm.md)	 - remove packages and build the org's image
 

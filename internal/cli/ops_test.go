@@ -11,34 +11,47 @@ import (
 // runnable command has an entry, its access agrees with the --read-only guard's annotation, and
 // every operation that may restart a container says when (the TUI, MCP and API show that note).
 func TestCatalogCoversEveryCommand(t *testing.T) {
-	root := NewRoot()
-	seen := map[string]bool{}
-	for _, c := range root.Commands() {
-		if c.Name() == "help" {
-			continue
+	for _, ccenv := range []bool{false, true} {
+		root := newRoot(ccenv)
+		live, gone := commands(root)
+		seen := map[string]bool{}
+		for _, p := range gone {
+			seen[p[0]] = true // its operation is reached under another name
 		}
-		seen[c.Name()] = true
-		if !c.Runnable() {
-			continue // a group (secrets): its subcommands declare access themselves
+		for _, p := range live {
+			c, _, _ := root.Find(p)
+			name, sub, _ := opOf(c, nil)
+			seen[name] = true
+			if len(p) == 1 {
+				seen[p[0]] = true // a group
+			}
+			if !c.Runnable() {
+				continue // a group: its subcommands declare access themselves
+			}
+			op, ok := ops.Catalog[name]
+			if _, fixed := c.Annotations[subKey]; fixed && ok {
+				op, ok = ops.Lookup(name, sub)
+			} else if c.Annotations[opKey] == "" && len(p) == 2 {
+				op, ok = ops.Lookup(p[0], p[1]) // a group's own verb: host add
+			}
+			if !ok {
+				t.Errorf("%s: no operation %s %s in ops.Catalog (declare whether it writes and whether it restarts)", c.CommandPath(), name, sub)
+				continue
+			}
+			switch ann := c.Annotations[accessKey]; {
+			case op.Access == ops.Write && ann != accessWrite:
+				t.Errorf("%s: the catalog says it writes, but the CLI wraps it in reads()", c.CommandPath())
+			case op.Access == ops.Read && ann != accessRead:
+				t.Errorf("%s: the catalog says it only reads, but the CLI wraps it in writes()", c.CommandPath())
+			case op.Access == ops.BySub && ann != accessRead:
+				// The command checks its writing subcommands itself (--read-only and ownership).
+				t.Errorf("%s: a command whose access depends on its subcommand must be reads() at the top", c.CommandPath())
+			}
 		}
-		op, ok := ops.Catalog[c.Name()]
-		if !ok {
-			t.Errorf("%s: missing from ops.Catalog (declare whether it writes and whether it restarts)", c.Name())
-			continue
-		}
-		switch ann := c.Annotations[accessKey]; {
-		case op.Access == ops.Write && ann != accessWrite:
-			t.Errorf("%s: the catalog says it writes, but the CLI wraps it in reads()", c.Name())
-		case op.Access == ops.Read && ann != accessRead:
-			t.Errorf("%s: the catalog says it only reads, but the CLI wraps it in writes()", c.Name())
-		case op.Access == ops.BySub && ann != accessRead:
-			// The command checks its writing subcommands itself (--read-only and ownership).
-			t.Errorf("%s: a command whose access depends on its subcommand must be reads() at the top", c.Name())
-		}
-	}
-	for name := range ops.Catalog {
-		if !seen[name] {
-			t.Errorf("ops.Catalog has %q, which isn't a command", name)
+		for name := range ops.Catalog {
+			if !seen[name] {
+				t.Errorf("ops.Catalog has %q, which isn't a command (ccenv's spellings: %v)", name, ccenv)
+			}
 		}
 	}
 	var check func(path string, op ops.Op)
@@ -68,14 +81,16 @@ func TestOutputJSONOnlyWhereSupported(t *testing.T) {
 	}{
 		{[]string{"ls"}, true},
 		{[]string{"info", "acme"}, true},
-		{[]string{"use", "acme"}, false},
-		{[]string{"completion"}, false},
+		{[]string{"org", "use", "acme"}, false},
+		{[]string{"system", "completion"}, false},
+		{[]string{"fw", "allow", "acme", "x.example"}, false},
+		{[]string{"fw", "show", "acme"}, true},
 		{[]string{"fw", "acme", "allow", "x.example"}, false},
 		{[]string{"repo", "policy", "acme"}, true},
 		{[]string{"repo", "policy", "acme", "warn"}, false},
-		{[]string{"schedule", "status"}, true},
-		{[]string{"schedule", "off"}, false},
-		{[]string{"password", "acme"}, false},
+		{[]string{"backup", "schedule", "status"}, true},
+		{[]string{"backup", "schedule", "off"}, false},
+		{[]string{"org", "password", "show", "acme"}, false},
 	} {
 		_, errOut, code := run(t, append([]string{"--home", home, "--output", "json"}, tc.args...)...)
 		refused := code != 0 && contains(errOut, "--output json isn't available")

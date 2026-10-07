@@ -40,5 +40,5 @@ berth account signin <org> [flags]
 
 ### SEE ALSO
 
-* [berth account](berth_account.md)	 - sign an org in and out: Claude, Remote Control, GitHub
+* [berth account](berth_account.md)	 - sign-in: Claude, Remote Control, GitHub
 

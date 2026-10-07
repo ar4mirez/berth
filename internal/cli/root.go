@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -23,8 +25,10 @@ func (e *ExitError) Error() string { return fmt.Sprintf("exit status %d", e.Code
 // ExitCode lets Execute end with Code and no message.
 func (e *ExitError) ExitCode() int { return e.Code }
 
-// NewRoot builds the command tree.
-func NewRoot() *cobra.Command {
+// NewRoot builds the command tree: berth's, or ccenv's flat one for the ccenv alias (tree.go).
+func NewRoot() *cobra.Command { return newRoot(ccenvSpellings()) }
+
+func newRoot(ccenv bool) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "berth",
 		Short:         "berth: one Claude Code container per organization",
@@ -54,9 +58,26 @@ func NewRoot() *cobra.Command {
 	root.SetVersionTemplate("berth {{.Version}}\n")
 	addGlobalFlags(root)
 	addCommands(root)
-	organize(root)
+	if ccenv {
+		organize(root)
+		sortCommands(root) // ccenv's help lists them by name
+	} else {
+		layout(root) // in the order they are added: the everyday ones first, then the groups
+	}
 	answerHelp(root)
 	return root
+}
+
+func init() { cobra.EnableCommandSorting = false }
+
+func sortCommands(c *cobra.Command) {
+	subs := slices.Clone(c.Commands())
+	slices.SortFunc(subs, func(a, b *cobra.Command) int { return strings.Compare(a.Name(), b.Name()) })
+	c.RemoveCommand(subs...)
+	c.AddCommand(subs...)
+	for _, s := range subs {
+		sortCommands(s)
+	}
 }
 
 // ownArgsKey marks a command whose arguments after the first belong to the program it runs
@@ -75,7 +96,7 @@ func passesArgsOn(c *cobra.Command) *cobra.Command {
 // do) was asked for help. cobra never sees --help on those, and they used to take it for an
 // argument: with a default org (berth use), `berth restart --help` restarted it.
 func helpAsked(cmd *cobra.Command, args []string) bool {
-	if !cmd.DisableFlagParsing {
+	if !cmd.DisableFlagParsing || cmd.Annotations[goneKey] != "" {
 		return false
 	}
 	isHelp := func(a string) bool { return a == "--help" || a == "-h" }

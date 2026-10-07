@@ -103,7 +103,8 @@ func (a *App) ParityCheck(ctx context.Context, args []string) error {
 		same := false
 		for range 2 {
 			l = a.parityRun(ctx, legacy, []string{"CCENV_ORGS=" + path.Join(home, "orgs")}, c)
-			b = a.parityRun(ctx, a.Self, nil, append([]string{"--read-only", "--home", home}, c...))
+			// ccenv's command line (#140): the same words on both sides.
+			b = a.parityRun(ctx, a.Self, []string{"BERTH_SPELLINGS=ccenv"}, append([]string{"--read-only", "--home", home}, c...))
 			if same = l == b; same {
 				break
 			}

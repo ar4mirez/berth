@@ -14,16 +14,11 @@ the repos allowed in an org's /workspace
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_repo/
 
-```
-berth repo <add|new|publish|ls|rm|adopt|sync|audit|policy> <org> ... [flags]
-```
-
 ### Examples
 
 ```
   berth repo add acme acme/widgets
   berth repo ls acme
-  berth repo policy acme enforce
 ```
 
 ### Options
@@ -43,4 +38,13 @@ berth repo <add|new|publish|ls|rm|adopt|sync|audit|policy> <org> ... [flags]
 ### SEE ALSO
 
 * [berth](berth.md)	 - berth: one Claude Code container per organization
+* [berth repo add](berth_repo_add.md)	 - register a repo and clone it
+* [berth repo adopt](berth_repo_adopt.md)	 - register folders already in /workspace
+* [berth repo audit](berth_repo_audit.md)	 - check /workspace against the registry
+* [berth repo ls](berth_repo_ls.md)	 - the registered repos, their state, and what isn't registered
+* [berth repo new](berth_repo_new.md)	 - create a repo on GitHub, register it and clone it
+* [berth repo policy](berth_repo_policy.md)	 - show or set what happens to unregistered repos (setting restarts a running org)
+* [berth repo publish](berth_repo_publish.md)	 - put a local folder on GitHub and register it
+* [berth repo rm](berth_repo_rm.md)	 - unregister a repo (its folder goes to quarantine; --delete removes it)
+* [berth repo sync](berth_repo_sync.md)	 - clone what is registered and missing
 

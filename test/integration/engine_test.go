@@ -35,7 +35,7 @@ func TestEngineLifecycle(t *testing.T) {
 	mustDo(t, err)
 	state := filepath.Join(home, "state")
 	env := append(os.Environ(), "XDG_CONFIG_HOME="+filepath.Join(home, "cfg"),
-		"BERTH_HOME="+state, "BERTH_PUBLISHED_IMAGE="+publishedImage)
+		"BERTH_SPELLINGS=ccenv", "BERTH_HOME="+state, "BERTH_PUBLISHED_IMAGE="+publishedImage)
 	// A rootless Podman keeps its images and containers under $HOME: berth's podman must use the
 	// same store as the API service compose talks to, so HOME stays this user's own there.
 	if engine != "podman" {
