@@ -133,3 +133,66 @@ func TestDefaultOrg(t *testing.T) {
 		t.Errorf("fw show without a default: %d %q", code, errs)
 	}
 }
+
+// TestHelpNeverRunsTheCommand: every command answers --help and -h with its help and does nothing
+// else. The commands that parse their own arguments, as ccenv's do, used to take --help for an
+// argument: `berth restart --help` restarted the default org, `berth logout --help` logged it out.
+func TestHelpNeverRunsTheCommand(t *testing.T) {
+	home, cfg := t.TempDir(), t.TempDir()
+	t.Setenv("BERTH_HOME", home)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	t.Setenv("PATH", t.TempDir()) // no docker, no ssh: a command that ran would fail, not act
+	// A default org, as `berth use` leaves it: what made --help dangerous.
+	if err := os.MkdirAll(filepath.Join(cfg, "berth"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfg, "berth", "context"), []byte("acme\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var paths [][]string
+	var walk func(c *cobra.Command, at []string)
+	walk = func(c *cobra.Command, at []string) {
+		for _, sub := range c.Commands() {
+			if sub.Name() == "help" {
+				continue
+			}
+			p := append(append([]string{}, at...), sub.Name())
+			paths = append(paths, p)
+			walk(sub, p)
+		}
+	}
+	walk(NewRoot(), nil)
+	if len(paths) < 80 {
+		t.Fatalf("only %d commands found", len(paths))
+	}
+	for _, p := range paths {
+		for _, flag := range []string{"--help", "-h"} {
+			for _, global := range [][]string{nil, {"--read-only"}} {
+				args := append(append(append([]string{}, global...), p...), flag)
+				var out, errOut bytes.Buffer
+				code := Execute(args, strings.NewReader(""), &out, &errOut)
+				if code != 0 || !strings.Contains(out.String(), "Usage:\n  berth "+strings.Join(p, " ")) || errOut.Len() != 0 {
+					t.Errorf("berth %s: exit %d, stderr %q, stdout:\n%.200s", strings.Join(args, " "), code, errOut.String(), out.String())
+				}
+			}
+		}
+	}
+	// With an org before it, too, and not past `--`.
+	for _, args := range [][]string{{"fw", "acme", "--help"}, {"repo", "add", "acme", "-h"}, {"backup", "--all", "--help"}, {"destroy", "acme", "--yes", "--help"}} {
+		var out, errOut bytes.Buffer
+		if code := Execute(args, strings.NewReader(""), &out, &errOut); code != 0 || !strings.Contains(out.String(), "Usage:") {
+			t.Errorf("berth %s: exit %d, %q", strings.Join(args, " "), code, errOut.String())
+		}
+	}
+	// What follows the org of claude, run and exec is theirs, and so are build's arguments after the first.
+	for _, args := range [][]string{{"claude", "acme", "--help"}, {"exec", "acme", "--", "ls", "-h"}, {"run", "acme", "-h"}, {"repo", "ls", "acme", "--", "--help"}} {
+		var out, errOut bytes.Buffer
+		if Execute(args, strings.NewReader(""), &out, &errOut); strings.Contains(out.String(), "Usage:") {
+			t.Errorf("berth %s printed berth's help", strings.Join(args, " "))
+		}
+	}
+	if _, err := os.Stat(filepath.Join(home, "orgs")); err == nil {
+		t.Error("something was created in the state root")
+	}
+}
