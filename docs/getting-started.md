@@ -82,6 +82,14 @@ Every channel installs a signed release. Pick one:
     **Upgrade:** `mise upgrade berth`. mise doesn't check berth's signature; the install script and
     `berth upgrade` do.
 
+    **Right after a release,** mise may still install the one before: it caches each tool's list of versions,
+    for up to a day. To get a release now, name it, or have mise ask GitHub:
+
+    ```bash
+    mise use -g ubi:ar4mirez/berth@<version>              # as in: berth@1.2.3
+    MISE_USE_VERSIONS_HOST=0 mise use -g ubi:ar4mirez/berth
+    ```
+
 **Which upgrade path applies:** with a package manager, `berth upgrade` says which one installed berth and
 leaves the upgrade to it.
 
