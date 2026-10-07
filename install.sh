@@ -15,7 +15,7 @@
 #   4. verifies the archive's checksum, and that the binary runs as that version;
 #   5. installs it in ~/.local/opt/berth/<version>/ ($BERTH_INSTALL_DIR/<version>/) and links it
 #      onto your PATH with berth's own `install` (~/.local/bin, or --bin-dir), with shell completion.
-# Later: berth upgrade (same checks). Nothing is run as root, and nothing outside those paths changes.
+# Later: berth system upgrade (same checks). Nothing is run as root, and nothing outside those paths changes.
 set -eu
 
 REPO=ar4mirez/berth
@@ -111,4 +111,4 @@ cp "$tmp/berth" "$dir/berth.new"
 chmod 0755 "$dir/berth.new"
 mv "$dir/berth.new" "$dir/berth"
 if [ -n "$bindir" ]; then "$dir/berth" install "$bindir"; else "$dir/berth" install; fi
-say "Done: $("$dir/berth" --version). Next: berth init <org> (https://ar4mirez.github.io/berth/getting-started/)"
+say "Done: $("$dir/berth" --version). Next: berth org create <org> (https://ar4mirez.github.io/berth/getting-started/)"

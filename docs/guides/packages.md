@@ -8,11 +8,11 @@ Nothing inside the container can install those, because apt needs root.
 and runs the org on it.
 
 ```bash
-berth pkg acme add @playwright-chromium      # a preset: what Playwright's Chromium needs
-berth pkg acme add libpq-dev                 # any Debian package, by name
-berth pkg acme                               # the list, and the org's image
-berth pkg acme rm libpq-dev
-berth pkg acme presets                       # the presets and what each installs
+berth pkg add acme @playwright-chromium      # a preset: what Playwright's Chromium needs
+berth pkg add acme libpq-dev                 # any Debian package, by name
+berth pkg ls acme                            # the list, and the org's image
+berth pkg rm acme libpq-dev
+berth pkg presets acme                       # the presets and what each installs
 berth restart acme                           # apply it: the org starts on its new image
 ```
 
@@ -20,10 +20,10 @@ berth restart acme                           # apply it: the org starts on its n
 
 - **`add` and `rm` build the org's image at once**, so a package that doesn't exist fails there and then, and the
   list goes back to what it was. `--no-build` only saves the list; the image is then built at the org's next start,
-  or with `berth pkg acme build`.
+  or with `berth pkg build acme`.
 - **Nothing is restarted.** The running container keeps its image. The new one applies at the org's next
   `berth restart acme` (or `up`), which stops the work running in it, so you pick the moment.
-- **They survive every recreate**: `restart`, `up`, `env set`, `password rotate`, `token`. They are part of the
+- **They survive every recreate**: `restart`, `up`, `env set`, `org password rotate`, `account token`. They are part of the
   image, not something installed into a running container.
 - **The firewall isn't involved.** The packages are installed while the image is built, with Docker's own network,
   so the org needs no Debian mirror in its allowlist.
@@ -42,7 +42,7 @@ A package is named as Debian names it (`libnss3`, `fonts-noto-color-emoji`). ber
 An org with packages runs on `berth/claude-env-<org>:<base>-<list>`. `<base>` is berth's image and `<list>` the
 package list, so a change to either is a new image:
 
-- after `berth upgrade` brings a new berth image, the org's is rebuilt on top of it at its next start;
+- after `berth system upgrade` brings a new berth image, the org's is rebuilt on top of it at its next start;
 - an org with no packages runs on berth's image, as before.
 
 The image is built from two things: berth's image, pulled from the release or built locally as usual, and one
@@ -62,5 +62,5 @@ the org as before, and it launches.
 
 ## On a registered host
 
-`berth pkg acme@box1 …` works the same way: the list is in the org's directory on that host, and the image is built
+`berth pkg add acme@box1 …` works the same way: the list is in the org's directory on that host, and the image is built
 there.

@@ -9,7 +9,7 @@ never needs inbound access for Claude to work; this is only about how *you* reac
 | `tailscale` | this host's Tailscale IPv4 (resolved at `up`) | any device on your tailnet | **the default when Tailscale is installed, and the recommended setup** |
 | `iface:<name>` | that interface's IPv4 (resolved at `up`), such as `wg0` or `zt0` | the devices on that VPN | WireGuard, ZeroTier, Netbird, Headscale, a corporate VPN |
 | `ip:<addr>` or an address | that address | whatever can route to it | a fixed private address (a LAN, a cloud's private network) |
-| `localhost` | `127.0.0.1`, through an SSH tunnel: `berth connect` | wherever you can SSH to the host | no VPN at all |
+| `localhost` | `127.0.0.1`, through an SSH tunnel: `berth org connect` | wherever you can SSH to the host | no VPN at all |
 | `127.0.0.1` | `127.0.0.1` | this host only (`berth attach`) | the default without Tailscale |
 | `0.0.0.0` | every interface | anyone who can reach the host | avoid: berth warns at each `up` |
 
@@ -23,7 +23,7 @@ shows the address and commands for its mode.
 - **Nothing to configure per device:** every device on your tailnet reaches the org, and nothing else can.
 - **Addresses follow the host:** `tailscale` is resolved when the org starts, so a new IP, or a restore on another
   host, just works.
-- **It's the default:** `berth init` picks it whenever the `tailscale` command is installed.
+- **It's the default:** `berth org create` picks it whenever the `tailscale` command is installed.
 
 If Tailscale isn't up when an org starts, berth says so (`BIND_ADDR=tailscale but tailscale is not up on this host`).
 A restore on a host without Tailscale binds the org to `127.0.0.1`, and says so.
@@ -51,17 +51,17 @@ berth info acme                      # shows the interface's address
 `ip:10.0.4.12` (or just `10.0.4.12`, ccenv's form) binds to that address, when it's stable: a LAN address, or a
 cloud VM's private network, reached through the provider's VPN or a bastion.
 
-## No VPN: `localhost` and `berth connect`
+## No VPN: `localhost` and `berth org connect`
 
 Bind to `localhost`, and reach the org through SSH, which you already have to the host:
 
-- **On a registered host:** `berth connect acme@box1` opens the tunnel. The org's SSH and browser terminal then answer
+- **On a registered host:** `berth org connect acme@box1` opens the tunnel. The org's SSH and browser terminal then answer
   on this machine's `127.0.0.1`, on the same ports. Leave it running, and Ctrl-C closes it. It uses berth's own key
   and pinned host key for that host.
 - **On a machine you SSH into yourself:** `berth info acme` prints the `ssh -N -L …` command to run from your laptop.
 
 ```bash
-berth connect acme@box1
+berth org connect acme@box1
 #   SSH                ssh -p 2201 node@127.0.0.1
 #   Browser terminal   http://127.0.0.1:7701
 ```
@@ -77,7 +77,7 @@ of the host.
 
 ## Defaults for new orgs
 
-`berth init` writes `BIND_ADDR` into the new org's `org.env`. By default that's `tailscale` when Tailscale is
+`berth org create` writes `BIND_ADDR` into the new org's `org.env`. By default that's `tailscale` when Tailscale is
 installed, else `127.0.0.1`, as ccenv did.
 
 | For | Set |

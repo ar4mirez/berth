@@ -47,12 +47,12 @@ Steps 1 and 2 together cover every archive. `docs/host-install.md` puts them in 
 From v0.3.0, berth upgrades itself:
 
 ```bash
-berth upgrade                    # the latest release
-berth upgrade --version v0.4.0   # a given one
-berth upgrade --rollback         # back to the version before
+berth system upgrade                    # the latest release
+berth system upgrade --version v0.4.0   # a given one
+berth system upgrade --rollback         # back to the version before
 ```
 
-What `berth upgrade` does:
+What `berth system upgrade` does:
 - **Verifies before installing.** It downloads the release for this platform, and checks the signature over
   `checksums.txt` against Sigstore's trust root: the certificate must name berth's release workflow at that tag,
   and the signature must be in the transparency log. It then checks the archive's checksum. **Nothing changes unless
@@ -111,7 +111,7 @@ one org at a time, each restart approved, verified and undoable. Its release not
 From the first release after #41, the release workflow also builds the container image for linux/amd64 and
 linux/arm64, publishes it as `ghcr.io/ar4mirez/berth-image`, tagged with berth's content hash and the version, signs it
 with cosign (keyless, same identity as above), and attests its provenance. The release binary embeds its digest
-(`berth --version` shows it), and berth pulls that digest instead of building: `berth pull` gets it ahead of time,
+(`berth --version` shows it), and berth pulls that digest instead of building: `berth system pull` gets it ahead of time,
 restarting nothing. When the pull fails, berth builds locally, as before.
 
 To check the image yourself:

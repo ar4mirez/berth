@@ -4,7 +4,7 @@
 #
 # It waits between attempts: 5 seconds after an exit, an hour when the account's Claude organization
 # has turned Remote Control off, 15 seconds while there is no login yet. Every wait ends early when
-# /run/rc-retry appears: `berth remote <org> restart` and `berth login` create it, so a retry is
+# /run/rc-retry appears: `berth account remote restart <org>` and `berth account login` create it, so a retry is
 # never further away than the next two seconds (#7).
 #
 # Not `set -e`: a command that fails must never end the supervisor. It used to run under the

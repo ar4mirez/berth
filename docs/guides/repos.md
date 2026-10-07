@@ -7,7 +7,6 @@ An org can only use the repos registered for it. You register them from the host
 berth repo add acme acme/webapp                        # register and clone (owner/repo, an ssh or https URL)
 berth repo add acme acme/api --branch develop --dir api-dev
 berth repo add acme acme/webapp --no-clone             # register only; cloned by the next repo sync
-berth clone acme acme/webapp                           # the same as repo add
 berth repo ls acme                                     # registered repos, branch, uncommitted changes, strays
 berth repo audit acme                                  # check the registry against what's in /workspace
 berth repo rm acme api-dev [--delete]                  # unregister (the folder is quarantined, or deleted)
@@ -26,7 +25,7 @@ berth repo publish acme prototype acme/prototype --private   # later: create it 
 ```
 
 Repos are created on GitHub from the **host**, with your own `gh` login. When the host has no `gh`, berth uses the
-container's (`berth gh-login acme`).
+container's (`berth account gh acme`).
 
 ## How git reaches GitHub
 
@@ -34,10 +33,10 @@ An org reaches github.com in one of two ways. Both only connect for registered r
 
 | The org has | git uses | It can push to |
 |---|---|---|
-| a gh login (`berth gh-login acme`) | HTTPS, with that login's token | every registered repo the account can write to |
+| a gh login (`berth account gh acme`) | HTTPS, with that login's token | every registered repo the account can write to |
 | no gh login | SSH, with the org's key | every registered repo the key can write to |
 
-`berth gh-login` switches a running org at once, and says so. A repo cloned before keeps working: its `origin` isn't
+`berth account gh` switches a running org at once, and says so. A repo cloned before keeps working: its `origin` isn't
 touched. gitlab.com and bitbucket.org always use the org's key.
 
 To keep the org's key even with a gh login (the token is then for PRs, issues and the API only), put
@@ -53,7 +52,7 @@ Registered github.com/acme/widgets as /workspace/widgets
 Cloned into /workspace/widgets
 WARNING: acme can clone github.com/acme/widgets but can't push to it: ERROR: Permission to acme/widgets.git denied to deploy key
   git uses the org's SSH key there. A key added as a deploy key writes to one repo only.
-  Fix: berth gh-login acme (git then uses that login's token for every registered repo),
+  Fix: berth account gh acme (git then uses that login's token for every registered repo),
        or add the key to the GitHub account instead of as a deploy key (berth info acme prints it).
 ```
 
@@ -77,4 +76,4 @@ The repo stays registered, because reading it is a legitimate use.
   ([How git reaches GitHub](#how-git-reaches-github)). `berth info acme` prints the public key.
 - **A known limit:** someone typing commands in the container (not Claude) could fetch an unregistered repo's code
   with a signed-in `gh` or a public tarball URL. The sweep quarantines whatever lands in `/workspace`, but files kept
-  elsewhere, such as `/tmp`, stay. For the strictest setup, don't run `gh-login` in that org.
+  elsewhere, such as `/tmp`, stay. For the strictest setup, don't run `berth account gh` in that org.
