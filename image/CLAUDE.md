@@ -13,7 +13,7 @@ is moved out automatically. If a task needs another repo, stop and ask the user 
 Use **mise** for language toolchains and CLIs. Don't use apt (you have no root) or curl-pipe installers.
 - Global (all repos in this org): `mise use -g go@latest`, `mise use -g python@3.13 uv@latest`, `mise use -g rust@stable`, `mise use -g ruby@3`, `mise use -g node@lts`
 - Per repo: `mise use go@1.23` writes a `mise.toml` in the current repo, and an existing `mise.toml`/`.tool-versions` is honored (`mise install`)
-- Other CLIs: `mise use -g aqua:cli/cli`, `mise use -g ubi:owner/repo`, `mise use -g npm:pkg`, `mise use -g pipx:pkg`
+- Other CLIs: `mise use -g aqua:cli/cli`, `mise use -g github:owner/repo`, `mise use -g npm:pkg`, `mise use -g pipx:pkg`
 - Python: prefer `uv` (`uv venv`, `uv pip install`, `uv run`) over bare pip
 - Tools are on PATH right away through mise shims, and they persist across container restarts.
 - **System libraries** (a browser's shared libraries, `libpq-dev`, fonts) can't be installed from in here. If a tool

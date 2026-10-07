@@ -1,6 +1,6 @@
 # PRD: distribution, the remaining channels (#60)
 
-Status: **done**, with one step left to the maintainer (the aqua pull request) · Issue: [#60](https://github.com/ar4mirez/berth/issues/60) · Restarts orgs: no
+Status: **done** · Issue: [#60](https://github.com/ar4mirez/berth/issues/60) · Restarts orgs: no
 
 ## Where it stood
 
@@ -11,7 +11,7 @@ were left.
 | Left | Now |
 |---|---|
 | Signed apt and yum repositories | Built and signed by the docs deploy; at `https://ar4mirez.github.io/berth/apt` and `/rpm` |
-| An aqua registry entry | Written and tested; submitting it is the maintainer's (below) |
+| An aqua registry entry | Dropped: mise's `github:` backend installs berth with no registry entry (below) |
 | Windows | Decided: WSL2 with the Linux build; no native Windows build |
 
 ## Decisions (2026-10-07)
@@ -20,7 +20,7 @@ were left.
 - **The signing key** was generated for this purpose (RSA 4096, no expiry, no passphrase) and is the
   `PACKAGES_GPG_KEY` Actions secret. Its public half is `tools/pkgrepo/berth-packages.asc`. Fingerprint:
   `B377 15D1 5535 BEC5 35AC  1C8F 2DD9 5203 64B7 0A65`.
-- **aqua: prepared, not submitted.** The entry goes to someone else's repository, from the maintainer's account.
+- **aqua: not needed** (decided later the same day, below).
 - **Windows: WSL2 only.** berth drives Linux containers with bind mounts and SSH; `docs/getting-started.md` says so.
 
 ## Design
@@ -54,11 +54,10 @@ were left.
 - [x] T3. `docs.yml` publishes the repositories; `release.yml` runs it after a release.
 - [x] T4. `packages.yml`: the `repository` and `repository-published` jobs.
 - [x] T5. Docs: the Debian and Fedora tabs; `berth upgrade`'s hint for a system package.
-- [x] T6. The aqua registry entry, tested with aqua.
+- [x] T6. mise: `github:ar4mirez/berth` replaces the deprecated `ubi:`; no aqua entry.
 - [x] T7. Windows recorded as decided.
 - [x] T8. After the first deploy: the published repositories were checked (v0.4.0 and v0.4.1, verified and
       signed; `apt install berth` on Debian and `dnf install berth` on Fedora gave 0.4.1), and `PKG_REPO=true` is set.
-- [ ] T9. Maintainer: submit the aqua entry.
 
 ## Acceptance criteria
 
@@ -67,34 +66,19 @@ were left.
 | Each channel installs the current release on a clean machine in CI | `packages.yml`: native packages, the install script, mise, Homebrew, the AUR, and now the apt and yum repositories |
 | Package metadata points at the docs and the license | `.goreleaser.yaml` (`homepage`, `license`), unchanged; the `native` job checks the license file is installed |
 
-## The aqua registry entry
+## mise: the GitHub backend, not aqua (2026-10-07)
 
-For `pkgs/ar4mirez/berth/registry.yaml` in [aquaproj/aqua-registry](https://github.com/aquaproj/aqua-registry),
-with a `pkg.yaml` beside it (`packages: [{name: ar4mirez/berth@v<latest>}]`), as that repository's contributing
-guide asks. Tested with aqua 2.63.0 as a local registry: it installs v0.4.1 and the binary runs. Releases before
-v0.4.0 use another archive layout, so the entry starts there.
+The issue asked for an aqua registry entry. mise's own guidance has moved since: its `ubi:` backend is deprecated,
+plugins are the last resort, and for release binaries it recommends a built-in release backend. berth uses
+`github:ar4mirez/berth`:
 
-```yaml
-packages:
-  - type: github_release
-    repo_owner: ar4mirez
-    repo_name: berth
-    description: Isolated Claude Code environments, one per organization
-    version_constraint: "false"
-    version_overrides:
-      - version_constraint: semver(">= 0.4.0")
-        asset: berth_{{trimV .Version}}_{{.OS}}_{{.Arch}}.{{.Format}}
-        format: tar.gz
-        checksum:
-          type: github_release
-          asset: checksums.txt
-          algorithm: sha256
-        supported_envs:
-          - darwin
-          - linux
-```
+- it works with no entry in anyone else's registry, and nothing to keep up to date there;
+- it checks the archive's checksum and berth's GitHub artifact attestation before installing, which `ubi:` never
+  did (seen with mise 2026.10.3: `✓ GitHub artifact attestations verified`).
 
-With it merged there, `mise use -g aqua:ar4mirez/berth` works and verifies the release's checksum.
+So the aqua entry was dropped, and the docs, the `mise` job in `packages.yml` and `berth upgrade`'s hint moved from
+`ubi:` to `github:`. mise's first choice, Packslip (signed publisher manifests), would need berth to publish a
+manifest in its format: not looked at here.
 
 ## Not done
 

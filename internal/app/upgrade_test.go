@@ -116,9 +116,10 @@ func TestUpgrade(t *testing.T) {
 
 func TestPackageManager(t *testing.T) {
 	for self, want := range map[string]string{
-		"/opt/homebrew/Caskroom/berth/0.4.0/berth":                           "Homebrew",
-		"/home/linuxbrew/.linuxbrew/Cellar/berth/0.4.0/bin/berth":            "Homebrew",
-		"/home/op/.local/share/mise/installs/ubi-ar4mirez-berth/0.4.0/berth": "mise",
+		"/opt/homebrew/Caskroom/berth/0.4.0/berth":                              "Homebrew",
+		"/home/linuxbrew/.linuxbrew/Cellar/berth/0.4.0/bin/berth":               "Homebrew",
+		"/home/op/.local/share/mise/installs/ubi-ar4mirez-berth/0.4.0/berth":    "mise",
+		"/home/op/.local/share/mise/installs/github-ar4mirez-berth/0.4.1/berth": "mise",
 		"/usr/bin/berth":                        "your system's package manager",
 		"/home/op/.local/opt/berth/0.4.0/berth": "",
 		"/usr/local/bin/berth":                  "",

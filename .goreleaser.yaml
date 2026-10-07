@@ -75,7 +75,7 @@ nfpms:
   - id: packages
     package_name: berth
     # Each format's conventional name (berth_<v>_amd64.deb, berth-<v>-1.x86_64.rpm,
-    # berth-<v>-1-x86_64.pkg.tar.zst), which also keeps mise's ubi: from taking one for the archive.
+    # berth-<v>-1-x86_64.pkg.tar.zst), which also keeps mise's github: backend from taking one for the archive.
     file_name_template: "{{ .ConventionalFileName }}"
     formats: [deb, rpm, archlinux]
     vendor: berth

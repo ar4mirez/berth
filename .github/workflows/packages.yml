@@ -7,7 +7,7 @@ name: packages
 #   - the generated AUR PKGBUILDs, checked with makepkg;
 #   - install.sh against the latest release, on Linux and macOS: it installs with the signature and
 #     checksum checked, and refuses a tampered archive;
-#   - mise (ubi:) against the latest release, asking GitHub for it directly (mise's own versions
+#   - mise (its github: backend) against the latest release, asking GitHub for it directly (mise's own versions
 #     host can lag a new release; that only warns);
 #   - the apt and yum repositories: built from the snapshot's packages with a throwaway key and
 #     installed from on Debian, Ubuntu and Fedora, with a tampered copy refused; and the published
@@ -209,16 +209,19 @@ jobs:
         run: |
           set -euo pipefail
           latest=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/ar4mirez/berth/releases/latest); latest=${latest##*/v}
-          mise use -g ubi:ar4mirez/berth
+          # The github: backend, as the docs say (mise deprecated ubi:). It must pick the archive, not
+          # the .deb or .rpm beside it, and it checks the release's attestation before installing.
+          mise use -g github:ar4mirez/berth 2>&1 | tee use.log
           got=$(mise exec -- berth --version)
           echo "$got"
           case "$got" in "berth $latest "*) ;; *) echo "mise installed that, and the latest release is $latest"; exit 1 ;; esac
+          grep -qi "attestations verified" use.log || echo "::warning::mise didn't report verifying berth's GitHub artifact attestation: check docs/getting-started.md's claim (mise may have reworded it)"
       # What a user gets by default, through the versions host. A lag there isn't berth's to fix, so
       # it is a warning on the run, not a failure.
       - name: what mise resolves by default
         run: |
           latest=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/ar4mirez/berth/releases/latest); latest=${latest##*/v}
-          seen=$(mise ls-remote ubi:ar4mirez/berth | tail -1)
+          seen=$(mise ls-remote github:ar4mirez/berth | tail -1)
           echo "the latest release is $latest; mise's versions host lists up to $seen"
           [ "$seen" = "$latest" ] || echo "::warning::mise's versions host lags: it lists $seen, and the latest release is $latest (docs/getting-started.md says how to pin)"
 

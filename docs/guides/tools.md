@@ -8,7 +8,7 @@ Ruby. Claude is told to use it, so it can install what a task needs:
 ```bash
 mise use -g go@latest python@3.13 uv@latest rust@stable ruby@3   # org-wide
 mise use node@lts                                                  # per repo (writes mise.toml)
-mise use -g aqua:mikefarah/yq                                      # any CLI from aqua, ubi, npm or pipx
+mise use -g aqua:mikefarah/yq                                      # any CLI from aqua, a GitHub release (github:owner/repo), npm or pipx
 ```
 
 Tools live in the org's `mise/` folder, so they survive restarts and rebuilds. Backups skip them, and

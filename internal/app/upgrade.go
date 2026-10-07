@@ -126,7 +126,7 @@ func PackageManager(self string) (name, how string) {
 	case strings.Contains(self, "/Caskroom/") || strings.Contains(self, "/Cellar/") || strings.Contains(self, "/homebrew/") || strings.Contains(self, "/linuxbrew/"):
 		return "Homebrew", "brew upgrade berth"
 	case strings.Contains(self, "/mise/installs/"):
-		return "mise", "mise upgrade berth (or: mise use -g ubi:ar4mirez/berth@latest)"
+		return "mise", "mise upgrade github:ar4mirez/berth (from the deprecated ubi: backend, switch once: mise unuse -g ubi:ar4mirez/berth && mise use -g github:ar4mirez/berth)"
 	case strings.HasPrefix(self, "/usr/bin/") || strings.HasPrefix(self, "/usr/sbin/"):
 		return "your system's package manager", "apt install berth or dnf upgrade berth with berth's repository, else the release's .deb, .rpm or .pkg.tar.zst, or the AUR (docs: getting started)"
 	}
