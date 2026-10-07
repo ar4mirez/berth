@@ -211,7 +211,8 @@ jobs:
           latest=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/ar4mirez/berth/releases/latest); latest=${latest##*/v}
           # The github: backend, as the docs say (mise deprecated ubi:). It must pick the archive, not
           # the .deb or .rpm beside it, and it checks the release's attestation before installing.
-          mise use -g github:ar4mirez/berth 2>&1 | tee use.log
+          # Verbose: mise only prints its verification steps that way when its output isn't a terminal.
+          MISE_VERBOSE=1 mise use -g github:ar4mirez/berth 2>&1 | tee use.log
           got=$(mise exec -- berth --version)
           echo "$got"
           case "$got" in "berth $latest "*) ;; *) echo "mise installed that, and the latest release is $latest"; exit 1 ;; esac
