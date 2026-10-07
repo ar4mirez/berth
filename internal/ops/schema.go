@@ -38,6 +38,8 @@ var Documents = []Document{
 	{"berth.schedule/v1", "schedule status", Schedule{}},
 	{"berth.hosts/v1", "host ls", Hosts{}},
 	{"berth.host-guard/v1", "host guard <name> status", HostGuard{}},
+	{"berth.packages/v1", "pkg <org>", Packages{}},
+	{"berth.package-presets/v1", "pkg <org> presets", PackagePresetsDoc{}},
 	{"berth.default-org/v1", "use", DefaultOrg{}},
 	{"berth.image/v1", "image-tag", Image{}},
 	{"berth.error/v1", "any command that fails (on stderr)", ErrorDoc{}},

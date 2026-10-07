@@ -124,6 +124,12 @@ var Catalog = map[string]Op{
 		"policy": {Access: BySub, Subs: map[string]Op{"": readJSON, "<mode>": writeMay("restarts a running org to apply the policy")}},
 	}},
 	"clone": write,
+	// System packages in an org's image (#106): the list is saved and the org's image built; the
+	// container keeps running on its current image until its next restart.
+	"pkg": {Access: BySub, Subs: map[string]Op{
+		"": readJSON, "ls": readJSON, "list": readJSON, "presets": readJSON,
+		"add": write, "rm": write, "remove": write, "build": write,
+	}},
 
 	// Backups.
 	"backup":    events(write), // writes backup files; the org and its container are untouched

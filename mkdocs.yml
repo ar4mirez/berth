@@ -48,6 +48,7 @@ nav:
   - Guides:
       - Repos: guides/repos.md
       - The firewall: guides/firewall.md
+      - System packages: guides/packages.md
       - Secrets and env vars: guides/env.md
       - Profiles: guides/profiles.md
       - Secrets as files: secrets.md

@@ -311,3 +311,34 @@ type HostGuard struct {
 	// Rules is the guard's own report of its chains.
 	Rules string `json:"rules"`
 }
+
+// Packages is `berth pkg <org> --output json`: the system packages an org's image adds (#106).
+type Packages struct {
+	Schema string `json:"schema"` // "berth.packages/v1"
+	Org    string `json:"org"`
+	File   string `json:"file"`
+	// Entries are packages.txt's entries as written: package names and @presets.
+	Entries []string `json:"entries"`
+	// Packages are the packages they stand for: presets expanded, sorted.
+	Packages []string `json:"packages"`
+	// Invalid are entries that are neither a package name nor a known preset (a hand-edited file):
+	// they are left out of the image.
+	Invalid []string `json:"invalid"`
+	// BaseImage is berth's image, and Image the one this org runs on: the same when it adds no
+	// packages. Built is whether Image exists on the org's host.
+	BaseImage string `json:"base_image"`
+	Image     string `json:"image"`
+	Built     bool   `json:"built"`
+}
+
+// PackagePresetsDoc is `berth pkg <org> presets --output json`.
+type PackagePresetsDoc struct {
+	Schema  string          `json:"schema"` // "berth.package-presets/v1"
+	Presets []PackagePreset `json:"presets"`
+}
+
+// PackagePreset is one @preset and the packages it stands for.
+type PackagePreset struct {
+	Name     string   `json:"name"` // "@playwright-chromium"
+	Packages []string `json:"packages"`
+}

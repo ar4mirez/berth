@@ -168,6 +168,7 @@ func (a *App) removeOrgDir(ctx context.Context, d string) error {
 // forgetOrg drops what berth keeps about o outside its directory: the lease (when this host holds
 // it) and its marker, and the default org if it's o. Best effort: the org is already gone.
 func (a *App) forgetOrg(o string) {
+	_ = a.Host.FS.RemoveAll(a.orgContextDir(o)) // its generated Dockerfile (#106)
 	_ = a.Host.FS.Remove(hosts.LeaseMarker(a.State.Home.Path, o))
 	if leases, err := hosts.LoadLeases(a.Operator.FS, a.hostPaths()); err == nil {
 		if h, ok := leases.Orgs[o]; ok && h == a.hostLabel() {

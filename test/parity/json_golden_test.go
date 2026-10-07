@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -27,6 +28,8 @@ var jsonRepos = merge(repoOrg, map[string]File{
 	"state/orgs/acme/quarantine":          {Dir: true, Mode: 0o700},
 	"state/orgs/acme/quarantine/old.2026": {Dir: true},
 })
+
+var imageHash = regexp.MustCompile(`\b[0-9a-f]{12}\b`)
 
 const authStatusOcto = `{"loggedIn":true,"orgId":"org-acme","email":"dev@example.com","orgName":"Acme Corp"}`
 
@@ -62,6 +65,10 @@ var jsonCases = []jsonCase{
 		{Bin: "systemctl", Match: `show-environment`, Exit: 1},
 		{Bin: "crontab", Match: `^-l$`, Stdout: "0 * * * * /usr/bin/true\n30 2 * * * /opt/berth backup --all --keep 7 >> /b/cron.log 2>&1  # <SCHEDULE>\n"}}},
 	{name: "hosts", args: []string{"host", "ls"}, files: twoOrgs, rules: []Rule{{Bin: "docker", Match: `^version`, Stdout: "29.0.0\n"}}},
+	{name: "packages", args: []string{"pkg", "acme"}, rules: running("acme"),
+		files: merge(twoOrgs, map[string]File{"state/orgs/acme/config/packages.txt": {Content: "# for the browser tests\n@playwright-chromium\nlibpq-dev\nBad_Name\n", Mode: 0o644}})},
+	{name: "packages-none", args: []string{"pkg", "globex", "ls"}, files: twoOrgs, rules: []Rule{{Bin: "docker", Match: `^image inspect`, Exit: 1}}},
+	{name: "package-presets", args: []string{"pkg", "acme", "presets"}, files: twoOrgs},
 	{name: "default-org-none", args: []string{"use"}, files: twoOrgs},
 	{name: "default-org", args: []string{"use"}, files: withFile(twoOrgs, "home/.config/berth/context", File{Content: "acme\n", Mode: 0o600})},
 }
@@ -81,6 +88,8 @@ func TestBerthJSONGolden(t *testing.T) {
 					t.Errorf("%v: the document has %q", c.args, secret)
 				}
 			}
+			// The image's name follows image/'s content: pinned by shape, not by value.
+			r.Stdout = imageHash.ReplaceAllString(r.Stdout, "<HASH>")
 			file := filepath.Join("testdata", "json", c.name+".json")
 			if update {
 				if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {

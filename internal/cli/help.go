@@ -32,7 +32,7 @@ var sections = []*cobra.Group{
 var placement = map[string]string{
 	"org": "orgs", "ls": "orgs", "up": "orgs", "down": "orgs", "destroy": "orgs", "restart": "orgs", "attach": "orgs",
 	"shell": "orgs", "claude": "orgs", "run": "orgs", "exec": "orgs", "logs": "orgs", "info": "orgs", "connect": "orgs",
-	"repo": "inside", "clone": "inside", "fw": "inside", "env": "inside", "secrets": "inside",
+	"repo": "inside", "clone": "inside", "fw": "inside", "pkg": "inside", "env": "inside", "secrets": "inside",
 	"account": "account",
 	"backup":  "backups", "restore": "backups", "schedule": "backups", "keygen": "backups",
 	"host": "hosts", "use": "hosts",
@@ -92,6 +92,7 @@ var examples = map[string][]string{
 	"repo":               {"berth repo add acme acme/widgets", "berth repo ls acme", "berth repo policy acme enforce"},
 	"clone":              {"berth clone acme acme/widgets --branch main"},
 	"fw":                 {"berth fw acme show", "berth fw acme allow pypi.org @python", "berth fw acme test"},
+	"pkg":                {"berth pkg acme add @playwright-chromium", "berth pkg acme add libpq-dev", "berth pkg acme", "berth restart acme"},
 	"env":                {"berth env acme ls", "berth env acme set OPENROUTER_API_KEY", "berth env acme unset OPENROUTER_API_KEY"},
 	"secrets":            {"berth secrets migrate acme"},
 	"backup":             {"berth backup acme", "berth backup --all --keep 14", "berth backup acme -o - > acme.tar.zst.age"},

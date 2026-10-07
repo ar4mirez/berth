@@ -212,6 +212,9 @@ func localOnly(name string, pick func([]string) int, run func(*cobra.Command, []
 // fwVerbs are fw's subcommands, which can't be taken for an org.
 var fwVerbs = []string{"show", "allow", "add", "deny", "remove", "rm", "on", "off", "edit", "reload", "presets", "test"}
 
+// pkgVerbs are pkg's subcommands, which can't be taken for an org.
+var pkgVerbs = []string{"ls", "list", "add", "rm", "remove", "presets", "build"}
+
 // nthArg picks the nth argument; allArgs picks none, meaning every argument (localOnly).
 func nthArg(n int) func([]string) int { return func([]string) int { return n } }
 
@@ -497,6 +500,22 @@ func addCommands(root *cobra.Command) {
 					return a.Fw(cmd.Context(), "", nil)
 				}
 				return a.Fw(cmd.Context(), args[0], args[1:])
+			}),
+		}),
+		reads(&cobra.Command{
+			Use: "pkg <org> [ls|add|rm|presets|build] [packages...]", Short: "system packages in the org's image (applied at its next restart)",
+			Long: "The Debian packages an org's projects need and berth's image doesn't have (a browser's libraries, say).\n" +
+				"berth builds an image for that org on top of its own, with them installed, and runs the org on it:\n" +
+				"they survive every recreate, and the org's firewall needs no Debian mirror. add and rm build the\n" +
+				"image at once (--no-build: at the org's next start). The running container isn't touched: the new\n" +
+				"image applies at the org's next restart.",
+			DisableFlagParsing: true, // packages are positional, as fw's entries are
+			ValidArgsFunction:  completePkg,
+			RunE: onOrgV(nthArg(0), pkgVerbs, func(a *app.App, cmd *cobra.Command, args []string) error {
+				if len(args) == 0 {
+					return a.Pkg(cmd.Context(), "", nil)
+				}
+				return a.Pkg(cmd.Context(), args[0], args[1:])
 			}),
 		}),
 		reads(&cobra.Command{
