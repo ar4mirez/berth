@@ -167,3 +167,28 @@ func TCP(addr, token, fingerprint string) *Client {
 	}
 	return &Client{Base: "https://" + addr, Token: token, HTTP: &http.Client{Transport: &http.Transport{TLSClientConfig: conf}}}
 }
+
+// CLI runs one of berth's commands on the server (POST /v1/cli), writing what it prints to stdout
+// and stderr as it comes, and returns its exit code.
+func (c *Client) CLI(ctx context.Context, args []string, output string, stdout, stderr io.Writer) (int, error) {
+	code, got := 1, false
+	err := c.Stream(ctx, "POST", "/v1/cli", map[string]any{"args": args, "output": output}, func(event string, data json.RawMessage) {
+		switch event {
+		case "stdout", "stderr":
+			var s string
+			if json.Unmarshal(data, &s) == nil {
+				w := stdout
+				if event == "stderr" {
+					w = stderr
+				}
+				_, _ = io.WriteString(w, s)
+			}
+		case "exit":
+			got = json.Unmarshal(data, &code) == nil
+		}
+	})
+	if err == nil && !got {
+		err = errors.New("the server stopped before the command ended")
+	}
+	return code, err
+}

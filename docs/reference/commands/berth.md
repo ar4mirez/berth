@@ -25,11 +25,12 @@ berth [flags]
 ### Options
 
 ```
-  -h, --help            help for berth
-      --home string     state root (default: $BERTH_HOME, then home: in config.yaml, then ~/.local/share/berth)
-      --output string   output format for commands that return data: text or json (docs/json.md) (default "text")
-      --read-only       refuse any command that would change state
-      --version         print the berth version
+  -h, --help                     help for berth
+      --home string              state root (default: $BERTH_HOME, then home: in config.yaml, then ~/.local/share/berth)
+      --output string            output format for commands that return data: text or json (docs/json.md) (default "text")
+      --read-only                refuse any command that would change state
+      --version                  print the berth version
+      --via-daemon berth serve   run the command through a running berth serve, over its socket (docs/api.md)
 ```
 
 ### SEE ALSO

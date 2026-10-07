@@ -29,6 +29,13 @@ func (e *ExitError) ExitCode() int { return e.Code }
 func NewRoot() *cobra.Command { return newRoot(ccenvSpellings()) }
 
 func newRoot(ccenv bool) *cobra.Command {
+	ops.BerthSpellings = !ccenv // how messages name commands
+	return newTree(ccenv)
+}
+
+// newTree builds a command tree without deciding how messages spell commands: the API runs
+// ccenv's flat tree for a caller (daemon.go) in a process whose messages are berth's.
+func newTree(ccenv bool) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "berth",
 		Short:         "berth: one Claude Code container per organization",
@@ -58,7 +65,6 @@ func newRoot(ccenv bool) *cobra.Command {
 	root.SetVersionTemplate("berth {{.Version}}\n")
 	addGlobalFlags(root)
 	addCommands(root)
-	ops.BerthSpellings = !ccenv // how messages name commands
 	if ccenv {
 		organize(root)
 		sortCommands(root) // ccenv's help lists them by name
@@ -66,6 +72,7 @@ func newRoot(ccenv bool) *cobra.Command {
 		layout(root) // in the order they are added: the everyday ones first, then the groups
 	}
 	answerHelp(root)
+	throughDaemon(root)
 	return root
 }
 
@@ -139,12 +146,16 @@ func Execute(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 }
 
 func execute(root *cobra.Command, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return executeContext(context.Background(), root, args, stdin, stdout, stderr)
+}
+
+func executeContext(ctx context.Context, root *cobra.Command, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	root.SetArgs(args)
 	root.SetIn(stdin)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 	h := &progress{}
-	root.SetContext(context.WithValue(context.Background(), progressKey{}, h))
+	root.SetContext(context.WithValue(ctx, progressKey{}, h))
 	err := root.Execute()
 	if h.p != nil {
 		// A long operation under --output json: its last event says how it ended.

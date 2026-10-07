@@ -126,6 +126,7 @@ func addGlobalFlags(root *cobra.Command) {
 	home := pf.String("home", "", "state root (default: $BERTH_HOME, then home: in config.yaml, then ~/.local/share/berth)")
 	readOnly := pf.Bool("read-only", false, "refuse any command that would change state")
 	output := pf.String("output", app.OutputText, "output format for commands that return data: text or json (docs/json.md)")
+	pf.Bool("via-daemon", false, "run the command through a running `berth serve`, over its socket (docs/api.md)")
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		// help, --version, an unknown command, and cobra's own __complete: nothing to resolve or guard.
@@ -137,6 +138,10 @@ func addGlobalFlags(root *cobra.Command) {
 			return nil
 		}
 		name, sub, fargs := opOf(cmd, args)
+		if via, _ := pf.GetBool("via-daemon"); via && !daemonCan(name, sub) {
+			return &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: fmt.Sprintf("%q can't go through the daemon: it needs a terminal, or the API has no endpoint for it",
+				strings.TrimPrefix(cmd.CommandPath(), root.Name()+" ")), Hint: "run it without --via-daemon"}
+		}
 		access := cmd.Annotations[accessKey]
 		switch access {
 		case accessRead, accessWrite:

@@ -118,7 +118,7 @@ func serveCmd() *cobra.Command {
 			if socket == "" {
 				socket = api.SocketPath(os.Getenv)
 			}
-			opts := api.Options{Version: version.Version, ReadOnly: st.ReadOnly, NewApp: appMaker(st), Caller: api.Local}
+			opts := api.Options{Version: version.Version, ReadOnly: st.ReadOnly, NewApp: appMaker(st), Caller: api.Local, RunCLI: runFor(st)}
 			a := appFor(cmd)
 			var tcp net.Listener
 			var tlsConf *tls.Config

@@ -30,6 +30,10 @@ type Options struct {
 	AllowWrites, AllowRestarts bool
 	// Version is berth's.
 	Version string
+	// Via names the transport in the audit log and decides how a refusal is worded: "mcp" (the
+	// default) is `berth mcp` on stdio, whose flags the operator can change; "mcp-http" is the
+	// API's /mcp, where a token's scope decides.
+	Via string
 	// NewApp makes the App one call runs against, with its output going to stdout and stderr:
 	// never to the process's own, which carry the protocol.
 	NewApp func(stdout, stderr io.Writer) *app.App
@@ -235,7 +239,11 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 	}
 	s.specs = append(s.specs, spec)
 	mcp.AddTool(s.mcp, tool, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
-		out, err := core(ctx, Caller{Via: "mcp", Writes: s.opts.AllowWrites, Restarts: s.opts.AllowRestarts}, in)
+		via := s.opts.Via
+		if via == "" {
+			via = "mcp"
+		}
+		out, err := core(ctx, Caller{Via: via, Writes: s.opts.AllowWrites, Restarts: s.opts.AllowRestarts}, in)
 		if err != nil {
 			err = fmt.Errorf("%s", err.Error()) // the text is the whole of a tool error
 		}

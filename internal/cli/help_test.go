@@ -154,6 +154,10 @@ func TestVerbFirst(t *testing.T) {
 		{[]string{"account", "gh", "acme"}, "gh-login  [acme]"},
 		{[]string{"org", "use", "acme"}, "use <org> [acme]"},
 		{[]string{"up", "acme"}, "up  [acme]"},
+		{[]string{"host", "ls"}, "host ls [ls]"},
+		{[]string{"host", "guard", "box1", "status"}, "host guard/status [guard box1 status]"},
+		{[]string{"host", "guard", "box1"}, "host guard/ [guard box1]"},
+		{[]string{"host", "guard", "box1", "off"}, "host guard/off [guard box1 off]"},
 	} {
 		root := NewRoot()
 		c, rest, err := root.Find(tc.args)
