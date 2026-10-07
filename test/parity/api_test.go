@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
 	"github.com/ar4mirez/berth/internal/api"
 	"github.com/ar4mirez/berth/internal/apiclient"
 	"github.com/ar4mirez/berth/internal/ops"
@@ -454,5 +456,173 @@ func TestBerthAPIOverTCP(t *testing.T) {
 		if out := run(t, Berth(berthBin), Scenario{Args: args, Files: withTokens}); out.Exit == 0 || strings.Contains(treeLine(out, "home/.config/berth/api/tokens.json"), `"x"`) {
 			t.Errorf("%v was accepted: %q", args, out.Stdout)
 		}
+	}
+}
+
+// TestBerthViaDaemon: `berth --via-daemon <command>` runs the command on the server and prints
+// what it prints there, with its exit code: the same as running it directly on the same state.
+// Only the operations the API serves can go; the caller's scope applies; writes are audited.
+func TestBerthViaDaemon(t *testing.T) {
+	_, sock, snap := apiSession(t, twoOrgs, mcpRules)
+	via := func(args ...string) Result {
+		return run(t, Berth(berthBin), Scenario{Args: append([]string{"--via-daemon"}, args...), Files: map[string]File{}, Env: []string{"BERTH_SOCKET=" + sock}})
+	}
+	for _, args := range [][]string{{"ls"}, {"info", "acme"}, {"repo", "ls", "acme"}, {"env", "acme", "ls"},
+		{"--output", "json", "ls"}, {"host", "ls"}, {"info", "nope"}, {"remote", "globex", "status"}, {"whoami", "acme"}} {
+		direct := run(t, Berth(berthBin), Scenario{Args: args, Files: twoOrgs, Rules: mcpRules})
+		got := run(t, Berth(berthBin), Scenario{Args: append([]string{"--via-daemon"}, args...), Files: map[string]File{}, Env: []string{"BERTH_SOCKET=" + sock}})
+		if got.Exit != direct.Exit || got.Stdout != direct.Stdout || got.Stderr != direct.Stderr {
+			t.Errorf("--via-daemon %v:\n exit %d, stdout %q, stderr %q\ndirectly:\n exit %d, stdout %q, stderr %q", args, got.Exit, got.Stdout, got.Stderr, direct.Exit, direct.Stdout, direct.Stderr)
+		}
+		if len(got.Calls) != 0 {
+			t.Errorf("--via-daemon %v ran commands on the client: %v", args, got.Calls)
+		}
+	}
+	// fw show names the allowlist's file, which is the server's.
+	for _, args := range [][]string{{"fw", "acme", "show"}, {"fw", "acme"}} {
+		if out := via(args...); out.Exit != 0 || !strings.Contains(out.Stdout, "/state/orgs/acme/config/firewall.txt") || !strings.Contains(out.Stdout, "live: on (12 entries)") {
+			t.Errorf("--via-daemon %v: %d %q %q", args, out.Exit, out.Stdout, out.Stderr)
+		}
+	}
+	// A write happens on the server's state, not the client's.
+	out := via("fw", "acme", "allow", "via.example")
+	if out.Exit != 0 || !strings.Contains(out.Stdout, "allowed: via.example") || len(out.Tree) > 3 {
+		t.Errorf("a write through the daemon: %d %q %q, the client's tree: %v", out.Exit, out.Stdout, out.Stderr, out.Tree)
+	}
+	res := snap()
+	if !strings.Contains(treeLine(res, "state/orgs/acme/config/firewall.txt"), "via.example") {
+		t.Error("the server's firewall.txt didn't change")
+	}
+	if audit := strings.Join(auditLines(t, res), "\n"); !strings.Contains(audit, `cli fw allow|ok|{"args":["acme","allow","via.example"]}`) {
+		t.Errorf("the audit log: %s", audit)
+	}
+	// What needs a terminal, or has no endpoint, doesn't go; and without a server it says so.
+	for _, args := range [][]string{{"shell", "acme"}, {"claude", "acme"}, {"init", "t-new"}, {"env", "acme", "set", "KEY"}, {"destroy", "acme", "--yes"}, {"serve"}, {"tui"}} {
+		if out := via(args...); out.Exit != 1 || !strings.Contains(out.Stderr, "can't go through the daemon") {
+			t.Errorf("--via-daemon %v: %d %q", args, out.Exit, out.Stderr)
+		}
+	}
+	out = run(t, Berth(berthBin), Scenario{Args: []string{"--via-daemon", "ls"}, Files: twoOrgs, Env: []string{"BERTH_SOCKET=/tmp/berth-no-such.sock"}})
+	if out.Exit != 1 || !strings.Contains(out.Stderr, "isn't answering") || out.Stdout != "" {
+		t.Errorf("no server: %d %q %q", out.Exit, out.Stdout, out.Stderr)
+	}
+	if res := snap(); strings.Contains(asJSON(res.Tree), "t-new") {
+		t.Error("init ran on the server")
+	}
+	// The endpoint itself refuses a command the API doesn't serve, whoever asks.
+	c := apiclient.Unix(sock)
+	var errb strings.Builder
+	for _, args := range [][]string{{"init", "t-new"}, {"shell", "acme"}, {"--home", "/tmp/x", "ls"}, {"nope"}, {"env", "acme", "set", "KEY"}} {
+		errb.Reset()
+		if code, err := c.CLI(context.Background(), args, "", io.Discard, &errb); err != nil || code != 1 || !strings.Contains(errb.String(), "berth: ") {
+			t.Errorf("POST /v1/cli %v: exit %d, %v, %q", args, code, err, errb.String())
+		}
+	}
+
+	// A read-only server refuses the write, and says why.
+	_, sock, _ = apiSession(t, twoOrgs, mcpRules, "--read-only")
+	if out := via("fw", "acme", "allow", "ro.example"); out.Exit != 1 || !strings.Contains(out.Stderr, "may only read") {
+		t.Errorf("a write through a read-only daemon: %d %q", out.Exit, out.Stderr)
+	}
+	if out := via("restart", "acme"); out.Exit != 1 || !strings.Contains(out.Stderr, "may not") {
+		t.Errorf("a restart through a read-only daemon: %d %q", out.Exit, out.Stderr)
+	}
+}
+
+// bearer adds a token to every request.
+type bearer struct {
+	token string
+	next  http.RoundTripper
+}
+
+func (b bearer) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.Header.Set("Authorization", "Bearer "+b.token)
+	return b.next.RoundTrip(req)
+}
+
+// TestBerthMCPOverHTTP: the MCP server at /mcp, behind the API's access: on the socket for its
+// owner; on TCP for a token, whose scope decides what its tools may do.
+func TestBerthMCPOverHTTP(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	tokens := map[string]string{"read": "berth_READ-fixture-token", "write": "berth_WRITE-fixture-token", "restart": "berth_RESTART-fixture-token"}
+	files := merge(twoOrgs, map[string]File{"home/.config/berth/api/tokens.json": {Content: tokenFile(tokens), Mode: 0o600}})
+	sockClient, _, snap := apiSessionArgs(t, files, mcpRules, []string{"--listen", "127.0.0.1:0"})
+	var addr, print string
+	for i := 0; i < 100 && addr == ""; i++ {
+		if m := regexp.MustCompile(`https://(127\.0\.0\.1:\d+) \(TLS, tokens; certificate sha256 ([0-9a-f]{64})\)`).FindStringSubmatch(serveStderr.String()); m != nil {
+			addr, print = m[1], m[2]
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	connect := func(endpoint string, hc *http.Client) (*mcp.ClientSession, error) {
+		client := mcp.NewClient(&mcp.Implementation{Name: "berth-http", Version: "0"}, nil)
+		return client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: endpoint, HTTPClient: hc, MaxRetries: -1}, nil)
+	}
+	tcp := func(token string) *http.Client {
+		hc := apiclient.TCP(addr, "", print).HTTP
+		return &http.Client{Transport: bearer{token, hc.Transport}}
+	}
+	call := func(cs *mcp.ClientSession, name string, args map[string]any) (string, bool) {
+		res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		text := asJSON(res.StructuredContent)
+		for _, c := range res.Content {
+			if tc, ok := c.(*mcp.TextContent); ok {
+				text += tc.Text
+			}
+		}
+		return text, res.IsError
+	}
+
+	// No token: no session.
+	if cs, err := connect("https://"+addr+"/mcp", apiclient.TCP(addr, "", print).HTTP); err == nil {
+		_ = cs.Close()
+		t.Error("MCP over TCP connected without a token")
+	}
+	// A read token: the tools are there, reads answer, writes are refused.
+	cs, err := connect("https://"+addr+"/mcp", tcp(tokens["read"]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if list, err := cs.ListTools(ctx, nil); err != nil || len(list.Tools) < 20 {
+		t.Fatalf("tools over HTTP: %v", err)
+	}
+	if text, isErr := call(cs, "orgs_list", nil); isErr || !strings.Contains(text, `"name":"acme"`) {
+		t.Errorf("orgs_list: %s", text)
+	}
+	if text, isErr := call(cs, "firewall_allow", map[string]any{"org": "acme", "entries": []string{"mcp-read.example"}}); !isErr || !strings.Contains(text, "this caller may only read: refused") {
+		t.Errorf("a write with a read token: %s", text)
+	}
+	_ = cs.Close()
+	// A write token writes, and may not restart.
+	if cs, err = connect("https://"+addr+"/mcp", tcp(tokens["write"])); err != nil {
+		t.Fatal(err)
+	}
+	if text, isErr := call(cs, "firewall_allow", map[string]any{"org": "acme", "entries": []string{"mcp-write.example"}}); isErr {
+		t.Errorf("a write with a write token: %s", text)
+	}
+	if text, isErr := call(cs, "org_restart", map[string]any{"org": "acme", "confirm": "acme"}); !isErr || !strings.Contains(text, "refused") {
+		t.Errorf("a restart with a write token: %s", text)
+	}
+	_ = cs.Close()
+	// The socket: its owner, no token.
+	if cs, err = connect(sockClient.Base+"/mcp", sockClient.HTTP); err != nil {
+		t.Fatal(err)
+	}
+	if text, isErr := call(cs, "org_restart", map[string]any{"org": "acme"}); !isErr || !strings.Contains(text, "confirm") {
+		t.Errorf("a restart without confirm over the socket: %s", text)
+	}
+	if text, isErr := call(cs, "org_restart", map[string]any{"org": "acme", "confirm": "acme"}); isErr {
+		t.Errorf("a confirmed restart over the socket: %s", text)
+	}
+	_ = cs.Close()
+	res := snap()
+	fw := treeLine(res, "state/orgs/acme/config/firewall.txt")
+	if strings.Contains(fw, "mcp-read.example") || !strings.Contains(fw, "mcp-write.example") || !hasCall(res, `"up" "-d" "--force-recreate"`) {
+		t.Errorf("after MCP over HTTP: firewall %s", fw)
 	}
 }

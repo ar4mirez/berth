@@ -265,7 +265,7 @@ func auditLines(t *testing.T, r Result) []string {
 			t.Fatalf("audit line %q: %v", l, err)
 		}
 		args, _ := json.Marshal(e.Args)
-		if (e.Via != "mcp" && e.Via != "api") || e.Time == "" {
+		if (e.Via != "mcp" && e.Via != "api" && e.Via != "mcp-http") || e.Time == "" {
 			t.Errorf("audit entry: %+v", e)
 		}
 		out = append(out, e.Tool+"|"+e.Outcome+"|"+string(args))

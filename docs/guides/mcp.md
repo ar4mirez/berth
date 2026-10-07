@@ -104,7 +104,8 @@ object per line: when, which tool, its arguments, and whether it ran, failed or 
 
 Arguments are names and settings. No tool takes a secret value, so none is logged.
 
-## Not yet
+## Over the network
 
-Access over the network (MCP's streamable HTTP transport) needs authentication, which comes with the API (#62).
-Until then `berth mcp` is for a client on the same machine.
+`berth mcp` is for a client on the same machine. For one elsewhere, the API serves the same tools over MCP's
+streamable HTTP transport, at `/mcp`, behind its TLS and tokens: [MCP over HTTP](../api.md#mcp-over-http). There, what
+the tools may do is the token's scope, not a flag.

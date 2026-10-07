@@ -92,7 +92,7 @@ var examples = map[string][]string{
 	"repo":               {"berth repo add acme acme/widgets", "berth repo ls acme", "berth repo policy acme enforce"},
 	"clone":              {"berth clone acme acme/widgets --branch main"},
 	"fw":                 {"berth fw acme show", "berth fw acme allow pypi.org @python", "berth fw acme test"},
-	"serve":              {"berth serve", "berth --read-only serve", "berth serve --listen 127.0.0.1:8443", "curl --unix-socket \"$XDG_RUNTIME_DIR/berth.sock\" http://berth/v1/orgs"},
+	"serve":              {"berth serve", "berth --read-only serve", "berth serve --listen 127.0.0.1:8443", "berth --via-daemon ls", "curl --unix-socket \"$XDG_RUNTIME_DIR/berth.sock\" http://berth/v1/orgs"},
 	"serve token":        {"berth serve token add ci --scope read", "berth serve token ls"},
 	"serve token add":    {"berth serve token add ci", "berth serve token add deploy --scope restart"},
 	"serve token ls":     {"berth serve token ls", "berth --output json serve token ls"},

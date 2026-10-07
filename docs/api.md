@@ -146,6 +146,40 @@ curl -N --unix-socket "$s" -H 'Accept: text/event-stream' -X POST -d '{"confirm"
 
 `GET /v1/orgs/{org}/logs/follow` is always a stream: one `output` event per log line, until you disconnect.
 
+## The command line, through a running server
+
+```bash
+berth --via-daemon ls
+berth --via-daemon fw allow acme pypi.org
+berth --via-daemon --output json info acme
+```
+
+`--via-daemon` sends the command to the server on its socket, which runs it there and sends back what it prints and
+its exit code: the same text, JSON, messages and hints as running it directly. `BERTH_SOCKET` names the socket when
+the server was started with `--socket`.
+
+- **What can go** is what the API has endpoints for: the reads, firewall allow and deny, repo add, remove and sync,
+  backups, and up, restart and down. What needs a terminal (`shell`, `attach`, `claude`, sign-ins, `tui`), or has
+  no endpoint (`org create`, `org destroy`, `env set`), says so and doesn't run.
+- The server's rules apply: a read-only server refuses a write. Typing the command is the confirmation, so a
+  restart needs no `confirm` here.
+- A write through it is in the audit log, as `cli <operation>` with its arguments.
+
+`POST /v1/cli` is the endpoint behind it (`{"args": […], "output": "text"}`, answered as `stdout`, `stderr` and
+`exit` events). It is for berth's own command line: other programs should use the endpoints above.
+
+## MCP over HTTP
+
+The [MCP server](guides/mcp.md) is also at `/mcp`, for a client that speaks MCP's streamable HTTP transport:
+
+```bash
+claude mcp add --transport http berth https://127.0.0.1:8443/mcp --header "Authorization: Bearer $TOKEN"
+```
+
+It has the same tools as `berth mcp`. What they may do is the caller's: on TCP the token's scope (`read`, `write`,
+`restart`), checked at every request; on the socket, everything `--read-only` allows. `--allow-writes` and
+`--allow-restarts` are `berth mcp`'s flags, for stdio, and don't apply here.
+
 ## The OpenAPI document
 
 [`api/openapi.json`](api/openapi.json) (OpenAPI 3.1) describes every endpoint, its arguments and its documents; a

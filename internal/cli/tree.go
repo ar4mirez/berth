@@ -52,6 +52,21 @@ func opOf(cmd *cobra.Command, args []string) (name, sub string, fargs []string) 
 	name, fargs = cmd.Name(), args
 	if n := cmd.Annotations[opKey]; n != "" {
 		name = n
+	} else if p := cmd.Parent(); p != nil && p.HasParent() {
+		// A group's own verb (host ls): the operation is the group's, and the verb its subcommand.
+		sub = cmd.Name()
+		if op, ok := ops.Lookup(p.Name(), sub); ok && op.Access == ops.BySub {
+			// Its own subcommand is its last argument when that is one (host guard box1 status).
+			last := ""
+			if len(args) > 1 {
+				last = args[len(args)-1]
+			}
+			if _, known := op.Subs[last]; !known {
+				last = ""
+			}
+			sub += "/" + last
+		}
+		return p.Name(), sub, append([]string{cmd.Name()}, args...)
 	}
 	if f, ok := flatArgs.Load(cmd); ok {
 		fargs = f.(func([]string) []string)(args)

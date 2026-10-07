@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/ar4mirez/berth/internal/app"
 	"github.com/ar4mirez/berth/internal/mcpsrv"
@@ -26,6 +29,16 @@ type Options struct {
 	NewApp func(stdout, stderr io.Writer) *app.App
 	// Caller says who a request comes from and what they may do. An error refuses the request.
 	Caller func(*http.Request) (mcpsrv.Caller, error)
+	// RunCLI runs one of berth's commands for a caller, as the command line would here, and returns
+	// its exit code: what `berth --via-daemon` asks for. Nil when the server doesn't offer it.
+	RunCLI func(ctx context.Context, by mcpsrv.Caller, args []string, output string, stdout, stderr io.Writer) int
+}
+
+// CLIRequest is the body of POST /v1/cli: a command in ccenv's flat form (its operation's name and
+// arguments, as internal/ops names operations), and the --output it was asked with.
+type CLIRequest struct {
+	Args   []string `json:"args"`
+	Output string   `json:"output,omitempty"`
 }
 
 // Info is `GET /v1`: what is serving.
@@ -79,6 +92,27 @@ func Handler(o Options) http.Handler {
 		_, _ = w.Write(OpenAPI())
 	})
 	mux.HandleFunc("GET /"+Version+"/orgs/{org}/logs/follow", o.follow)
+	mux.HandleFunc("POST /"+Version+"/cli", o.cli)
+	// MCP over HTTP (#61): the same tools, for a client that speaks the protocol. Each request is
+	// its caller's: stateless, so a token's scope is checked every time.
+	servers := map[[2]bool]*mcp.Server{}
+	for _, scope := range [][2]bool{{false, false}, {true, false}, {true, true}} {
+		servers[scope], _ = mcpsrv.New(mcpsrv.Options{NewApp: o.NewApp, Version: o.Version, Via: "mcp-http", AllowWrites: scope[0], AllowRestarts: scope[1]})
+	}
+	mcpHandler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
+		by, err := o.caller(req)
+		if err != nil {
+			return nil
+		}
+		return servers[[2]bool{by.Writes, by.Restarts}]
+	}, &mcp.StreamableHTTPOptions{Stateless: true})
+	mux.HandleFunc("/mcp", func(w http.ResponseWriter, req *http.Request) {
+		if _, err := o.caller(req); err != nil {
+			fail(w, err)
+			return
+		}
+		mcpHandler.ServeHTTP(w, req)
+	})
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if _, pattern := mux.Handler(req); pattern == "" {
 			// Not one of ours: say so as the API says everything, in a document.
@@ -224,6 +258,39 @@ func (o Options) follow(w http.ResponseWriter, req *http.Request) {
 		err = nil // the client left: that is how a follow ends
 	}
 	p.Done(err)
+}
+
+// cli is POST /v1/cli: one of berth's commands run here for the caller, its output as events
+// (`stdout` and `stderr`, each a string; then `exit`, the exit code).
+func (o Options) cli(w http.ResponseWriter, req *http.Request) {
+	by, err := o.caller(req)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	var in CLIRequest
+	if o.RunCLI == nil {
+		fail(w, &ops.Error{Kind: ops.KindNotFound, Code: 1, Msg: "this server doesn't run commands"})
+		return
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, maxBody)).Decode(&in); err != nil || len(in.Args) == 0 {
+		fail(w, &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: `the body is {"args": ["ls"], "output": "text"}`})
+		return
+	}
+	s := newStream(w)
+	code := o.RunCLI(req.Context(), by, in.Args, in.Output, eventWriter{s, "stdout"}, eventWriter{s, "stderr"})
+	s.send("exit", code)
+}
+
+// eventWriter sends what is written as events.
+type eventWriter struct {
+	s     *stream
+	event string
+}
+
+func (e eventWriter) Write(p []byte) (int, error) {
+	e.s.send(e.event, string(p))
+	return len(p), nil
 }
 
 // stream writes server-sent events.
