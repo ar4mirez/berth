@@ -214,7 +214,8 @@ const (
 
 var (
 	// repo add's write-access check (#103): TestBerthRepoAddWriteCheck.
-	berthOnlyCall = regexp.MustCompile(`^docker "exec" "-u" "node" "-w" "/workspace/[^"]+" "claude-[^"]+" "git" "push" "--dry-run" `)
+	// And the request to Remote Control's supervisor to try again now, after ccenv's pkill (#7).
+	berthOnlyCall = regexp.MustCompile(`^docker "exec" "-u" "node" "-w" "/workspace/[^"]+" "claude-[^"]+" "git" "push" "--dry-run" |^docker "exec" "claude-[^"]+" "touch" "/run/rc-retry"$`)
 	berthEnv      = regexp.MustCompile(`  \[(CLAUDE_ENV_IMAGE|IMAGE_TAG|CLAUDE_ENV_IMAGE_DIR)="[^"]*"\]`)
 	berthTag      = regexp.MustCompile(`"berth/claude-env:[0-9a-f]{12}"`)
 )

@@ -118,26 +118,8 @@ fi
 # Needs a full-scope login (`berth login`); the inference-only token can't do it.
 RC_LOG="$CFG/remote-control.log"
 if [ "${REMOTE_CONTROL:-1}" = "1" ]; then
-  ( while true; do
-      if [ -f "$CFG/.credentials.json" ]; then
-        [ -f "$RC_LOG" ] && [ "$(stat -c %s "$RC_LOG")" -gt 5000000 ] && : > "$RC_LOG"
-        echo "=== $(date -Is) starting remote-control" >> "$RC_LOG"
-        ( cd /workspace && as_node env -u CLAUDE_CODE_OAUTH_TOKEN claude remote-control \
-            --name "$ORG" --remote-control-session-name-prefix "$ORG" \
-            --spawn same-dir --capacity "${REMOTE_CAPACITY:-8}" \
-            --permission-mode bypassPermissions </dev/null >> "$RC_LOG" 2>&1 ) || true
-        if tail -n 3 "$RC_LOG" | grep -q "disabled by your organization's policy"; then
-          # The account's org turned Remote Control off: retry hourly so it recovers if an admin enables it.
-          echo "=== $(date -Is) blocked by organization policy, retrying in 1h" >> "$RC_LOG"
-          sleep 3600
-        else
-          echo "=== $(date -Is) remote-control exited, restarting in 5s" >> "$RC_LOG"
-          sleep 5
-        fi
-      else
-        sleep 15
-      fi
-    done ) &
+  # Its own script, not a subshell of this one: it must outlive any command that fails (#7).
+  CFG="$CFG" RC_LOG="$RC_LOG" /usr/local/bin/rc-supervisor.sh &
 fi
 
 echo "claude-env[$ORG]: ready"

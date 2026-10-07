@@ -71,7 +71,7 @@ RUN v="${CLAUDE_CODE_VERSION:-$CLAUDE_CODE_PINNED}" \
 
 COPY sshd_config /etc/ssh/sshd_config.d/claude-env.conf
 COPY tmux.conf /etc/tmux.conf
-COPY init-firewall.sh entrypoint.sh /usr/local/bin/
+COPY init-firewall.sh entrypoint.sh rc-supervisor.sh /usr/local/bin/
 COPY bashrc.sh /etc/profile.d/claude-env.sh
 # Enforced for every session (incl. ones spawned from claude.ai): latest Opus, no permission prompts.
 COPY managed-settings.json /etc/claude-code/managed-settings.json

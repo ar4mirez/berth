@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 
 	"golang.org/x/term"
@@ -184,11 +185,55 @@ func (a *App) Login(ctx context.Context, o string) error {
 	return a.checkAccount(ctx, o)
 }
 
-// pkillRemoteControl is `docker exec claude-$o pkill -f "claude remote-control" 2>/dev/null || true`.
+// pkillRemoteControl is `docker exec claude-$o pkill -f "claude remote-control" 2>/dev/null || true`,
+// and then berth asks the supervisor to try again now (#7; PARITY.md): during its hour-long wait
+// for a Claude organization that has Remote Control turned off, there is no process to kill.
 func (a *App) pkillRemoteControl(ctx context.Context, o string) {
 	q := *a
 	q.Stderr = io.Discard
 	_ = q.passthrough(ctx, false, "docker", "exec", "claude-"+o, "pkill", "-f", "claude remote-control")
+	a.retryRemoteControl(ctx, o)
+}
+
+// retryRemoteControl ends the supervisor's wait: it starts Remote Control again within two seconds.
+// A container from before #7 ignores the file.
+func (a *App) retryRemoteControl(ctx context.Context, o string) {
+	_ = a.quietRun(ctx, "docker", "exec", "claude-"+o, "touch", contract.RemoteRetry)
+}
+
+// remoteStarts is how many times the supervisor has started Remote Control, by its log.
+func (a *App) remoteStarts(ctx context.Context, o string) int {
+	out, _ := a.capture(ctx, true, "docker", "exec", "claude-"+o, "sh", "-c",
+		`grep -ac "`+contract.RemoteControlStarting+`" `+contract.RemoteControlLog+` 2>/dev/null; true`)
+	n, _ := strconv.Atoi(strings.TrimSpace(out))
+	return n
+}
+
+// remoteRestart is `ccenv remote <org> restart`, made to work (#7; PARITY.md). ccenv only kills the
+// service, which does nothing while the supervisor waits out a blocked-by-policy hour. berth also
+// asks the supervisor to try now, and then checks that it did: a restart that restarted nothing
+// says so, and why.
+func (a *App) remoteRestart(ctx context.Context, o string) error {
+	if a.env(o, "REMOTE_CONTROL") == "0" {
+		return &ops.Error{Kind: ops.KindState, Code: 1, Msg: "Remote Control is off for " + o + " (REMOTE_CONTROL=0 in its org.env)",
+			Hint: "set REMOTE_CONTROL=1, then " + Tool + " restart " + o}
+	}
+	before := a.remoteStarts(ctx, o)
+	_ = a.passthrough(ctx, false, "docker", "exec", "claude-"+o, "pkill", "-f", "claude remote-control") // || true
+	a.retryRemoteControl(ctx, o)
+	fmt.Fprintln(a.Stdout, "Restarting; back in ~5s.")
+	for i := 0; i < 10; i++ {
+		_ = a.passthrough(ctx, false, "sleep", "1")
+		if a.remoteStarts(ctx, o) > before {
+			return nil
+		}
+	}
+	if !ops.RemoteLoggedIn(ctx, a, o) {
+		return &ops.Error{Kind: ops.KindState, Code: 1, Msg: "Remote Control didn't start in " + o + ": it has no login", Hint: Tool + " login " + o}
+	}
+	return &ops.Error{Kind: ops.KindState, Code: 1,
+		Msg:  "Remote Control didn't start again in " + o + " within 10 seconds",
+		Hint: "see " + Tool + " remote " + o + " logs; a container started by an older berth can't be asked to retry, and " + Tool + " restart " + o + " recreates it"}
 }
 
 // rcAccount is rc_account: "<orgId> <email> [<orgName>]" of the org's full login, or "".

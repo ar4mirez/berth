@@ -51,10 +51,16 @@ isn't allowed.
 | `off` | `REMOTE_CONTROL=0` in `org.env` | set it to `1`, then `berth restart acme` |
 | `login-needed` | no full login yet: the token alone can't run Remote Control | `berth login acme` |
 | `on` | running | |
-| `blocked-by-org` | the Claude organization's policy doesn't allow Remote Control | an admin of that organization must enable it |
+| `blocked-by-org` | the Claude organization's policy doesn't allow Remote Control | an admin of that organization must enable it; then `berth remote acme restart` |
 | `restarting` | the service is restarting | wait a moment; then `berth remote acme logs` |
 
-`berth remote acme restart` restarts the service, not the container.
+`berth remote acme restart` restarts the service, not the container, and waits until it has started again. While
+the organization's policy blocks Remote Control, the service tries again once an hour; a restart (or
+`berth login acme`) makes it try now, so there is no hour to wait after an admin enables it.
+
+If the restart says `Remote Control didn't start again`, `berth remote acme logs` shows why. A container started
+by berth 0.4.1 or older can't be asked to retry: `berth restart acme` recreates it, which stops the work running in
+it.
 
 ## Signed in with the wrong account
 

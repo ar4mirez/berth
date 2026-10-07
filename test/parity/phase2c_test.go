@@ -104,8 +104,8 @@ func init() {
 		{Scenario{Name: "remote status, restarting", Args: []string{"remote", "acme"}, Files: twoOrgs, Rules: running("acme",
 			Rule{Bin: "docker", Match: `^exec claude-acme pgrep`, Exit: 1})}, 0, []string{"restarting (see: <tool> remote acme logs)"}},
 		{Scenario{Name: "remote logs", Args: []string{"remote", "acme", "logs"}, Files: twoOrgs, Rules: rcUp("line 1\nline 2\n")}, 0, []string{"line 2"}},
-		{Scenario{Name: "remote restart", Args: []string{"remote", "acme", "restart"}, Files: twoOrgs, Rules: running("acme",
-			Rule{Bin: "docker", Match: `^exec claude-acme pkill`, Exit: 1})}, 0, []string{"Restarting; back in ~5s."}},
+		// remote restart is berth's own now (TestBerthRemoteRestart): it also asks the supervisor to
+		// retry, and checks that it did (#7, PARITY.md).
 		{Scenario{Name: "remote, not running", Args: []string{"remote", "globex"}, Files: twoOrgs}, 1, []string{"not running"}},
 		{Scenario{Name: "remote, unknown subcommand", Args: []string{"remote", "acme", "stop"}, Files: twoOrgs, Rules: running("acme")},
 			1, []string{"usage: <tool> remote <org> [status|logs|restart]"}},
