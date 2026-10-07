@@ -105,7 +105,7 @@ A failure is a `berth.error/v1` document, as `--output json` prints on stderr, w
 ## Progress, as events
 
 An endpoint that changes something answers when it ends. Ask for `Accept: text/event-stream` and it sends the
-operation's progress as it goes: the [`berth.event/v1`](json.md#progress-berthevent-v1) events (`start`, `step`,
+operation's progress as it goes: the [`berth.event/v1`](json.md#progress-bertheventv1) events (`start`, `step`,
 `output`, then `done` or `failed`), and after `done` a `result` event with the document.
 
 ```bash
