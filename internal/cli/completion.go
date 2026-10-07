@@ -12,6 +12,7 @@ import (
 	"github.com/ar4mirez/berth/internal/app"
 	"github.com/ar4mirez/berth/internal/config"
 	"github.com/ar4mirez/berth/internal/host/local"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // completionOrgs lists orgs from the state root, the way the command would resolve it (--home,
@@ -134,6 +135,20 @@ func completeBackup(cmd *cobra.Command, args []string, _ string) ([]cobra.Comple
 }
 
 // completeFw: the org, then the subcommand, then (for allow) the presets, as ccenv's completion.
+// completePkg completes `pkg <org> <verb> [packages]`: orgs, the verbs, then the presets for add
+// and the org's own entries for rm.
+func completePkg(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	switch {
+	case len(args) == 0:
+		return completionOrgsAt(cmd, toComplete), cobra.ShellCompDirectiveNoFileComp
+	case len(args) == 1:
+		return []string{"ls", "add", "rm", "presets", "build"}, cobra.ShellCompDirectiveNoFileComp
+	case args[1] == "add":
+		return ops.PresetNames(), cobra.ShellCompDirectiveNoFileComp
+	}
+	return nil, cobra.ShellCompDirectiveNoFileComp
+}
+
 func completeFw(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 	switch {
 	case len(args) == 0:

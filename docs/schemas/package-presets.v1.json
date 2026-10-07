@@ -1,0 +1,39 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/package-presets.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth pkg <org> presets --output json",
+  "properties": {
+    "presets": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "packages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "packages"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "berth.package-presets/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "presets"
+  ],
+  "title": "berth.package-presets/v1",
+  "type": "object"
+}

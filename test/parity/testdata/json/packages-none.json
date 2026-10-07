@@ -1,0 +1,11 @@
+{
+  "schema": "berth.packages/v1",
+  "org": "globex",
+  "file": "<RUN>/state/orgs/globex/config/packages.txt",
+  "entries": [],
+  "packages": [],
+  "invalid": [],
+  "base_image": "berth/claude-env:<HASH>",
+  "image": "berth/claude-env:<HASH>",
+  "built": false
+}

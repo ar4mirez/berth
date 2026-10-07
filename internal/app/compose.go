@@ -85,8 +85,15 @@ func (a *App) compose(ctx context.Context, o string, args ...string) error {
 		env = append(env, "BERTH_USERNS=keep-id", "BERTH_USER=0:0")
 	}
 	if own {
-		repo, tag, _ := strings.Cut(set.Tag, ":")
-		env = append(env, "CLAUDE_ENV_IMAGE="+repo, "IMAGE_TAG="+tag, "CLAUDE_ENV_IMAGE_DIR="+set.ImageDir)
+		// An org that lists system packages runs on its own image, built on berth's (#106). It is
+		// built here when the org starts and it isn't there yet (the list changed, or berth's image
+		// did); any other compose command only needs its name.
+		img, err := a.orgImage(ctx, o, set, !a.State.ReadOnly && len(args) > 0 && args[0] == "up", false)
+		if err != nil {
+			return err
+		}
+		repo, tag, _ := strings.Cut(img.tag, ":")
+		env = append(env, "CLAUDE_ENV_IMAGE="+repo, "IMAGE_TAG="+tag, "CLAUDE_ENV_IMAGE_DIR="+img.dir)
 	}
 	argv := append([]string{"docker", "compose", "-f", set.Compose, "--env-file", a.Orgs.EnvPath(o)}, args...)
 	return a.Host.Exec.Run(ctx, host.Cmd{

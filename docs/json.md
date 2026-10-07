@@ -17,6 +17,8 @@ berth --output json repo audit acme
 berth --output json repo policy acme
 berth --output json fw acme presets
 berth --output json fw acme test pypi.org
+berth --output json pkg acme
+berth --output json pkg acme presets
 berth --output json schedule status
 berth --output json host guard box1 status
 ```
@@ -73,6 +75,8 @@ from it; a field that may be `null` says so.
 | `berth.schedule/v1` | `schedule status` | [`schedule.v1.json`](schemas/schedule.v1.json) |
 | `berth.hosts/v1` | `host ls` | [`hosts.v1.json`](schemas/hosts.v1.json) |
 | `berth.host-guard/v1` | `host guard <name> status` | [`host-guard.v1.json`](schemas/host-guard.v1.json) |
+| `berth.packages/v1` | `pkg <org>` | [`packages.v1.json`](schemas/packages.v1.json) |
+| `berth.package-presets/v1` | `pkg <org> presets` | [`package-presets.v1.json`](schemas/package-presets.v1.json) |
 | `berth.default-org/v1` | `use` | [`default-org.v1.json`](schemas/default-org.v1.json) |
 | `berth.image/v1` | `image-tag` | [`image.v1.json`](schemas/image.v1.json) |
 | `berth.error/v1` | any command that fails (on stderr) | [`error.v1.json`](schemas/error.v1.json) |
@@ -398,3 +402,34 @@ Each `url` is tried from inside the running container; a bare host is tried over
 
 `rules` is the guard's own report of its chains. When the guard isn't installed, `installed` is `false` and the
 other two are `""`.
+
+## `berth.packages/v1`: `pkg <org>`
+
+```json
+{
+  "schema": "berth.packages/v1",
+  "org": "acme",
+  "file": "/path/to/orgs/acme/config/packages.txt",
+  "entries": ["@playwright-chromium", "libpq-dev"],
+  "packages": ["fonts-freefont-ttf", "…", "libpq-dev", "…"],
+  "invalid": [],
+  "base_image": "berth/claude-env:0123456789ab",
+  "image": "berth/claude-env-acme:0123456789ab-ba9876543210",
+  "built": true
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `entries` | the list as written: package names and `@presets` |
+| `packages` | the packages they stand for: presets expanded, sorted |
+| `invalid` | entries that are neither a package name nor a known preset; they are left out of the image |
+| `base_image`, `image` | berth's image, and the one this org runs on (the same when it lists no packages) |
+| `built` | whether `image` exists on the org's host now |
+
+## `berth.package-presets/v1`: `pkg <org> presets`
+
+```json
+{ "schema": "berth.package-presets/v1", "presets": [ { "name": "@playwright-chromium", "packages": ["libasound2", "…"] } ] }
+```
+

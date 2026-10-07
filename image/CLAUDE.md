@@ -16,6 +16,11 @@ Use **mise** for language toolchains and CLIs. Don't use apt (you have no root) 
 - Other CLIs: `mise use -g aqua:cli/cli`, `mise use -g ubi:owner/repo`, `mise use -g npm:pkg`, `mise use -g pipx:pkg`
 - Python: prefer `uv` (`uv venv`, `uv pip install`, `uv run`) over bare pip
 - Tools are on PATH right away through mise shims, and they persist across container restarts.
+- **System libraries** (a browser's shared libraries, `libpq-dev`, fonts) can't be installed from in here. If a tool
+  fails for a missing library (`error while loading shared libraries`, Playwright's "Host system is missing
+  dependencies"), tell the user which Debian packages it needs and ask them to run on the host
+  `berth pkg <org> add <package>...` and then `berth restart <org>`. For Playwright's Chromium there is a preset:
+  `berth pkg <org> add @playwright-chromium`. The packages installed that way are listed in `/config/packages.txt`.
 
 ## Network
 Outbound traffic goes through an allowlist firewall. If a download or API call fails with a connection error or

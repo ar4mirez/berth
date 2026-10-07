@@ -14,6 +14,11 @@ mise use -g aqua:mikefarah/yq                                      # any CLI fro
 Tools live in the org's `mise/` folder, so they survive restarts and rebuilds. Backups skip them, and
 `berth rehydrate` (which `restore` runs) reinstalls them. Each org has its own set.
 
+## System packages
+
+mise doesn't install system libraries, and nothing in the container has root for apt. For those, see
+[System packages](packages.md): `berth pkg acme add <package>` builds them into the org's image.
+
 ## The model
 
 Every session is pinned to `opus`, which resolves to the latest Opus, through managed settings. That includes the

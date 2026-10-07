@@ -84,7 +84,7 @@ func subOf(cmd string, args []string) string {
 		return ""
 	}
 	switch cmd {
-	case "fw", "env", "password", "remote": // <cmd> <org> <sub>
+	case "fw", "env", "password", "remote", "pkg": // <cmd> <org> <sub>
 		return at(1)
 	case "repo": // repo <sub> <org> [mode]
 		if at(0) == "policy" {

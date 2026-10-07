@@ -1,0 +1,57 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/packages.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth pkg <org> --output json",
+  "properties": {
+    "base_image": {
+      "type": "string"
+    },
+    "built": {
+      "type": "boolean"
+    },
+    "entries": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "file": {
+      "type": "string"
+    },
+    "image": {
+      "type": "string"
+    },
+    "invalid": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "org": {
+      "type": "string"
+    },
+    "packages": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "berth.packages/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "org",
+    "file",
+    "entries",
+    "packages",
+    "invalid",
+    "base_image",
+    "image",
+    "built"
+  ],
+  "title": "berth.packages/v1",
+  "type": "object"
+}
