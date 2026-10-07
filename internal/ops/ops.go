@@ -160,6 +160,13 @@ var Catalog = map[string]Op{
 	// The default org (#55): showing it reads; setting or clearing it writes the operator's config.
 	"use": {Access: BySub, Subs: map[string]Op{"": readJSON, "<org>": write, "--clear": write}},
 
+	// The MCP server (#61): read-only unless started with a flag that lets its tools write or restart.
+	"mcp": {Access: BySub, Subs: map[string]Op{
+		"":                 readText("an MCP server: it speaks the protocol on stdin and stdout"),
+		"--allow-writes":   write,
+		"--allow-restarts": writeMay("its lifecycle tools start, recreate or stop a container, each call confirmed with the org's name"),
+	}},
+
 	// Cutover and install.
 	"takeover": write, // MANAGER=berth only; the container keeps running
 	"handback": write,

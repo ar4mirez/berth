@@ -531,3 +531,10 @@ func human(n int64) string {
 	}
 	return fmt.Sprintf("%.0f%cB", v, units[p])
 }
+
+// BackupNeedsPrompt reports whether `backup` would ask for a passphrase: there is no backup key
+// (berth keygen) and no recipients or passphrase in the environment. An interface with no terminal
+// (the MCP server, #61) refuses to start a backup then, where the command line would prompt.
+func (a *App) BackupNeedsPrompt() bool {
+	return a.backupEnv("BACKUP_RECIPIENTS") == "" && a.backupEnv("BACKUP_PASSPHRASE") == "" && !a.isFile(a.keyFile())
+}

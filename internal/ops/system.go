@@ -6,6 +6,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/ar4mirez/berth/internal/contract"
 )
@@ -35,8 +36,10 @@ type System interface {
 	IsFile(p string) bool
 	IsDir(p string) bool
 	// Exists is `[ -e ]`. DirNames is every entry of a directory, hidden ones too, unsorted.
+	// FileSize is a file's size and when it was last written (ok is false if it can't be read).
 	Exists(p string) bool
 	DirNames(dir string) ([]string, error)
+	FileSize(p string) (size int64, modified time.Time, ok bool)
 
 	// OrgsDir is <state root>/orgs. OrgDirs are its directories, in byte order (an org is one with
 	// an org.env).

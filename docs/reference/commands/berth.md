@@ -49,6 +49,7 @@ berth [flags]
 * [berth keygen](berth_keygen.md)	 - create the age key backups encrypt to (no prompts; good for cron)
 * [berth logs](berth_logs.md)	 - follow the container's logs
 * [berth ls](berth_ls.md)	 - all orgs and their state
+* [berth mcp](berth_mcp.md)	 - an MCP server, for an agent to manage orgs through typed tools
 * [berth org](berth_org.md)	 - orgs: create, start, stop, connect, move
 * [berth pkg](berth_pkg.md)	 - system packages in the org's image (applied at its next restart)
 * [berth repo](berth_repo.md)	 - the repos allowed in an org's /workspace

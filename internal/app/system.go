@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"path"
+	"time"
 
 	"github.com/ar4mirez/berth/internal/assets"
 	"github.com/ar4mirez/berth/internal/ops"
@@ -58,6 +59,15 @@ func (a *App) DirNames(dir string) ([]string, error) {
 		names = append(names, e.Name())
 	}
 	return names, nil
+}
+
+// FileSize is a file's size and modification time.
+func (a *App) FileSize(p string) (int64, time.Time, bool) {
+	fi, err := a.Host.FS.Stat(p)
+	if err != nil || fi.IsDir() {
+		return 0, time.Time{}, false
+	}
+	return fi.Size(), fi.ModTime(), true
 }
 
 // OrgsDir is <state root>/orgs.
