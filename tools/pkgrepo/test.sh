@@ -23,6 +23,8 @@ docker run --rm -v "$pkgs:/pkgs:ro" -v "$here:/tool:ro" -v "$work:/work" ubuntu:
   if [ -f /tool/berth-packages.asc ] && /tool/build.sh /pkgs /work/other file:///repo 2>/dev/null; then
     echo "built with a key that is not the committed one"; exit 1
   fi
+  # Built as root in here: hand it back to whoever owns the directory, so they can remove it.
+  chown -R "$(stat -c %u:%g /work)" /work
   chmod -R a+rX /work/repo'
 
 apt_install='
