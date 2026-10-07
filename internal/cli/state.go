@@ -132,6 +132,10 @@ func addGlobalFlags(root *cobra.Command) {
 		if cmd == root || (cmd.Parent() == root && (cmd.Name() == "help" || strings.HasPrefix(cmd.Name(), "__complete"))) {
 			return nil
 		}
+		// Help for a command that parses its own arguments: nothing to resolve or guard either.
+		if helpAsked(cmd, args) {
+			return nil
+		}
 		access := cmd.Annotations[accessKey]
 		switch access {
 		case accessRead, accessWrite:

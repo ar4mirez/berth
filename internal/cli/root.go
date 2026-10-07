@@ -55,7 +55,59 @@ func NewRoot() *cobra.Command {
 	addGlobalFlags(root)
 	addCommands(root)
 	organize(root)
+	answerHelp(root)
 	return root
+}
+
+// ownArgsKey marks a command whose arguments after the first belong to the program it runs
+// (claude, run, exec, build): only a leading --help is berth's.
+const ownArgsKey = "berth/args-passed-on"
+
+func passesArgsOn(c *cobra.Command) *cobra.Command {
+	if c.Annotations == nil {
+		c.Annotations = map[string]string{}
+	}
+	c.Annotations[ownArgsKey] = "true"
+	return c
+}
+
+// helpAsked is whether a command that parses its own arguments (DisableFlagParsing, as ccenv's
+// do) was asked for help. cobra never sees --help on those, and they used to take it for an
+// argument: with a default org (berth use), `berth restart --help` restarted it.
+func helpAsked(cmd *cobra.Command, args []string) bool {
+	if !cmd.DisableFlagParsing {
+		return false
+	}
+	isHelp := func(a string) bool { return a == "--help" || a == "-h" }
+	if cmd.Annotations[ownArgsKey] != "" {
+		return len(args) > 0 && isHelp(args[0])
+	}
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		if isHelp(a) {
+			return true
+		}
+	}
+	return false
+}
+
+// answerHelp makes every such command print its help for --help or -h, and do nothing else.
+func answerHelp(c *cobra.Command) {
+	for _, s := range c.Commands() {
+		answerHelp(s)
+		if !s.DisableFlagParsing || s.RunE == nil {
+			continue
+		}
+		run := s.RunE
+		s.RunE = func(cmd *cobra.Command, args []string) error {
+			if helpAsked(cmd, args) {
+				return cmd.Help()
+			}
+			return run(cmd, args)
+		}
+	}
 }
 
 // Execute runs berth with args and returns the process exit code.

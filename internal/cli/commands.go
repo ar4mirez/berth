@@ -362,7 +362,7 @@ func addCommands(root *cobra.Command) {
 	// them. Global flags go before the command (berth --read-only claude acme …); the root's
 	// TraverseChildren makes sure those are parsed rather than handed to claude.
 	passthrough := func(use, short string, run func(*app.App, *cobra.Command, string, []string) error) *cobra.Command {
-		return writes(&cobra.Command{
+		return passesArgsOn(writes(&cobra.Command{
 			Use: use, Short: short, DisableFlagParsing: true, ValidArgsFunction: org1,
 			RunE: onOrg(nthArg(0), func(a *app.App, cmd *cobra.Command, args []string) error {
 				var rest []string
@@ -371,7 +371,7 @@ func addCommands(root *cobra.Command) {
 				}
 				return run(a, cmd, arg(args, 0), rest)
 			}),
-		})
+		}))
 	}
 	root.AddCommand(
 		// init and env parse their own arguments, as ccenv does: the same messages, and env's
@@ -442,10 +442,10 @@ func addCommands(root *cobra.Command) {
 			ValidArgsFunction: completeArgs(),
 			RunE:              func(cmd *cobra.Command, _ []string) error { return appFor(cmd).Pull(cmd.Context()) },
 		}),
-		writes(&cobra.Command{
+		passesArgsOn(writes(&cobra.Command{
 			Use: "build [docker-build-args...]", Short: "rebuild berth's image (updates Claude Code)", DisableFlagParsing: true,
 			RunE: func(cmd *cobra.Command, args []string) error { return appFor(cmd).Build(cmd.Context(), args) },
-		}),
+		})),
 		one("down <org>", "stop the container", func(a *app.App, c *cobra.Command, o string) error { return a.Down(c.Context(), o) }),
 		leased("restart <org> [--take-lease]", "recreate the container", func(a *app.App, c *cobra.Command, o string) error { return a.Restart(c.Context(), o) }),
 		one("attach <org>", "attach to the shared tmux session", func(a *app.App, c *cobra.Command, o string) error { return a.Attach(c.Context(), o) }),
