@@ -101,12 +101,13 @@ Every channel installs a signed release. Pick one:
     **Coming from `ubi:ar4mirez/berth`?** mise has deprecated its `ubi` backend. Switch once:
     `mise unuse -g ubi:ar4mirez/berth && mise use -g github:ar4mirez/berth`.
 
-    **Right after a release,** mise may still install the one before: it caches each tool's list of versions,
-    for up to a day. To get a release now, name it, or have mise ask GitHub:
+    **Right after a release,** mise installs the one before. It holds a new release back for a while by
+    default (its `minimum_release_age` setting), and it caches each tool's list of versions for up to a day.
+    To get a release now, name it, or turn both off for that command:
 
     ```bash
     mise use -g github:ar4mirez/berth@<version>           # as in: berth@1.2.3
-    MISE_USE_VERSIONS_HOST=0 mise use -g github:ar4mirez/berth
+    MISE_MINIMUM_RELEASE_AGE=0 MISE_USE_VERSIONS_HOST=0 mise use -g github:ar4mirez/berth
     ```
 
 **The apt and yum repositories** hold the latest five releases and are signed with berth's packages key:
