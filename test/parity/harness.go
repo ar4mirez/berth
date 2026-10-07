@@ -232,6 +232,68 @@ func BerthUnowned(bin string) Tool {
 	}
 }
 
+// Session is a long-running command set up as Run sets one up (`berth mcp`): the caller starts Cmd,
+// talks to it, and reads what it did with Snapshot.
+type Session struct {
+	Cmd *exec.Cmd
+	// Snapshot is the tool calls and the file tree so far, normalized as a Result's are.
+	Snapshot func() (Result, error)
+}
+
+// Start prepares s for tool in a fresh directory under base, without running it.
+func (e *Env) Start(base string, tool Tool, s Scenario) (*Session, error) {
+	root, err := os.MkdirTemp(base, tool.Name+"-")
+	if err != nil {
+		return nil, err
+	}
+	if root, err = filepath.EvalSymlinks(root); err != nil { // macOS /tmp is a symlink
+		return nil, err
+	}
+	run, fake := filepath.Join(root, "run"), filepath.Join(root, "fake")
+	for _, d := range []string{filepath.Join(run, "state"), filepath.Join(run, "home"), fake} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			return nil, err
+		}
+	}
+	if err := writeFixture(run, s.Files); err != nil {
+		return nil, err
+	}
+	if tool.Prepare != nil {
+		if err := tool.Prepare(run); err != nil {
+			return nil, err
+		}
+	}
+	rules, err := json.Marshal(s.Rules)
+	if err != nil {
+		return nil, err
+	}
+	rulesFile, logFile := filepath.Join(fake, "rules.json"), filepath.Join(fake, "calls.jsonl")
+	if err := os.WriteFile(rulesFile, rules, 0o600); err != nil {
+		return nil, err
+	}
+	argv := tool.Command(run, s.Args)
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Dir = filepath.Join(run, "home")
+	cmd.Env = append([]string{
+		"PATH=" + e.FakeBin + string(os.PathListSeparator) + os.Getenv("PATH"),
+		"HOME=" + filepath.Join(run, "home"),
+		"USER=parity", "LOGNAME=parity", "LC_ALL=C", "TZ=UTC", "TERM=dumb",
+		"GIT_CONFIG_GLOBAL=" + filepath.Join(run, "home", ".gitconfig"), "GIT_CONFIG_NOSYSTEM=1",
+		"PARITY_RULES=" + rulesFile, "PARITY_LOG=" + logFile,
+	}, tool.Env(run)...)
+	cmd.Env = append(cmd.Env, s.Env...)
+	n := normalizer(tool, run, e.FakeBin)
+	return &Session{Cmd: cmd, Snapshot: func() (Result, error) {
+		var res Result
+		var err error
+		if res.Calls, err = readCalls(logFile, n); err != nil {
+			return Result{}, err
+		}
+		res.Tree, err = snapshot(run, s.Random, n, tool.Content, tool.SkipTree)
+		return res, err
+	}}, nil
+}
+
 // Run executes s with tool in a fresh directory under base.
 func (e *Env) Run(ctx context.Context, base string, tool Tool, s Scenario) (Result, error) {
 	root, err := os.MkdirTemp(base, tool.Name+"-")

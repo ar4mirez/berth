@@ -3,19 +3,23 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 
 	"github.com/ar4mirez/berth/internal/app"
 	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/host/local"
+	"github.com/ar4mirez/berth/internal/mcpsrv"
 	"github.com/ar4mirez/berth/internal/ops"
 	"github.com/ar4mirez/berth/internal/upgrade"
+	"github.com/ar4mirez/berth/internal/version"
 )
 
 // newUpgrader is what `berth upgrade` (and `schedule --host`, which installs this release on a
@@ -25,6 +29,58 @@ import (
 var newUpgrader = func() *app.Upgrader {
 	return &app.Upgrader{Client: upgrade.NewClient(), Verifier: upgrade.Sigstore{}}
 }
+
+// mcpCmd is `berth mcp [--allow-writes] [--allow-restarts]` (#61): an MCP server on stdio.
+func mcpCmd() *cobra.Command {
+	var writes, restarts bool
+	c := reads(&cobra.Command{
+		Use: "mcp [--allow-writes] [--allow-restarts]", Short: "an MCP server, for an agent to manage orgs through typed tools", Args: cobra.NoArgs,
+		Long: "A Model Context Protocol server on stdin and stdout, for a local client (Claude Code, Claude Desktop).\n\n" +
+			"It is read-only unless told otherwise: an agent can list hosts and orgs, read status, logs, the\n" +
+			"firewall, repos, variable names, packages and backups.\n" +
+			"  --allow-writes    also firewall allow/deny, repo add/remove, and taking backups\n" +
+			"  --allow-restarts  also starting, restarting and stopping orgs, each call confirmed with the org's name\n" +
+			"Secret values are never returned, and every change asked for is in the state root's audit.log.\n" +
+			"docs/guides/mcp.md has the setup for Claude Code and Claude Desktop.",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			st := stateFrom(cmd.Context())
+			if (writes || restarts) && st.ReadOnly {
+				return st.Writable("serve MCP with --allow-writes or --allow-restarts")
+			}
+			srv, _ := mcpsrv.New(mcpsrv.Options{
+				AllowWrites: writes, AllowRestarts: restarts, Version: version.Version,
+				// Each call gets its own App, printing into buffers: this process's stdout is the protocol's.
+				NewApp: func(stdout, stderr io.Writer) *app.App {
+					a := app.New(st, host.WithEngine(local.New(), st.Engine), strings.NewReader(""), stdout, stderr, os.Getenv)
+					a.DefaultBind = st.Bind
+					a.Self, _ = os.Executable()
+					a.Invoked = invokedPath()
+					return a
+				},
+			})
+			mode := "read-only"
+			switch {
+			case restarts:
+				mode = "writes and restarts allowed"
+			case writes:
+				mode = "writes allowed"
+			}
+			fmt.Fprintf(cmd.ErrOrStderr(), "berth mcp: serving on stdio (%s)\n", mode)
+			in, ok := cmd.InOrStdin().(io.ReadCloser)
+			if !ok {
+				in = io.NopCloser(cmd.InOrStdin())
+			}
+			return srv.Run(cmd.Context(), &mcp.IOTransport{Reader: in, Writer: nopWriteCloser{cmd.OutOrStdout()}})
+		},
+	})
+	c.Flags().BoolVar(&writes, "allow-writes", false, "let tools change orgs (firewall, repos, backups)")
+	c.Flags().BoolVar(&restarts, "allow-restarts", false, "let tools start, restart and stop orgs too (implies --allow-writes)")
+	return c
+}
+
+type nopWriteCloser struct{ io.Writer }
+
+func (nopWriteCloser) Close() error { return nil }
 
 // appFor builds the App a command runs against: the resolved state, on the local host.
 func appFor(cmd *cobra.Command) *app.App {
@@ -376,6 +432,7 @@ func addCommands(root *cobra.Command) {
 			Short: "install a verified release and switch to it (the previous one stays; restarts nothing)", DisableFlagParsing: true,
 			RunE: func(cmd *cobra.Command, args []string) error { return appFor(cmd).Upgrade(cmd.Context(), args) },
 		}),
+		mcpCmd(),
 		reads(&cobra.Command{
 			Use: "image-tag", Short: "the image tag this berth uses", Hidden: true, Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, _ []string) error { return appFor(cmd).ImageTag() },
