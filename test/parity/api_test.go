@@ -2,13 +2,17 @@ package parity
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +24,12 @@ import (
 // apiSession runs `berth serve` (with global flags) against the parity fixtures, on a socket of its
 // own, and returns a client for it: the real binary, over HTTP, with the fake docker behind it.
 func apiSession(t *testing.T, files map[string]File, rules []Rule, global ...string) (*apiclient.Client, string, func() Result) {
+	t.Helper()
+	return apiSessionArgs(t, files, rules, nil, global...)
+}
+
+// apiSessionArgs is apiSession with more arguments for serve.
+func apiSessionArgs(t *testing.T, files map[string]File, rules []Rule, serve []string, global ...string) (*apiclient.Client, string, func() Result) {
 	t.Helper()
 	dir, err := os.MkdirTemp("/tmp", "berth-api-") // a socket's path must be short
 	if err != nil {
@@ -33,12 +43,13 @@ func apiSession(t *testing.T, files map[string]File, rules []Rule, global ...str
 		argv := command(run, nil)
 		return append(append(append(argv, global...), "serve"), args...)
 	}
-	sess, err := env.Start(t.TempDir(), tool, Scenario{Args: []string{"--socket", sock}, Files: files, Rules: rules})
+	sess, err := env.Start(t.TempDir(), tool, Scenario{Args: append([]string{"--socket", sock}, serve...), Files: files, Rules: rules})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var errOut strings.Builder
-	sess.Cmd.Stderr = &errOut
+	errOut := &syncBuffer{}
+	serveStderr = errOut
+	sess.Cmd.Stderr = errOut
 	if err := sess.Cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -64,6 +75,27 @@ func apiSession(t *testing.T, files map[string]File, rules []Rule, global ...str
 		return r
 	}
 }
+
+// syncBuffer is a server's stderr, read while it is written.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+// serveStderr is the last apiSession's stderr.
+var serveStderr *syncBuffer
 
 // raw is a request without the client: the status, and the body.
 func raw(t *testing.T, c *apiclient.Client, method, path, body string, header ...string) (int, string) {
@@ -302,5 +334,125 @@ func TestBerthAPISafety(t *testing.T) {
 	if hasCall(res, `"compose"`) || hasCall(res, "archive") || treeLine(res, "state/audit.log") != "" ||
 		strings.Contains(treeLine(res, "state/orgs/acme/config/firewall.txt"), "x.example") {
 		t.Errorf("--read-only: something ran or was written:\n%s", strings.Join(res.Calls, "\n"))
+	}
+}
+
+// tokenFile is three tokens as `serve token add` stores them: their hashes.
+func tokenFile(tokens map[string]string) string {
+	var list []map[string]string
+	for _, scope := range []string{"read", "write", "restart"} {
+		sum := sha256.Sum256([]byte(tokens[scope]))
+		list = append(list, map[string]string{"name": "t-" + scope, "scope": scope, "sha256": hex.EncodeToString(sum[:]), "created": "2026-10-07T00:00:00Z"})
+	}
+	b, _ := json.Marshal(map[string]any{"schema": "berth.api-tokens/v1", "tokens": list})
+	return string(b)
+}
+
+// TestBerthAPIOverTCP: on TCP the API is TLS only; a request with no token, or a wrong one, is
+// refused; a token does what its scope allows and no more.
+func TestBerthAPIOverTCP(t *testing.T) {
+	ctx := context.Background()
+	tokens := map[string]string{"read": "berth_READ-fixture-token", "write": "berth_WRITE-fixture-token", "restart": "berth_RESTART-fixture-token"}
+	files := merge(twoOrgs, map[string]File{"home/.config/berth/api/tokens.json": {Content: tokenFile(tokens), Mode: 0o600}})
+	c, _, snap := apiSessionArgs(t, files, mcpRules, []string{"--listen", "127.0.0.1:0"})
+	var addr, print string
+	for i := 0; i < 100 && addr == ""; i++ {
+		if m := regexp.MustCompile(`https://(127\.0\.0\.1:\d+) \(TLS, tokens; certificate sha256 ([0-9a-f]{64})\)`).FindStringSubmatch(serveStderr.String()); m != nil {
+			addr, print = m[1], m[2]
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if addr == "" {
+		t.Fatalf("no TCP address in: %s", serveStderr.String())
+	}
+	as := func(token string) *apiclient.Client { return apiclient.TCP(addr, token, print) }
+
+	// No token, a wrong one, and one that isn't a bearer token: 401, for a read too.
+	for _, header := range [][]string{nil, {"Authorization", "Bearer berth_nope"}, {"Authorization", "Bearer "}, {"Authorization", "Basic " + tokens["restart"]}, {"Authorization", tokens["restart"]}} {
+		status, body := raw(t, as(""), "GET", "/v1/orgs", "", header...)
+		if status != 401 || !strings.Contains(body, "needs a token") || strings.Contains(body, "acme") {
+			t.Errorf("%v: %d %s", header, status, body)
+		}
+	}
+	if status, _ := raw(t, as(""), "POST", "/v1/orgs/acme/restart", `{"confirm":"acme"}`); status != 401 {
+		t.Errorf("a restart with no token: %d", status)
+	}
+	// Not TLS: no answer from the API at all.
+	if resp, err := http.Get("http://" + addr + "/v1/orgs"); err == nil {
+		b, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode == 200 || strings.Contains(string(b), "acme") {
+			t.Errorf("plain HTTP was served: %d %s", resp.StatusCode, b)
+		}
+	}
+	// A certificate that isn't the pinned one is refused by the client.
+	if _, err := apiclient.TCP(addr, tokens["read"], strings.Repeat("0", 64)).OrgsList(ctx); err == nil || !strings.Contains(err.Error(), "isn't the pinned one") {
+		t.Errorf("a wrong pin: %v", err)
+	}
+
+	// Scopes.
+	for scope, may := range map[string][3]bool{"read": {true, false, false}, "write": {true, true, false}, "restart": {true, true, true}} {
+		cl := as(tokens[scope])
+		info, err := cl.Info(ctx)
+		if err != nil || info.Writes != may[1] || info.Restarts != may[2] {
+			t.Errorf("%s: GET /v1: %+v %v", scope, info, err)
+		}
+		if o, err := cl.OrgsList(ctx); err != nil || len(o.Orgs) != 2 {
+			t.Errorf("%s: orgs: %v", scope, err)
+		}
+		_, err = cl.FirewallAllow(ctx, "acme", []string{scope + ".example"})
+		if (err == nil) != may[1] || (err != nil && kindOf(err) != ops.KindRefused) {
+			t.Errorf("%s: firewall allow: %v", scope, err)
+		}
+		_, err = cl.OrgRestart(ctx, "acme", "acme")
+		if (err == nil) != may[2] || (err != nil && kindOf(err) != ops.KindRefused) {
+			t.Errorf("%s: restart: %v", scope, err)
+		}
+		// Even the restart scope needs the confirmation.
+		if _, err := cl.OrgRestart(ctx, "acme", ""); kindOf(err) != ops.KindRefused {
+			t.Errorf("%s: restart without confirm: %v", scope, err)
+		}
+	}
+	res := snap()
+	fw := treeLine(res, "state/orgs/acme/config/firewall.txt")
+	if strings.Contains(fw, "read.example") || !strings.Contains(fw, "write.example") || !strings.Contains(fw, "restart.example") {
+		t.Errorf("the firewall after the three scopes: %s", fw)
+	}
+	n := 0
+	for _, call := range res.Calls {
+		if strings.Contains(call, `"up" "-d" "--force-recreate"`) {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("%d restarts ran, want the restart scope's one", n)
+	}
+	// The socket still needs no token.
+	if _, err := c.OrgsList(ctx); err != nil {
+		t.Errorf("the socket beside TCP: %v", err)
+	}
+
+	// The token commands: the token is printed once, and only its hash is kept.
+	out := run(t, Berth(berthBin), Scenario{Args: []string{"serve", "token", "add", "ci", "--scope", "write"}, Files: twoOrgs})
+	token := strings.TrimSpace(out.Stdout)
+	stored := treeLine(out, "home/.config/berth/api/tokens.json")
+	sum := sha256.Sum256([]byte(token))
+	if out.Exit != 0 || !strings.HasPrefix(token, "berth_") || len(token) < 40 || strings.Contains(stored, token) ||
+		!strings.Contains(stored, hex.EncodeToString(sum[:])) || !strings.HasPrefix(stored, "home/.config/berth/api/tokens.json 0600 ") {
+		t.Errorf("token add: exit %d, stdout %q, stderr %q, stored %s", out.Exit, out.Stdout, out.Stderr, stored)
+	}
+	withTokens := merge(twoOrgs, map[string]File{"home/.config/berth/api/tokens.json": {Content: tokenFile(tokens), Mode: 0o600}})
+	out = run(t, Berth(berthBin), Scenario{Args: []string{"serve", "token", "ls"}, Files: withTokens})
+	if out.Exit != 0 || !strings.Contains(out.Stdout, "t-restart") || strings.Contains(out.Stdout+out.Stderr, "fixture-token") {
+		t.Errorf("token ls: %d %q", out.Exit, out.Stdout)
+	}
+	out = run(t, Berth(berthBin), Scenario{Args: []string{"serve", "token", "rm", "t-write"}, Files: withTokens})
+	if stored := treeLine(out, "home/.config/berth/api/tokens.json"); out.Exit != 0 || strings.Contains(stored, "t-write") || !strings.Contains(stored, "t-read") {
+		t.Errorf("token rm: %d %q %s", out.Exit, out.Stderr, stored)
+	}
+	for _, args := range [][]string{{"serve", "token", "add", "Bad Name"}, {"serve", "token", "add", "x", "--scope", "admin"}, {"serve", "token", "add", "t-read"}, {"serve", "token", "rm", "nope"}, {"--read-only", "serve", "token", "add", "x"}} {
+		if out := run(t, Berth(berthBin), Scenario{Args: args, Files: withTokens}); out.Exit == 0 || strings.Contains(treeLine(out, "home/.config/berth/api/tokens.json"), `"x"`) {
+			t.Errorf("%v was accepted: %q", args, out.Stdout)
+		}
 	}
 }

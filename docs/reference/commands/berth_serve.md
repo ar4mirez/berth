@@ -6,13 +6,17 @@ title: berth serve
 
 ## berth serve
 
-the API server: berth's operations over HTTP, on a Unix socket
+the API server: berth's operations over HTTP
 
 ### Synopsis
 
 Serves berth's API (docs/api.md) on a Unix socket that only you can open: by default
-$XDG_RUNTIME_DIR/berth.sock, or berth.sock in ~/.config/berth. Access is the socket's file
+$XDG_RUNTIME_DIR/berth.sock, or berth.sock in ~/.config/berth. Access there is the socket's file
 permissions (0600): whoever can open it could run berth anyway.
+
+--listen also serves it on TCP (127.0.0.1:8443, say), over TLS only, to callers with a token
+(berth serve token add). The certificate is the one you give, or one berth makes and keeps in
+~/.config/berth/api; its fingerprint is printed, for clients to pin.
 
 Each endpoint is one of berth's operations, under the command line's rules: a restart needs the
 org's name again as `confirm`, secret values are never returned, and every change asked for is
@@ -21,7 +25,7 @@ in the state root's audit.log. With --read-only it only reads. It runs until int
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_serve/
 
 ```
-berth serve [--socket PATH] [flags]
+berth serve [--socket PATH] [--listen ADDR [--tls-cert FILE --tls-key FILE]] [flags]
 ```
 
 ### Examples
@@ -29,15 +33,18 @@ berth serve [--socket PATH] [flags]
 ```
   berth serve
   berth --read-only serve
-  berth serve --socket /run/user/1000/berth.sock
+  berth serve --listen 127.0.0.1:8443
   curl --unix-socket "$XDG_RUNTIME_DIR/berth.sock" http://berth/v1/orgs
 ```
 
 ### Options
 
 ```
-  -h, --help            help for serve
-      --socket string   the Unix socket to listen on (default: $XDG_RUNTIME_DIR/berth.sock, or ~/.config/berth/berth.sock)
+  -h, --help              help for serve
+      --listen string     also listen on this TCP address (host:port), over TLS, for callers with a token
+      --socket string     the Unix socket to listen on (default: $XDG_RUNTIME_DIR/berth.sock, or ~/.config/berth/berth.sock)
+      --tls-cert string   the certificate to serve TCP with (PEM; default: berth's own, self-signed)
+      --tls-key string    its private key (PEM)
 ```
 
 ### Options inherited from parent commands
@@ -51,4 +58,5 @@ berth serve [--socket PATH] [flags]
 ### SEE ALSO
 
 * [berth](berth.md)	 - berth: one Claude Code container per organization
+* [berth serve token](berth_serve_token.md)	 - the tokens that callers on TCP present
 

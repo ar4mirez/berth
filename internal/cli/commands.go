@@ -2,10 +2,14 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -95,14 +99,17 @@ func appMaker(st config.State) func(stdout, stderr io.Writer) *app.App {
 	}
 }
 
-// serveCmd is `berth serve [--socket PATH]` (#62): the API.
+// serveCmd is `berth serve [--socket PATH] [--listen ADDR]` (#62): the API.
 func serveCmd() *cobra.Command {
-	var socket string
+	var socket, listen, certFile, keyFile string
 	c := reads(&cobra.Command{
-		Use: "serve [--socket PATH]", Short: "the API server: berth's operations over HTTP, on a Unix socket", Args: cobra.NoArgs,
+		Use: "serve [--socket PATH] [--listen ADDR [--tls-cert FILE --tls-key FILE]]", Short: "the API server: berth's operations over HTTP", Args: cobra.NoArgs,
 		Long: "Serves berth's API (docs/api.md) on a Unix socket that only you can open: by default\n" +
-			"$XDG_RUNTIME_DIR/berth.sock, or berth.sock in ~/.config/berth. Access is the socket's file\n" +
+			"$XDG_RUNTIME_DIR/berth.sock, or berth.sock in ~/.config/berth. Access there is the socket's file\n" +
 			"permissions (0600): whoever can open it could run berth anyway.\n\n" +
+			"--listen also serves it on TCP (127.0.0.1:8443, say), over TLS only, to callers with a token\n" +
+			"(berth serve token add). The certificate is the one you give, or one berth makes and keeps in\n" +
+			"~/.config/berth/api; its fingerprint is printed, for clients to pin.\n\n" +
 			"Each endpoint is one of berth's operations, under the command line's rules: a restart needs the\n" +
 			"org's name again as `confirm`, secret values are never returned, and every change asked for is\n" +
 			"in the state root's audit.log. With --read-only it only reads. It runs until interrupted.",
@@ -111,35 +118,101 @@ func serveCmd() *cobra.Command {
 			if socket == "" {
 				socket = api.SocketPath(os.Getenv)
 			}
+			opts := api.Options{Version: version.Version, ReadOnly: st.ReadOnly, NewApp: appMaker(st), Caller: api.Local}
+			a := appFor(cmd)
+			var tcp net.Listener
+			var tlsConf *tls.Config
+			var print string
+			if listen != "" {
+				var cert tls.Certificate
+				var err error
+				switch {
+				case (certFile == "") != (keyFile == ""):
+					return &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: "--tls-cert and --tls-key go together"}
+				case certFile != "":
+					if cert, err = tls.LoadX509KeyPair(certFile, keyFile); err != nil {
+						return err
+					}
+					sum := sha256.Sum256(cert.Certificate[0])
+					print = hex.EncodeToString(sum[:])
+				default:
+					host, _, _ := net.SplitHostPort(listen)
+					name, _ := os.Hostname()
+					if cert, print, err = a.APICertificate([]string{host, name}); err != nil {
+						return err
+					}
+				}
+				tlsConf = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS13}
+				if tcp, err = net.Listen("tcp", listen); err != nil {
+					return err
+				}
+			}
 			l, err := local.ListenUnix(socket) // closing it removes the socket
 			if err != nil {
 				return err
 			}
-			srv := &http.Server{
-				Handler:           api.Handler(api.Options{Version: version.Version, ReadOnly: st.ReadOnly, NewApp: appMaker(st), Caller: api.Local}),
-				ReadHeaderTimeout: 10 * time.Second,
-			}
-			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
-			defer stop()
-			go func() {
-				<-ctx.Done()
-				// Requests in flight get a moment; a log follow ends with its client's context.
-				end, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				_ = srv.Shutdown(end)
-			}()
+			servers := []*http.Server{{Handler: api.Handler(opts), ReadHeaderTimeout: 10 * time.Second}}
+			errs := make(chan error, 2)
+			go func() { errs <- servers[0].Serve(l) }()
 			mode := "reads and writes"
 			if st.ReadOnly {
 				mode = "read-only"
 			}
 			fmt.Fprintf(cmd.ErrOrStderr(), "berth serve: listening on %s (%s)\n", socket, mode)
-			if err := srv.Serve(l); !errors.Is(err, http.ErrServerClosed) {
+			if tcp != nil {
+				remote := opts
+				remote.Caller = func(req *http.Request) (mcpsrv.Caller, error) {
+					// Read at each request: a token removed is refused at once.
+					scope, ok := a.APITokenScope(strings.TrimPrefix(req.Header.Get("Authorization"), "Bearer "))
+					if !ok || !strings.HasPrefix(req.Header.Get("Authorization"), "Bearer ") {
+						return mcpsrv.Caller{}, api.ErrUnauthorized
+					}
+					return mcpsrv.Caller{Writes: scope != app.ScopeRead, Restarts: scope == app.ScopeRestart}, nil
+				}
+				srv := &http.Server{Handler: api.Handler(remote), TLSConfig: tlsConf, ReadHeaderTimeout: 10 * time.Second}
+				servers = append(servers, srv)
+				go func() { errs <- srv.ServeTLS(tcp, "", "") }()
+				fmt.Fprintf(cmd.ErrOrStderr(), "berth serve: listening on https://%s (TLS, tokens; certificate sha256 %s)\n", tcp.Addr(), print)
+				if ts, _ := a.ListAPITokens(); len(ts) == 0 {
+					fmt.Fprintln(cmd.ErrOrStderr(), "berth serve: there are no tokens, so every request there is refused (berth serve token add <name>)")
+				}
+			}
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			select {
+			case <-ctx.Done():
+			case err = <-errs:
+			}
+			// Requests in flight get a moment; a log follow ends with its client's context.
+			end, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			for _, s := range servers {
+				_ = s.Shutdown(end)
+			}
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
 				return err
 			}
 			return nil
 		},
 	})
 	c.Flags().StringVar(&socket, "socket", "", "the Unix socket to listen on (default: $XDG_RUNTIME_DIR/berth.sock, or ~/.config/berth/berth.sock)")
+	c.Flags().StringVar(&listen, "listen", "", "also listen on this TCP address (host:port), over TLS, for callers with a token")
+	c.Flags().StringVar(&certFile, "tls-cert", "", "the certificate to serve TCP with (PEM; default: berth's own, self-signed)")
+	c.Flags().StringVar(&keyFile, "tls-key", "", "its private key (PEM)")
+	token := &cobra.Command{Use: "token", Short: "the tokens that callers on TCP present", Example: "  " + strings.Join(examples["serve token"], "\n  ")}
+	sub := func(use, short, name string, access func(*cobra.Command) *cobra.Command) {
+		token.AddCommand(access(&cobra.Command{
+			Use: use, Short: short, DisableFlagParsing: true, Example: "  " + strings.Join(examples["serve token "+name], "\n  "),
+			Annotations: map[string]string{opKey: "serve", subKey: "token " + name},
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return appFor(cmd).APIToken(append([]string{name}, args...))
+			},
+		}))
+	}
+	sub("add <name> [--scope read|write|restart]", "make a token and print it once (only its hash is kept)", "add", writes)
+	sub("ls", "the tokens: their names, scopes and dates, never the tokens", "ls", reads)
+	sub("rm <name>", "remove a token: a running server refuses it at once", "rm", writes)
+	c.AddCommand(token)
 	return c
 }
 

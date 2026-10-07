@@ -6,7 +6,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -138,4 +143,27 @@ func (c *Client) Info(ctx context.Context) (out struct {
 	Writes, Restarts bool
 }, err error) {
 	return out, c.do(ctx, "GET", "/v1", nil, nil, &out)
+}
+
+// TCP is a client on a server's TCP address (host:port), with a token. fingerprint pins the
+// server's certificate (the SHA-256 `berth serve` prints); when empty, the certificate is verified
+// against the system's roots, as for any HTTPS server.
+func TCP(addr, token, fingerprint string) *Client {
+	conf := &tls.Config{MinVersion: tls.VersionTLS13}
+	if fingerprint != "" {
+		// A self-signed certificate has no chain to check: it is the certificate itself that is known.
+		conf.InsecureSkipVerify = true
+		// VerifyConnection, not VerifyPeerCertificate: it also runs for a resumed session.
+		conf.VerifyConnection = func(cs tls.ConnectionState) error {
+			if len(cs.PeerCertificates) == 0 {
+				return errors.New("the server sent no certificate")
+			}
+			sum := sha256.Sum256(cs.PeerCertificates[0].Raw)
+			if subtle.ConstantTimeCompare([]byte(hex.EncodeToString(sum[:])), []byte(strings.ToLower(fingerprint))) != 1 {
+				return fmt.Errorf("the server's certificate (sha256 %s) isn't the pinned one", hex.EncodeToString(sum[:]))
+			}
+			return nil
+		}
+	}
+	return &Client{Base: "https://" + addr, Token: token, HTTP: &http.Client{Transport: &http.Transport{TLSClientConfig: conf}}}
 }

@@ -164,7 +164,12 @@ var Catalog = map[string]Op{
 	"tui": readText("an interactive dashboard: it needs a terminal"),
 
 	// The API (#62): it serves the operations here, each checked as such for each caller.
-	"serve": readText("the API server: clients talk to it over its socket"),
+	"serve": {Access: BySub, Subs: map[string]Op{
+		"":          readText("the API server: clients talk to it over its socket"),
+		"token ls":  readJSON,
+		"token add": write, // the token store in the operator's ~/.config/berth; no org is touched
+		"token rm":  write,
+	}},
 
 	// The MCP server (#61): read-only unless started with a flag that lets its tools write or restart.
 	"mcp": {Access: BySub, Subs: map[string]Op{
