@@ -86,3 +86,19 @@ isn't allowed.
 - `berth upgrade --rollback` goes back to the previous version.
 - **Where things are:** state in the [state root](concepts.md#the-state-root), and the host registry, keys and leases
   in `~/.config/berth/` ([Configuration](reference/config.md)).
+
+## `berth upgrade` says it isn't available
+
+**Symptom:** `berth: upgrade isn't available in this build`.
+
+berth 0.3.0 to 0.4.1 can't upgrade themselves: the command was never connected to the release client. Run the
+install script once, which verifies the same signature and checksum; `berth upgrade` works from then on.
+
+```bash
+curl -fsSLO https://github.com/ar4mirez/berth/releases/latest/download/install.sh
+less install.sh
+sh install.sh
+```
+
+An install from Homebrew, mise or a system package is upgraded there, and `berth upgrade` says so.
+
