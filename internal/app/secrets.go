@@ -104,11 +104,11 @@ func (a *App) SecretsMigrate(ctx context.Context, args []string) error {
 		}
 	}
 	if len(moving) == 0 && a.migrated(o) {
-		fmt.Fprintf(a.Stdout, "%s keeps its secrets as files already; nothing to move.\n", o)
+		sayf(a.Stdout, "%s keeps its secrets as files already; nothing to move.\n", o)
 		return nil
 	}
 	if backup {
-		fmt.Fprintf(a.Stdout, "Backing up %s first…\n", o)
+		sayf(a.Stdout, "Backing up %s first…\n", o)
 		if err := a.Backup(ctx, []string{o}); err != nil {
 			return fmt.Errorf("the backup failed, so nothing was moved: %w", err)
 		}
@@ -158,12 +158,12 @@ func (a *App) SecretsMigrate(ctx context.Context, args []string) error {
 		return err
 	}
 	if len(moved) == 0 {
-		fmt.Fprintf(a.Stdout, "%s now keeps its secrets as files (%s); there were none to move.\n", o, dir)
+		sayf(a.Stdout, "%s now keeps its secrets as files (%s); there were none to move.\n", o, dir)
 	} else {
-		fmt.Fprintf(a.Stdout, "Moved %s to %s (one file each, mode 0600).\n", strings.Join(moved, ", "), dir)
+		sayf(a.Stdout, "Moved %s to %s (one file each, mode 0600).\n", strings.Join(moved, ", "), dir)
 	}
-	fmt.Fprintf(a.Stdout, "Nothing was restarted: the running container keeps its current environment.\n")
-	fmt.Fprintf(a.Stdout, "Its next restart (%s restart %s, a short restart: plan it) takes the values from the files, and docker inspect shows none of them.\n", Tool, o)
+	sayf(a.Stdout, "Nothing was restarted: the running container keeps its current environment.\n")
+	sayf(a.Stdout, "Its next restart (%s restart %s, a short restart: plan it) takes the values from the files, and docker inspect shows none of them.\n", Tool, o)
 	return nil
 }
 

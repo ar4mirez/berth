@@ -185,20 +185,20 @@ func (a *App) repoAdd(ctx context.Context, o, f string, args []string) error {
 		if err := a.appendLine(f, line); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.Stdout, "Registered %s as /workspace/%s\n", canon, dir)
+		sayf(a.Stdout, "Registered %s as /workspace/%s\n", canon, dir)
 	} else {
-		fmt.Fprintf(a.Stdout, "%s is already registered as /workspace/%s\n", canon, dir)
+		sayf(a.Stdout, "%s is already registered as /workspace/%s\n", canon, dir)
 	}
 	unlock()
 	if !clone {
 		return nil
 	}
 	if !a.running(ctx, o) {
-		fmt.Fprintf(a.Stdout, "(container stopped; it will be cloned by: %s repo sync %s)\n", Tool, o)
+		sayf(a.Stdout, "(container stopped; it will be cloned by: %s repo sync %s)\n", Tool, o)
 		return nil
 	}
 	if a.passthrough(ctx, false, "docker", "exec", "claude-"+o, "test", "-e", "/workspace/"+dir) == nil {
-		fmt.Fprintf(a.Stdout, "/workspace/%s already present\n", dir)
+		sayf(a.Stdout, "/workspace/%s already present\n", dir)
 		a.warnIfReadOnly(ctx, o, dir, canon)
 		return nil
 	}
@@ -228,7 +228,7 @@ func (a *App) repoAdd(ctx context.Context, o, f string, args []string) error {
 		}
 		return fmt.Errorf("clone failed; registration rolled back. Does this org's key have access? (%s info %s)", Tool, o)
 	}
-	fmt.Fprintf(a.Stdout, "Cloned into /workspace/%s\n", dir)
+	sayf(a.Stdout, "Cloned into /workspace/%s\n", dir)
 	a.warnIfReadOnly(ctx, o, dir, canon)
 	return nil
 }
@@ -257,14 +257,14 @@ func (a *App) warnIfReadOnly(ctx context.Context, o, dir, canon string) {
 		}
 	}
 	how, _ := a.capture(ctx, true, "docker", "exec", "claude-"+o, contract.GitTransport, "show")
-	fmt.Fprintf(a.Stderr, "WARNING: %s can clone %s but can't push to it: %s\n", o, canon, said)
+	sayf(a.Stderr, "WARNING: %s can clone %s but can't push to it: %s\n", o, canon, said)
 	if how == "https" {
-		fmt.Fprintf(a.Stderr, `  git uses the gh login's token there, and that account has no write access to the repo.
+		sayf(a.Stderr, `  git uses the gh login's token there, and that account has no write access to the repo.
   Fix: give the account write access, or sign in with one that has it: %[1]s gh-login %[2]s --force
 `, Tool, o)
 		return
 	}
-	fmt.Fprintf(a.Stderr, `  git uses the org's SSH key there. A key added as a deploy key writes to one repo only.
+	sayf(a.Stderr, `  git uses the org's SSH key there. A key added as a deploy key writes to one repo only.
   Fix: %[1]s gh-login %[2]s (git then uses that login's token for every registered repo),
        or add the key to the GitHub account instead of as a deploy key (%[1]s info %[2]s prints it).
 `, Tool, o)
@@ -351,7 +351,7 @@ func (a *App) repoNew(ctx context.Context, o, f string, entries []repopolicy.Ent
 		if err := a.passthrough(ctx, false, "docker", "exec", "-u", "node", "-w", "/workspace", "claude-"+o, "git", "init", "-q", "-b", "main", dir); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.Stdout, "Created local repo /workspace/%s (no remote). Publish it later with: %s repo publish %s %s <owner/repo>\n", dir, Tool, o, dir)
+		sayf(a.Stdout, "Created local repo /workspace/%s (no remote). Publish it later with: %s repo publish %s %s <owner/repo>\n", dir, Tool, o, dir)
 		return nil
 	}
 
@@ -407,7 +407,7 @@ func (a *App) repoNew(ctx context.Context, o, f string, entries []repopolicy.Ent
 			return fmt.Errorf("couldn't create %s: no host gh, and the container's gh failed (%s gh-login %s?)", name, Tool, o)
 		}
 	}
-	fmt.Fprintf(a.Stdout, "Created https://%s (%s)\n", canon, strings.TrimPrefix(vis, "--"))
+	sayf(a.Stdout, "Created https://%s (%s)\n", canon, strings.TrimPrefix(vis, "--"))
 	if tpl != "" {
 		// Template repos are populated asynchronously.
 		if err := a.passthrough(ctx, false, "sleep", "3"); err != nil {
@@ -495,7 +495,7 @@ func (a *App) repoPublish(ctx context.Context, o, f string, entries []repopolicy
 	if err := a.Host.FS.WriteFile(f, out, 0o644); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "Published /workspace/%s to https://%s (%s); it now pushes/pulls from there.\n", dir, canon, strings.TrimPrefix(vis, "--"))
+	sayf(a.Stdout, "Published /workspace/%s to https://%s (%s); it now pushes/pulls from there.\n", dir, canon, strings.TrimPrefix(vis, "--"))
 	return nil
 }
 
@@ -527,14 +527,14 @@ func (a *App) repoRm(ctx context.Context, o, f string, args []string) error {
 		return err
 	}
 	unlock()
-	fmt.Fprintf(a.Stdout, "Unregistered /workspace/%s\n", dir)
+	sayf(a.Stdout, "Unregistered /workspace/%s\n", dir)
 	if del == "--delete" && a.running(ctx, o) {
 		if err := a.passthrough(ctx, false, "docker", "exec", "-u", "node", "claude-"+o, "rm", "-rf", "/workspace/"+dir); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.Stdout, "Deleted /workspace/%s\n", dir)
+		sayf(a.Stdout, "Deleted /workspace/%s\n", dir)
 	} else if a.running(ctx, o) {
-		fmt.Fprintf(a.Stdout, "Its folder will be moved to orgs/%s/quarantine/ by the workspace sweep (within 30s).\n", o)
+		sayf(a.Stdout, "Its folder will be moved to orgs/%s/quarantine/ by the workspace sweep (within 30s).\n", o)
 	}
 	return nil
 }
@@ -593,7 +593,7 @@ func (a *App) repoAdopt(ctx context.Context, o, f string, args []string) error {
 			}
 			url, ok := a.adoptURL(ctx, q)
 			if !ok {
-				fmt.Fprintf(a.Stdout, "skip %s: not a git repo\n", n)
+				sayf(a.Stdout, "skip %s: not a git repo\n", n)
 				continue
 			}
 			if err := a.appendLine(f, n+" "+url); err != nil {
@@ -602,16 +602,16 @@ func (a *App) repoAdopt(ctx context.Context, o, f string, args []string) error {
 			if err := a.Host.FS.Rename(q, src); err != nil {
 				return err
 			}
-			fmt.Fprintf(a.Stdout, "Restored %s from quarantine and registered it (%s)\n", n, url)
+			sayf(a.Stdout, "Restored %s from quarantine and registered it (%s)\n", n, url)
 			continue
 		}
 		url, ok := a.adoptURL(ctx, src)
 		if !ok {
-			fmt.Fprintf(a.Stdout, "skip %s: not a git repo\n", n)
+			sayf(a.Stdout, "skip %s: not a git repo\n", n)
 			continue
 		}
 		if allowedDir(a.readEntries(f), n) {
-			fmt.Fprintf(a.Stdout, "%s already registered\n", n)
+			sayf(a.Stdout, "%s already registered\n", n)
 			continue
 		}
 		if err := a.appendLine(f, n+" "+url); err != nil {
@@ -621,7 +621,7 @@ func (a *App) repoAdopt(ctx context.Context, o, f string, args []string) error {
 		if url != "local" {
 			shown = repopolicy.Canon(url, "")
 		}
-		fmt.Fprintf(a.Stdout, "Registered %s -> %s\n", n, shown)
+		sayf(a.Stdout, "Registered %s -> %s\n", n, shown)
 	}
 	return nil
 }
@@ -658,7 +658,7 @@ func (a *App) repoSync(ctx context.Context, o string, entries []repopolicy.Entry
 			continue
 		}
 		if e.URL == "local" {
-			fmt.Fprintf(a.Stdout, "SKIP %s: local-only repo is missing (restore it from a backup)\n", e.Dir)
+			sayf(a.Stdout, "SKIP %s: local-only repo is missing (restore it from a backup)\n", e.Dir)
 			continue
 		}
 		cloned = true
@@ -667,9 +667,9 @@ func (a *App) repoSync(ctx context.Context, o string, entries []repopolicy.Entry
 			b = ""
 		}
 		if a.cloneIn(ctx, o, b, e.URL, e.Dir) == nil {
-			fmt.Fprintf(a.Stdout, "Cloned %s\n", e.Dir)
+			sayf(a.Stdout, "Cloned %s\n", e.Dir)
 		} else {
-			fmt.Fprintf(a.Stdout, "FAILED %s\n", e.Dir)
+			sayf(a.Stdout, "FAILED %s\n", e.Dir)
 		}
 	}
 	if !cloned {
@@ -708,7 +708,7 @@ func (a *App) repoPolicy(ctx context.Context, o, m string) error {
 	if err := q.compose(ctx, o, "up", "-d", "--force-recreate"); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "Restarted claude-%s to apply it.\n", o)
+	sayf(a.Stdout, "Restarted claude-%s to apply it.\n", o)
 	return nil
 }
 
@@ -739,12 +739,12 @@ func (a *App) repoLs(ctx context.Context, o string) error {
 		}
 		return a.writeJSON(repos)
 	}
-	fmt.Fprintf(a.Stdout, "%-22s %-40s %-18s %s\n", "DIR", "REPO", "BRANCH", "STATUS")
+	sayf(a.Stdout, "%-22s %-40s %-18s %s\n", "DIR", "REPO", "BRANCH", "STATUS")
 	for _, r := range repos.Repos {
-		fmt.Fprintf(a.Stdout, "%-22s %-40s %-18s %s\n", r.Dir, r.RepoText, r.BranchText, r.StatusText)
+		sayf(a.Stdout, "%-22s %-40s %-18s %s\n", r.Dir, r.RepoText, r.BranchText, r.StatusText)
 	}
 	if len(repos.Repos) == 0 {
-		fmt.Fprintf(a.Stdout, "(no repos registered; add one: %s repo add %s <owner/repo>)\n", Tool, o)
+		sayf(a.Stdout, "(no repos registered; add one: %s repo add %s <owner/repo>)\n", Tool, o)
 	}
 	if err != nil {
 		return err
@@ -770,17 +770,17 @@ func (a *App) repoAudit(o string, quiet bool) error {
 // printAudit is the audit as ccenv prints it.
 func (a *App) printAudit(o string, au ops.RepoAudit, quiet bool) {
 	if len(au.Unregistered) > 0 {
-		fmt.Fprintf(a.Stdout, "\nNot allowed in /workspace (policy: %s): %s\n", au.Policy, strings.Join(au.Unregistered, " "))
-		fmt.Fprintf(a.Stdout, "  keep one -> %s repo adopt %s <dir>    (enforce mode quarantines them within 30s)\n", Tool, o)
+		sayf(a.Stdout, "\nNot allowed in /workspace (policy: %s): %s\n", au.Policy, strings.Join(au.Unregistered, " "))
+		sayf(a.Stdout, "  keep one -> %s repo adopt %s <dir>    (enforce mode quarantines them within 30s)\n", Tool, o)
 	} else if !quiet {
 		fmt.Fprintln(a.Stdout, "Workspace clean: only registered repos.")
 	}
 	if len(au.Quarantined) > 0 {
-		fmt.Fprintf(a.Stdout, "\nQuarantined (%s):\n", au.QuarantineDir)
+		sayf(a.Stdout, "\nQuarantined (%s):\n", au.QuarantineDir)
 		for _, n := range au.Quarantined {
 			fmt.Fprintln(a.Stdout, "  "+n)
 		}
-		fmt.Fprintf(a.Stdout, "  bring a repo back -> %s repo adopt %s <name>\n", Tool, o)
+		sayf(a.Stdout, "  bring a repo back -> %s repo adopt %s <name>\n", Tool, o)
 	}
 }
 

@@ -42,7 +42,7 @@ func (a *App) Down(ctx context.Context, o string) error {
 // warnOpenBind says so when an org listens on every interface (#58).
 func (a *App) warnOpenBind(o string) {
 	if a.env(o, "BIND_ADDR") == "0.0.0.0" {
-		fmt.Fprintf(a.Stderr, "%s: warning: BIND_ADDR=0.0.0.0: %s's SSH and browser terminal listen on every interface of this host, so anyone who can reach it can try them. Prefer tailscale, iface:<vpn>, or localhost with %s connect (docs/networking.md).\n", Tool, o, Tool)
+		sayf(a.Stderr, "%s: warning: BIND_ADDR=0.0.0.0: %s's SSH and browser terminal listen on every interface of this host, so anyone who can reach it can try them. Prefer tailscale, iface:<vpn>, or localhost with %s connect (docs/networking.md).\n", Tool, o, Tool)
 	}
 }
 

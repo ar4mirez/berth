@@ -6,24 +6,24 @@ title: berth backup
 
 ## berth backup
 
-encrypted backup of orgs (age key, recipients, or a gpg passphrase)
+backups: create, restore, schedule, the key
 
 ### Synopsis
 
-encrypted backup of orgs (age key, recipients, or a gpg passphrase)
+backups: create, restore, schedule, the key
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_backup/
 
 ```
-berth backup <org>...|--all [--plan] [-o file|dir|-] [--passphrase | -r <key> | --no-encrypt] [--keep N] [flags]
+berth backup [flags]
 ```
 
 ### Examples
 
 ```
-  berth backup acme
-  berth backup --all --keep 14
-  berth backup acme -o - > acme.tar.zst.age
+  berth backup create acme
+  berth backup create --all --keep 14
+  berth backup restore backups/acme-20260101-030000.tar.zst.age
 ```
 
 ### Options
@@ -43,4 +43,8 @@ berth backup <org>...|--all [--plan] [-o file|dir|-] [--passphrase | -r <key> | 
 ### SEE ALSO
 
 * [berth](berth.md)	 - berth: one Claude Code container per organization
+* [berth backup create](berth_backup_create.md)	 - encrypted backup of orgs (age key, recipients, or a gpg passphrase)
+* [berth backup keygen](berth_backup_keygen.md)	 - create the age key backups encrypt to (no prompts; good for cron)
+* [berth backup restore](berth_backup_restore.md)	 - restore an org from a backup (the restored org is berth's)
+* [berth backup schedule](berth_backup_schedule.md)	 - nightly backups of every org (a systemd user timer, or cron)
 

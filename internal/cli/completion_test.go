@@ -25,14 +25,19 @@ func TestCompletionFromStateRoot(t *testing.T) {
 	}{
 		{[]string{"info", ""}, "acme globex"},
 		{[]string{"logs", ""}, "acme globex"},
-		{[]string{"whoami", "acme", ""}, "globex"},
-		{[]string{"fw", ""}, "acme globex"},
-		{[]string{"fw", "acme", ""}, "show allow deny on off edit reload presets test"},
-		{[]string{"fw", "acme", "allow", "@go", ""}, "@mise @python @node @go @rust @ruby @docker @gitlab @bitbucket @aws @gcp @azure @debian"},
+		{[]string{"account", "whoami", "acme", ""}, "globex"},
+		{[]string{"fw", ""}, "show allow deny on off edit reload presets test"},
+		{[]string{"fw", "show", ""}, "acme globex"},
+		{[]string{"fw", "allow", ""}, "acme globex @mise @python @node @go @rust @ruby @docker @gitlab @bitbucket @aws @gcp @azure @debian"},
+		{[]string{"fw", "allow", "acme", "@go", ""}, "@mise @python @node @go @rust @ruby @docker @gitlab @bitbucket @aws @gcp @azure @debian"},
 		{[]string{"repo", ""}, "add new publish ls rm adopt sync audit policy"},
-		{[]string{"clone", ""}, "acme globex"},
-		{[]string{"schedule", ""}, "status run off --at --keep -o"},
-		{[]string{"backup", ""}, "acme globex --all"},
+		{[]string{"repo", "add", ""}, "acme globex"},
+		{[]string{"repo", "policy", "acme", ""}, "enforce warn off"},
+		{[]string{"env", ""}, "ls set unset accept migrate"},
+		{[]string{"backup", "schedule", ""}, "on status run off"},
+		{[]string{"backup", "create", ""}, "acme globex --all"},
+		{[]string{"org", "password", ""}, "show rotate"},
+		{[]string{"account", "remote", "status", ""}, "acme globex"},
 		{[]string{"repo", "ls", ""}, "acme globex"},
 		{[]string{"ls", ""}, ""},
 	}
@@ -41,6 +46,7 @@ func TestCompletionFromStateRoot(t *testing.T) {
 		var got []string
 		for _, l := range strings.Split(strings.TrimSpace(out), "\n") {
 			if l != "" && !strings.HasPrefix(l, ":") {
+				l, _, _ = strings.Cut(l, "\t") // a subcommand comes with its description
 				got = append(got, l)
 			}
 		}
@@ -53,7 +59,7 @@ func TestCompletionFromStateRoot(t *testing.T) {
 func TestCompletionScripts(t *testing.T) {
 	for shell, marker := range map[string]string{"": "bash completion V2 for berth", "bash": "bash completion V2 for berth",
 		"zsh": "#compdef berth", "fish": "complete -c berth", "powershell": "Register-ArgumentCompleter"} {
-		args := []string{"completion"}
+		args := []string{"system", "completion"}
 		if shell != "" {
 			args = append(args, shell)
 		}

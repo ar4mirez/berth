@@ -6,19 +6,11 @@ title: berth account
 
 ## berth account
 
-sign an org in and out: Claude, Remote Control, GitHub
+sign-in: Claude, Remote Control, GitHub
 
 ### Synopsis
 
-sign an org in and out: Claude, Remote Control, GitHub.
-
-Each is also a top-level command, as ccenv spelled it:
-  berth account signin        = berth auth
-  berth account token         = berth token
-  berth account login         = berth login
-  berth account logout        = berth logout
-  berth account gh            = berth gh-login
-  berth account whoami        = berth whoami
+sign-in: Claude, Remote Control, GitHub
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_account/
 
@@ -26,6 +18,7 @@ Docs: https://ar4mirez.github.io/berth/reference/commands/berth_account/
 
 ```
   berth account signin acme
+  berth account whoami
 ```
 
 ### Options
@@ -48,6 +41,7 @@ Docs: https://ar4mirez.github.io/berth/reference/commands/berth_account/
 * [berth account gh](berth_account_gh.md)	 - sign the gh CLI in inside the container
 * [berth account login](berth_account_login.md)	 - the full login that enables claude.ai/code (Remote Control)
 * [berth account logout](berth_account_logout.md)	 - remove the Remote Control login (--all: the token too)
+* [berth account remote](berth_account_remote.md)	 - the Remote Control service in an org
 * [berth account signin](berth_account_signin.md)	 - sign an org in: token, then the Remote Control login
 * [berth account token](berth_account_token.md)	 - the 1-year token (claude setup-token in the container)
 * [berth account whoami](berth_account_whoami.md)	 - which Claude account each org is signed in with

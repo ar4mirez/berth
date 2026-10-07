@@ -12,6 +12,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/ar4mirez/berth/internal/contract"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // ProfileSchema is the version a profile file names in `profile:`.
@@ -136,7 +137,7 @@ func (p *Profile) firewallFile(o string) string {
 	head = strings.Replace(head, "Always allowed: Anthropic/Claude, GitHub, npm.", "Always allowed: GitHub, npm, the provider below.", 1)
 	var b strings.Builder
 	b.WriteString(head + "mode on\n")
-	b.WriteString("# The model provider's endpoints replace Anthropic's (" + Tool + " init --profile):\n")
+	b.WriteString(ops.Respell("# The model provider's endpoints replace Anthropic's (" + Tool + " init --profile):\n"))
 	b.WriteString(p.ProviderLine() + "\n")
 	if len(p.Firewall) == 0 {
 		b.WriteString(presets)

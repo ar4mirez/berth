@@ -69,7 +69,7 @@ func (a *App) scheduleOnHost(ctx context.Context, name string, args []string) er
 	if action != "on" {
 		if _, err := h.FS.Stat(link); err != nil {
 			if action == "status" {
-				fmt.Fprintf(a.Stdout, "No backup schedule on %s (berth isn't installed there).\n", name)
+				sayf(a.Stdout, "No backup schedule on %s (berth isn't installed there).\n", name)
 				return nil
 			}
 			return fmt.Errorf("berth isn't installed on %s, so it has no schedule", name)
@@ -90,7 +90,7 @@ func (a *App) scheduleOnHost(ctx context.Context, name string, args []string) er
 	if err := a.pushBerth(ctx, name, h, rhome); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "Scheduling on %s; its backups encrypt to %s (the private key stays here).\n", name, recips)
+	sayf(a.Stdout, "Scheduling on %s; its backups encrypt to %s (the private key stays here).\n", name, recips)
 	return h.Exec.Run(ctx, host.Cmd{
 		Args: append(remote, args...), Env: []string{"BERTH_BACKUP_RECIPIENTS=" + recips},
 		Stdout: a.Stdout, Stderr: a.Stderr,
@@ -121,7 +121,7 @@ func (a *App) pushBerth(ctx context.Context, name string, h *host.Host, rhome st
 		if err != nil {
 			return fmt.Errorf("the release for this berth (v%s): %w", ver, err)
 		}
-		fmt.Fprintf(a.Stdout, "Fetching berth v%s for linux/%s, verifying its signature and checksum…\n", ver, facts.Arch)
+		sayf(a.Stdout, "Fetching berth v%s for linux/%s, verifying its signature and checksum…\n", ver, facts.Arch)
 		if bin, err = upgrade.Fetch(ctx, a.Upgrader.Client, a.Upgrader.Verifier, rel, "linux", facts.Arch); err != nil {
 			return err
 		}
@@ -129,7 +129,7 @@ func (a *App) pushBerth(ctx context.Context, name string, h *host.Host, rhome st
 		if runtime.GOOS != "linux" || facts.Arch != runtime.GOARCH {
 			return fmt.Errorf("this is a development build of berth (%s), which can only be pushed to a host of its own platform (linux/%s, not linux/%s); use a release", ver, runtime.GOARCH, facts.Arch)
 		}
-		fmt.Fprintf(a.Stderr, "warning: this is a development build of berth (%s): pushing it to %s as it is, unverified\n", ver, name)
+		sayf(a.Stderr, "warning: this is a development build of berth (%s): pushing it to %s as it is, unverified\n", ver, name)
 		if bin, err = a.Operator.FS.ReadFile(a.Self); err != nil {
 			return err
 		}
@@ -153,6 +153,6 @@ func (a *App) pushBerth(ctx context.Context, name string, h *host.Host, rhome st
 	if !strings.Contains(out, " "+ver+" ") {
 		return fmt.Errorf("berth on %s doesn't run as %s (%q)", name, ver, out)
 	}
-	fmt.Fprintf(a.Stdout, "Installed berth %s on %s (%s).\n", ver, name, dst)
+	sayf(a.Stdout, "Installed berth %s on %s (%s).\n", ver, name, dst)
 	return h.Exec.Run(ctx, host.Cmd{Args: []string{dst, "install"}, Stdout: a.Stdout, Stderr: a.Stderr})
 }

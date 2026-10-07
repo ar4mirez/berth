@@ -25,7 +25,7 @@ func TestHostSchedule(t *testing.T) {
 	const fixture, o = "berth-t-sshd", "t-sched"
 	home := t.TempDir()
 	env := append(os.Environ(), "HOME="+home, "XDG_CONFIG_HOME="+filepath.Join(home, "cfg"),
-		"BERTH_HOME="+filepath.Join(home, "state"), "SSH_AUTH_SOCK=", "BERTH_PUBLISHED_IMAGE="+publishedImage)
+		"BERTH_SPELLINGS=ccenv", "BERTH_HOME="+filepath.Join(home, "state"), "SSH_AUTH_SOCK=", "BERTH_PUBLISHED_IMAGE="+publishedImage)
 	berthEnv := func(extra []string, args ...string) (string, error) {
 		cmd := exec.Command(bin, args...)
 		cmd.Env = append(append([]string{}, env...), extra...)

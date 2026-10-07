@@ -77,7 +77,7 @@ func (a *App) migrateToHost(ctx context.Context, o, target, as string, yes, noSw
 	}
 
 	// 1. Rehearsal, while the org keeps running.
-	fmt.Fprintf(a.Stdout, "== Rehearsal: copying %s from %s to %s as %s (it keeps running here)\n", o, from, target, name)
+	sayf(a.Stdout, "== Rehearsal: copying %s from %s to %s as %s (it keeps running here)\n", o, from, target, name)
 	began := time.Now()
 	if err := a.copyOrg(ctx, src, o, dst, name, replace); err != nil {
 		return fmt.Errorf("the rehearsal copy failed: %w. %s still runs on %s; nothing changed there", err, o, from)
@@ -86,23 +86,23 @@ func (a *App) migrateToHost(ctx context.Context, o, target, as string, yes, noSw
 	if err := a.verifyCopy(ctx, src, o, dst, name, false); err != nil {
 		return fmt.Errorf("the rehearsal copy doesn't match: %w. %s still runs on %s; the stopped copy on %s is left for a look", err, o, from, target)
 	}
-	fmt.Fprintf(a.Stdout, "Rehearsal done in %s: the copy on %s matches.\n", took, target)
+	sayf(a.Stdout, "Rehearsal done in %s: the copy on %s matches.\n", took, target)
 
 	// 2. The switch: the operator's go-ahead.
 	running := src.running(ctx, o)
 	switch {
 	case noSwitch:
-		fmt.Fprintf(a.Stdout, "Stopped here (--no-switch). To switch: %s migrate %s %s --yes\n", Tool, o+"@"+from, target)
+		sayf(a.Stdout, "Stopped here (--no-switch). To switch: %s migrate %s %s --yes\n", Tool, o+"@"+from, target)
 		return nil
 	case !yes:
 		ok, err := a.confirmSwitch(o, from, target, took, running)
 		if err != nil || !ok {
-			fmt.Fprintf(a.Stdout, "Not switched: %s still runs on %s. To switch later: %s migrate %s %s --yes\n", o, from, Tool, o+"@"+from, target)
+			sayf(a.Stdout, "Not switched: %s still runs on %s. To switch later: %s migrate %s %s --yes\n", o, from, Tool, o+"@"+from, target)
 			return err
 		}
 	}
 
-	fmt.Fprintf(a.Stdout, "== Switching %s to %s: stopping it on %s (its work there stops)\n", o, target, from)
+	sayf(a.Stdout, "== Switching %s to %s: stopping it on %s (its work there stops)\n", o, target, from)
 	if running {
 		if err := src.Down(ctx, o); err != nil {
 			return fmt.Errorf("stopping %s on %s: %w; nothing was switched", o, from, err)
@@ -113,7 +113,7 @@ func (a *App) migrateToHost(ctx context.Context, o, target, as string, yes, noSw
 		if err == nil || !running {
 			return
 		}
-		fmt.Fprintf(a.Stdout, "== Something failed: starting %s on %s again\n", o, from)
+		sayf(a.Stdout, "== Something failed: starting %s on %s again\n", o, from)
 		src.TakeLease = true
 		if rerr := src.Up(context.WithoutCancel(ctx), o); rerr != nil {
 			err = fmt.Errorf("%w; AND restarting it on %s failed: %w. Start it by hand: %s up %s@%s --take-lease", err, from, rerr, Tool, o, from)
@@ -121,7 +121,7 @@ func (a *App) migrateToHost(ctx context.Context, o, target, as string, yes, noSw
 		}
 		err = fmt.Errorf("%w. %s runs on %s again", err, o, from)
 	}()
-	fmt.Fprintf(a.Stdout, "== Final copy (%s is stopped, so nothing written since the rehearsal is lost)\n", o)
+	sayf(a.Stdout, "== Final copy (%s is stopped, so nothing written since the rehearsal is lost)\n", o)
 	if err := a.migrateFail("final"); err != nil {
 		return err
 	}
@@ -139,10 +139,10 @@ func (a *App) migrateToHost(ctx context.Context, o, target, as string, yes, noSw
 		return fmt.Errorf("starting %s on %s: %w", name, target, err)
 	}
 	if err := dst.Rehydrate(ctx, name); err != nil {
-		fmt.Fprintf(a.Stderr, "warning: rehydrating %s on %s: %v (run it again: %s rehydrate %s@%s)\n", name, target, err, Tool, name, target)
+		sayf(a.Stderr, "warning: rehydrating %s on %s: %v (run it again: %s rehydrate %s@%s)\n", name, target, err, Tool, name, target)
 	}
-	fmt.Fprintf(a.Stdout, "Migrated: %s runs on %s as %s, and holds the lease there.\n", o, target, name)
-	fmt.Fprintf(a.Stdout, "The old copy stays, stopped, on %s (%s). Remove it once you're sure.\n", from, path.Join(src.Orgs.Dir, o))
+	sayf(a.Stdout, "Migrated: %s runs on %s as %s, and holds the lease there.\n", o, target, name)
+	sayf(a.Stdout, "The old copy stays, stopped, on %s (%s). Remove it once you're sure.\n", from, path.Join(src.Orgs.Dir, o))
 	return nil
 }
 
@@ -157,7 +157,7 @@ func (a *App) confirmSwitch(o, from, target string, took time.Duration, running 
 	if !running {
 		stop = ""
 	}
-	fmt.Fprintf(a.Stderr, "Switch now? This %scopies it again (the rehearsal took %s) and starts it on %s. [y/N] ", stop, took, target)
+	sayf(a.Stderr, "Switch now? This %scopies it again (the rehearsal took %s) and starts it on %s. [y/N] ", stop, took, target)
 	ans, _ := bufio.NewReader(tty).ReadString('\n')
 	ans = strings.ToLower(strings.TrimSpace(ans))
 	return ans == "y" || ans == "yes", nil
@@ -302,12 +302,12 @@ func (a *App) verifyCopy(ctx context.Context, src *App, o string, dst *App, name
 	}
 	switch {
 	case len(diffs) == 0:
-		fmt.Fprintf(a.Stdout, "Checked: org.env and %d files match.\n", len(dl))
+		sayf(a.Stdout, "Checked: org.env and %d files match.\n", len(dl))
 		return nil
 	case strict || config > 0:
 		return fmt.Errorf("%d difference(s), e.g. %s", len(diffs), strings.Join(diffs[:min(3, len(diffs))], "; "))
 	default:
-		fmt.Fprintf(a.Stdout, "Checked: org.env and config match; %d file(s) changed while it ran (the final copy, with the org stopped, takes them), e.g. %s\n",
+		sayf(a.Stdout, "Checked: org.env and config match; %d file(s) changed while it ran (the final copy, with the org stopped, takes them), e.g. %s\n",
 			len(diffs), strings.Join(diffs[:min(3, len(diffs))], "; "))
 		return nil
 	}

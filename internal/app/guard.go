@@ -21,7 +21,7 @@ func (a *App) installGuard(ctx context.Context, b *App) error {
 	if e := b.Host.EngineName(); e != host.EngineDocker {
 		return fmt.Errorf("the host guard works on Docker's DOCKER-USER chain; it isn't available with %s yet (docs/engines.md)", e)
 	}
-	fmt.Fprintf(a.Stdout, "Installing the host guard (%s): org containers can't reach the host or 169.254.0.0/16…\n", hosts.GuardContainer)
+	sayf(a.Stdout, "Installing the host guard (%s): org containers can't reach the host or 169.254.0.0/16…\n", hosts.GuardContainer)
 	if !b.imageFromRelease(ctx) {
 		if err := b.Build(ctx, nil); err != nil {
 			return fmt.Errorf("building berth's image for the guard: %w", err)
@@ -103,12 +103,12 @@ func (a *App) HostGuard(ctx context.Context, args []string) error {
 		if err := a.installGuard(ctx, b); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.Stdout, "The host guard is on for %s. Nothing was restarted.\n", name)
+		sayf(a.Stdout, "The host guard is on for %s. Nothing was restarted.\n", name)
 	case "off":
 		if err := a.removeGuard(ctx, b); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.Stdout, "The host guard is off for %s: its rules are removed. Nothing was restarted.\n", name)
+		sayf(a.Stdout, "The host guard is off for %s: its rules are removed. Nothing was restarted.\n", name)
 	default:
 		// The guard's own report can fail after the line above it is printed.
 		g, err := ops.GetHostGuard(ctx, b, name)
@@ -119,10 +119,10 @@ func (a *App) HostGuard(ctx context.Context, args []string) error {
 			return a.writeJSON(g)
 		}
 		if !g.Installed {
-			fmt.Fprintf(a.Stdout, "The host guard isn't installed on %s (turn it on: %s host guard %s on).\n", name, Tool, name)
+			sayf(a.Stdout, "The host guard isn't installed on %s (turn it on: %s host guard %s on).\n", name, Tool, name)
 			return nil
 		}
-		fmt.Fprintf(a.Stdout, "%s on %s: %s\n", hosts.GuardContainer, name, g.State)
+		sayf(a.Stdout, "%s on %s: %s\n", hosts.GuardContainer, name, g.State)
 		fmt.Fprint(a.Stdout, g.Rules)
 		return err
 	}

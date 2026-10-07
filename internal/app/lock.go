@@ -37,7 +37,7 @@ func (a *App) lock(ctx context.Context) (func(), error) {
 	u, err := a.Host.FS.Lock(quick, p)
 	cancel()
 	if err != nil && errors.Is(err, context.DeadlineExceeded) {
-		fmt.Fprintf(a.Stderr, "%s: waiting for another %s command on this state root (%s)…\n", Tool, Tool, p)
+		sayf(a.Stderr, "%s: waiting for another %s command on this state root (%s)…\n", Tool, Tool, p)
 		long, cancel := context.WithTimeout(ctx, lockTimeout)
 		u, err = a.Host.FS.Lock(long, p)
 		cancel()

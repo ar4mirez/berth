@@ -6,29 +6,27 @@ title: berth env
 
 ## berth env
 
-custom env vars for the container
+custom variables (API keys) for an org's sessions
 
 ### Synopsis
 
 Custom variables (API keys) for an org's sessions. set reads the value hidden, or from stdin.
 
 accept takes secrets typed inside the org instead: in the org's terminal, `berth-secret-drop KEY`
-reads the value hidden and leaves a one-time drop; `berth env <org> accept` then stores what is
-waiting (accept --list shows the names, accept KEY takes one). The value is never typed on the host.
+reads the value hidden and leaves a one-time drop; `berth env accept <org>` then stores what is
+waiting (--list shows the names, accept <org> KEY takes one). The value is never typed on the host.
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_env/
 
 ```
-berth env <org> [ls | set KEY | unset KEY | accept [KEY...]] [--no-restart] [flags]
+berth env [flags]
 ```
 
 ### Examples
 
 ```
-  berth env acme ls
-  berth env acme set OPENROUTER_API_KEY
-  berth env acme unset OPENROUTER_API_KEY
-  berth env acme accept
+  berth env ls acme
+  berth env set acme OPENROUTER_API_KEY
 ```
 
 ### Options
@@ -48,4 +46,9 @@ berth env <org> [ls | set KEY | unset KEY | accept [KEY...]] [--no-restart] [fla
 ### SEE ALSO
 
 * [berth](berth.md)	 - berth: one Claude Code container per organization
+* [berth env accept](berth_env_accept.md)	 - store the secrets typed inside the org with berth-secret-drop
+* [berth env ls](berth_env_ls.md)	 - the names of an org's variables (never their values)
+* [berth env migrate](berth_env_migrate.md)	 - move an org's tokens and custom variables out of org.env into files (backup first; restarts nothing)
+* [berth env set](berth_env_set.md)	 - set a variable: the value is read hidden, or from stdin (restarts a running org)
+* [berth env unset](berth_env_unset.md)	 - remove a variable (restarts a running org)
 

@@ -108,8 +108,8 @@ func TestEveryCommandDeclaresAccess(t *testing.T) {
 	var walk func(c *cobra.Command)
 	walk = func(c *cobra.Command) {
 		for _, sub := range c.Commands() {
-			if sub.Name() == "help" {
-				continue
+			if sub.Name() == "help" || sub.Annotations[goneKey] != "" {
+				continue // a removed spelling runs nothing
 			}
 			if sub.Runnable() {
 				switch sub.Annotations[accessKey] {

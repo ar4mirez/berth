@@ -6,7 +6,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -133,7 +132,7 @@ func (a *App) catFile(p string) string {
 		case errors.Is(err, fs.ErrPermission):
 			msg = "Permission denied"
 		}
-		fmt.Fprintf(a.Stderr, "cat: %s: %s\n", p, msg)
+		sayf(a.Stderr, "cat: %s: %s\n", p, msg)
 		return ""
 	}
 	return strings.TrimRight(string(b), "\n")

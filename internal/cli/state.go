@@ -133,9 +133,10 @@ func addGlobalFlags(root *cobra.Command) {
 			return nil
 		}
 		// Help for a command that parses its own arguments: nothing to resolve or guard either.
-		if helpAsked(cmd, args) {
+		if helpAsked(cmd, args) || cmd.Annotations[goneKey] != "" {
 			return nil
 		}
+		name, sub, fargs := opOf(cmd, args)
 		access := cmd.Annotations[accessKey]
 		switch access {
 		case accessRead, accessWrite:
@@ -145,14 +146,14 @@ func addGlobalFlags(root *cobra.Command) {
 		switch *output {
 		case app.OutputText:
 		case app.OutputJSON:
-			op, ok := ops.Lookup(cmd.Name(), subOf(cmd.Name(), args))
+			op, ok := ops.Lookup(name, sub)
 			switch {
 			case ok && op.JSON:
 			case ok && op.Events:
 				// A long operation: its progress, one event per line (appFor starts it).
 				if h := progressFrom(cmd.Context()); h != nil {
 					// The operation as the catalog names it: "up", "remote logs".
-					h.op, h.org = strings.TrimSpace(cmd.Name()+" "+subOf(cmd.Name(), args)), eventOrg(cmd.Name(), args)
+					h.op, h.org = strings.TrimSpace(name+" "+sub), eventOrg(name, fargs)
 				}
 			default:
 				why := "it changes things, and returns no data"

@@ -58,7 +58,7 @@ func claudeAccount(ctx context.Context, s System, org string) (*ClaudeAccount, s
 	var out bytes.Buffer
 	status, dockerErr := s.CaptureRaw(ctx, false, "docker", "exec", "-u", "node", contract.Container(org), "sh", "-c",
 		"env -u CLAUDE_CODE_OAUTH_TOKEN claude auth status 2>/dev/null; true")
-	ls, jqErr := AuthStatusLines([]byte(status), "not logged in ("+Tool+" login "+org+")")
+	ls, jqErr := AuthStatusLines([]byte(status), Respell("not logged in ("+Tool+" login "+org+")"))
 	for _, l := range ls {
 		out.WriteString(l + "\n")
 	}

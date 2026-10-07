@@ -26,7 +26,7 @@ func lockFixture(t *testing.T) (state, home string, environ []string) {
 		t.Fatal(err)
 	}
 	environ = append(os.Environ(), "PATH="+env.FakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"HOME="+home, "PARITY_LOG="+filepath.Join(root, "calls.jsonl"), "PARITY_RULES=")
+		"HOME="+home, "BERTH_SPELLINGS=ccenv", "PARITY_LOG="+filepath.Join(root, "calls.jsonl"), "PARITY_RULES=")
 	return state, home, environ
 }
 

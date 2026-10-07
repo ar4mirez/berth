@@ -44,13 +44,13 @@ func (a *App) imageFromRelease(ctx context.Context) bool {
 	if a.quietRun(ctx, "docker", "image", "inspect", set.Tag) == nil {
 		return true
 	}
-	fmt.Fprintf(a.Stderr, "%s: pulling the released image %s\n", Tool, src)
+	sayf(a.Stderr, "%s: pulling the released image %s\n", Tool, src)
 	if err := a.passthrough(ctx, false, "docker", "pull", src); err != nil {
-		fmt.Fprintf(a.Stderr, "%s: couldn't pull it; building the image locally instead\n", Tool)
+		sayf(a.Stderr, "%s: couldn't pull it; building the image locally instead\n", Tool)
 		return false
 	}
 	if err := a.quietRun(ctx, "docker", "tag", src, set.Tag); err != nil {
-		fmt.Fprintf(a.Stderr, "%s: couldn't tag it as %s; building the image locally instead\n", Tool, set.Tag)
+		sayf(a.Stderr, "%s: couldn't tag it as %s; building the image locally instead\n", Tool, set.Tag)
 		return false
 	}
 	return true
@@ -73,6 +73,6 @@ func (a *App) Pull(ctx context.Context) error {
 	if !a.imageFromRelease(ctx) {
 		return fmt.Errorf("couldn't pull %s", a.publishedImage())
 	}
-	fmt.Fprintf(a.Stdout, "%s is ready (from %s). Nothing was restarted.\n", set.Tag, a.publishedImage())
+	sayf(a.Stdout, "%s is ready (from %s). Nothing was restarted.\n", set.Tag, a.publishedImage())
 	return nil
 }

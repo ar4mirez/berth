@@ -18,7 +18,7 @@ import (
 
 // browserHint is ccenv's browser_hint, followed by its blank line.
 func (a *App) browserHint(o string) {
-	fmt.Fprintf(a.Stdout, `Sign in as the %[1]s Claude account. The flow runs inside the %[1]s container, so your host's Claude
+	sayf(a.Stdout, `Sign in as the %[1]s Claude account. The flow runs inside the %[1]s container, so your host's Claude
 session is not touched. Only your browser session matters:
   -> open the link in a PRIVATE/INCOGNITO window (or a browser profile for %[1]s),
      sign in to claude.ai with the %[1]s account, approve, and paste the code back here.
@@ -113,9 +113,9 @@ func (a *App) Token(ctx context.Context, args []string) error {
 	if err := a.setSecret(o, "CLAUDE_CODE_OAUTH_TOKEN", t, t); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "Token saved for %s.\n", o)
+	sayf(a.Stdout, "Token saved for %s.\n", o)
 	if restart && a.running(ctx, o) {
-		fmt.Fprintf(a.Stdout, "Restarting claude-%s to apply it (open terminal sessions in it will reconnect)...\n", o)
+		sayf(a.Stdout, "Restarting claude-%s to apply it (open terminal sessions in it will reconnect)...\n", o)
 		if err := a.quiet().compose(ctx, o, "up", "-d", "--force-recreate"); err != nil {
 			return err // set -e: compose's exit code, output discarded
 		}
@@ -263,7 +263,7 @@ func (a *App) checkAccount(ctx context.Context, o string) error {
 		}
 		theirs := a.rcAccount(ctx, other)
 		if id, _, _ := strings.Cut(theirs, " "); theirs != "" && id == myID {
-			fmt.Fprintf(a.Stdout, `
+			sayf(a.Stdout, `
 WARNING: '%[1]s' is using the same Claude organization as '%[2]s': %[3]s
   Intended?  Silence this: echo SHARED_ACCOUNT=1 >> orgs/%[1]s/org.env
   Mistake?   %[4]s logout %[1]s && %[4]s auth %[1]s. In the private window, check which account
@@ -281,7 +281,7 @@ func (a *App) allDirs() []string { return a.orgDirs() }
 // envWarn is envval for an org dir that may lack org.env: grep's error goes to stderr, as in ccenv.
 func (a *App) envWarn(o, key string) string {
 	if !a.isFile(a.Orgs.EnvPath(o)) {
-		fmt.Fprintf(a.Stderr, "grep: %s: No such file or directory\n", a.Orgs.EnvPath(o))
+		sayf(a.Stderr, "grep: %s: No such file or directory\n", a.Orgs.EnvPath(o))
 		return ""
 	}
 	return a.env(o, key)
@@ -300,7 +300,7 @@ func (a *App) Logout(ctx context.Context, o, flag string) error {
 	} else if err := a.Host.FS.Remove(path.Join(a.Orgs.Dir, o, "claude", ".credentials.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "Logged out %s (Remote Control login removed).\n", o)
+	sayf(a.Stdout, "Logged out %s (Remote Control login removed).\n", o)
 	if flag == "--all" {
 		if err := a.setSecret(o, "CLAUDE_CODE_OAUTH_TOKEN", "", ""); err != nil {
 			return err
@@ -310,7 +310,7 @@ func (a *App) Logout(ctx context.Context, o, flag string) error {
 			if err := a.quiet().compose(ctx, o, "up", "-d", "--force-recreate"); err != nil {
 				return err
 			}
-			fmt.Fprintf(a.Stdout, "Restarted claude-%s.\n", o)
+			sayf(a.Stdout, "Restarted claude-%s.\n", o)
 		}
 	}
 	return nil
@@ -331,12 +331,12 @@ func (a *App) GhLogin(ctx context.Context, o, flag string) error {
 		return err
 	}
 	if acct := a.ghAccount(ctx, o); acct != "" && flag != "--force" {
-		fmt.Fprintf(a.Stdout, "%s: gh already signed in as %s (use --force to sign in again)\n", o, acct)
+		sayf(a.Stdout, "%s: gh already signed in as %s (use --force to sign in again)\n", o, acct)
 		a.gitTransport(ctx, o)
 		a.ensureGitKey(ctx, o, acct)
 		return nil
 	}
-	fmt.Fprintf(a.Stdout, `Signing the gh CLI in for %[1]s, inside its container (your host gh is not touched).
+	sayf(a.Stdout, `Signing the gh CLI in for %[1]s, inside its container (your host gh is not touched).
   -> Open https://github.com/login/device in a browser signed in to the GitHub account for %[1]s
      and enter the one-time code shown below.
 
@@ -350,7 +350,7 @@ func (a *App) GhLogin(ctx context.Context, o, flag string) error {
 	if acct == "" {
 		return fmt.Errorf("gh sign-in didn't complete for %s", o)
 	}
-	fmt.Fprintf(a.Stdout, "\n%s: gh signed in as %s\n", o, acct)
+	sayf(a.Stdout, "\n%s: gh signed in as %s\n", o, acct)
 	a.gitTransport(ctx, o)
 	a.ensureGitKey(ctx, o, acct)
 	return nil
@@ -365,7 +365,7 @@ func (a *App) gitTransport(ctx context.Context, o string) {
 		return
 	}
 	if how, _ := a.capture(ctx, true, "docker", "exec", "claude-"+o, contract.GitTransport, "show"); how == "https" {
-		fmt.Fprintf(a.Stdout, "%s: git reaches github.com with this login's token (registered repos only). To keep the org's SSH key instead: GIT_TRANSPORT=ssh in org.env\n", o)
+		sayf(a.Stdout, "%s: git reaches github.com with this login's token (registered repos only). To keep the org's SSH key instead: GIT_TRANSPORT=ssh in org.env\n", o)
 	}
 }
 
@@ -395,13 +395,13 @@ func (a *App) ensureGitKey(ctx context.Context, o, acct string) {
 	if a.hostGh(ctx) {
 		if hostAcct, _ := a.capture(ctx, true, "gh", "api", "user", "-q", ".login"); hostAcct == acct {
 			if _, err := a.capture(ctx, true, "gh", "ssh-key", "add", pubPath, "--title", title); err == nil {
-				fmt.Fprintf(a.Stdout, "%s: git key added to %s's GitHub as '%s' (with the host's gh)\n", o, acct, title)
+				sayf(a.Stdout, "%s: git key added to %s's GitHub as '%s' (with the host's gh)\n", o, acct, title)
 				return
 			}
-			fmt.Fprintf(a.Stdout, "%s: the host's gh couldn't add the git key to %s's GitHub (gh auth refresh -h github.com -s admin:public_key, then run this again).\n", o, acct)
+			sayf(a.Stdout, "%s: the host's gh couldn't add the git key to %s's GitHub (gh auth refresh -h github.com -s admin:public_key, then run this again).\n", o, acct)
 		}
 	}
-	fmt.Fprintf(a.Stdout, `%[1]s: the git key isn't on %[2]s's GitHub yet, so clones over SSH are refused.
+	sayf(a.Stdout, `%[1]s: the git key isn't on %[2]s's GitHub yet, so clones over SSH are refused.
   -> Add it at https://github.com/settings/ssh/new, signed in as %[2]s:
      %[3]s
 `, o, acct, strings.Join(pub, " "))

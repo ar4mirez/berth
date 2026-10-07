@@ -12,8 +12,9 @@ berth: one Claude Code container per organization
 
 berth: one Claude Code container per organization.
 
-ccenv's commands keep working as they were (berth init, berth token, berth whoami, …): help lists them
-under berth org, berth account and berth system. docs/cli.md has both spellings.
+Every command lives in one group: `berth <group> --help` lists its commands, and every command has
+its own --help. The everyday ones also work on their own: berth up acme is berth org up acme.
+Leave the org out to use the default one (berth org use).
 
 Docs: https://ar4mirez.github.io/berth/
 
@@ -33,33 +34,23 @@ berth [flags]
 
 ### SEE ALSO
 
-* [berth account](berth_account.md)	 - sign an org in and out: Claude, Remote Control, GitHub
+* [berth account](berth_account.md)	 - sign-in: Claude, Remote Control, GitHub
 * [berth attach](berth_attach.md)	 - attach to the shared tmux session
-* [berth backup](berth_backup.md)	 - encrypted backup of orgs (age key, recipients, or a gpg passphrase)
+* [berth backup](berth_backup.md)	 - backups: create, restore, schedule, the key
 * [berth claude](berth_claude.md)	 - interactive claude in /workspace (or --cwd)
-* [berth clone](berth_clone.md)	 - register a repo and clone it (repo add)
-* [berth connect](berth_connect.md)	 - an SSH tunnel to an org on a registered host: its SSH and browser terminal on 127.0.0.1 here
-* [berth destroy](berth_destroy.md)	 - offboard: remove the org, its container, history, secrets and backups
 * [berth down](berth_down.md)	 - stop the container
-* [berth env](berth_env.md)	 - custom env vars for the container
-* [berth exec](berth_exec.md)	 - run a command in the container as node (for tools)
+* [berth env](berth_env.md)	 - custom variables (API keys) for an org's sessions
 * [berth fw](berth_fw.md)	 - the egress allowlist (changes apply live)
 * [berth host](berth_host.md)	 - the hosts berth manages: this machine and others over SSH
 * [berth info](berth_info.md)	 - every way to connect
-* [berth keygen](berth_keygen.md)	 - create the age key backups encrypt to (no prompts; good for cron)
 * [berth logs](berth_logs.md)	 - follow the container's logs
 * [berth ls](berth_ls.md)	 - all orgs and their state
 * [berth mcp](berth_mcp.md)	 - an MCP server, for an agent to manage orgs through typed tools
 * [berth org](berth_org.md)	 - orgs: create, start, stop, connect, move
-* [berth pkg](berth_pkg.md)	 - system packages in the org's image (applied at its next restart)
+* [berth pkg](berth_pkg.md)	 - system packages in an org's image (applied at its next restart)
 * [berth repo](berth_repo.md)	 - the repos allowed in an org's /workspace
 * [berth restart](berth_restart.md)	 - recreate the container
-* [berth restore](berth_restore.md)	 - restore an org from a backup (the restored org is berth's)
-* [berth run](berth_run.md)	 - headless claude -p
-* [berth schedule](berth_schedule.md)	 - nightly backup --all (systemd user timer berth-backup, or cron)
-* [berth secrets](berth_secrets.md)	 - where an org keeps its tokens and custom variables
 * [berth shell](berth_shell.md)	 - bash inside the container
 * [berth system](berth_system.md)	 - berth itself: install, upgrade, its image, shell completion
 * [berth up](berth_up.md)	 - build if needed and (re)create the container
-* [berth use](berth_use.md)	 - a default org, for org commands that leave it out (berth up, berth fw show, …)
 

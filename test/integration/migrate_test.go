@@ -26,7 +26,7 @@ func TestMigrateHost(t *testing.T) {
 	home := t.TempDir()
 	state := filepath.Join(home, "state")
 	env := append(os.Environ(), "HOME="+home, "XDG_CONFIG_HOME="+filepath.Join(home, "cfg"),
-		"BERTH_HOME="+state, "SSH_AUTH_SOCK=", "BERTH_PUBLISHED_IMAGE="+publishedImage)
+		"BERTH_SPELLINGS=ccenv", "BERTH_HOME="+state, "SSH_AUTH_SOCK=", "BERTH_PUBLISHED_IMAGE="+publishedImage)
 	berthEnv := func(extra []string, args ...string) (string, error) {
 		cmd := exec.Command(bin, args...)
 		cmd.Env = append(append([]string{}, env...), extra...)

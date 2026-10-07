@@ -138,7 +138,7 @@ func (a *App) Restore(ctx context.Context, args []string) error {
 	}
 	format := a.catFile(stage + "/.ccenv-format")
 	a.Progress.Step("restore", "restoring "+name)
-	fmt.Fprintf(a.Stdout, "Restoring '%s' from %s (%s, %s) as '%s'\n", field("org"), field("source_host"), field("created"), format, name)
+	sayf(a.Stdout, "Restoring '%s' from %s (%s, %s) as '%s'\n", field("org"), field("source_host"), field("created"), format, name)
 
 	d := path.Join(a.Orgs.Dir, name)
 	if a.exists(d) {
@@ -166,7 +166,7 @@ func (a *App) Restore(ctx context.Context, args []string) error {
 		if err := a.Host.FS.Rename(d, replaced+"/"+name+"-"+stamp); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.Stdout, "Existing %s moved to %s/\n", name, replaced)
+		sayf(a.Stdout, "Existing %s moved to %s/\n", name, replaced)
 	}
 	_ = a.Host.FS.Remove(stage + "/.ccenv-format")
 	if err := a.Host.FS.Rename(stage, d); err != nil {
@@ -205,7 +205,7 @@ func (a *App) Restore(ctx context.Context, args []string) error {
 		if err := a.Orgs.Set(name, k.key, fmt.Sprint(n)); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.Stdout, "%s was taken here; now %s\n", k.key, a.env(name, k.key))
+		sayf(a.Stdout, "%s was taken here; now %s\n", k.key, a.env(name, k.key))
 	}
 	if a.env(name, "BIND_ADDR") == "tailscale" && a.quietRun(ctx, "tailscale", "ip", "-4") != nil {
 		if err := a.Orgs.Set(name, "BIND_ADDR", "127.0.0.1"); err != nil {
@@ -218,14 +218,14 @@ func (a *App) Restore(ctx context.Context, args []string) error {
 			if err := a.Orgs.Set(name, "BIND_ADDR", "127.0.0.1"); err != nil {
 				return err
 			}
-			fmt.Fprintf(a.Stdout, "%s isn't up on this host: bound to 127.0.0.1 (set BIND_ADDR=%s later)\n", strings.TrimPrefix(b, "iface:"), b)
+			sayf(a.Stdout, "%s isn't up on this host: bound to 127.0.0.1 (set BIND_ADDR=%s later)\n", strings.TrimPrefix(b, "iface:"), b)
 		}
 	}
 
 	unlockPorts()
-	fmt.Fprintf(a.Stdout, "Restored to %s\n", d)
+	sayf(a.Stdout, "Restored to %s\n", d)
 	if !start {
-		fmt.Fprintf(a.Stdout, "Start with: %s up %s\n", Tool, name)
+		sayf(a.Stdout, "Start with: %s up %s\n", Tool, name)
 		return nil
 	}
 	a.Progress.Step("start", "starting claude-"+name)
@@ -328,7 +328,7 @@ func (a *App) Rehydrate(ctx context.Context, o string) error {
 	if err := a.needUp(ctx, o); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "== Rehydrating %s: repos, toolchains and dependencies (this can take a while)\n", o)
+	sayf(a.Stdout, "== Rehydrating %s: repos, toolchains and dependencies (this can take a while)\n", o)
 	if err := a.Repo(ctx, "sync", o, nil); err != nil {
 		return err
 	}
@@ -405,7 +405,7 @@ func (a *App) Migrate(ctx context.Context, args []string) error {
 	if rdir != "" {
 		rc += " --home " + rdir
 	}
-	fmt.Fprintf(a.Stdout, "== Streaming %s to %s (skipping regenerable data)\n", o, target)
+	sayf(a.Stdout, "== Streaming %s to %s (skipping regenerable data)\n", o, target)
 	sec := &secrets{a: a}
 	mount := path.Join(a.Orgs.Dir, o) + ":/src:ro"
 	// archive plan | sed -n '2,3p'
@@ -425,8 +425,8 @@ func (a *App) Migrate(ctx context.Context, args []string) error {
 		return err
 	}
 	fmt.Fprintln(a.Stdout)
-	fmt.Fprintf(a.Stdout, "Migrated. '%s' is still running here too. Once the copy on %s looks right, stop this one:\n", o, target)
-	fmt.Fprintf(a.Stdout, "  %s down %s     (both would share the same Remote Control login and git identity)\n", Tool, o)
+	sayf(a.Stdout, "Migrated. '%s' is still running here too. Once the copy on %s looks right, stop this one:\n", o, target)
+	sayf(a.Stdout, "  %s down %s     (both would share the same Remote Control login and git identity)\n", Tool, o)
 	return nil
 }
 

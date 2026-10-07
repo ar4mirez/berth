@@ -63,11 +63,11 @@ func (a *App) Install(_ context.Context, args []string, completion func(name str
 		if err := a.Host.FS.WriteFile(path.Join(comp, n), script, 0o644); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.Stdout, "Linked %s -> %s\n", link, a.Self)
-		fmt.Fprintf(a.Stdout, "Completion installed: %s (new shells pick it up)\n", path.Join(comp, n))
+		sayf(a.Stdout, "Linked %s -> %s\n", link, a.Self)
+		sayf(a.Stdout, "Completion installed: %s (new shells pick it up)\n", path.Join(comp, n))
 	}
 	if !strings.Contains(":"+a.Getenv("PATH")+":", ":"+bin+":") {
-		fmt.Fprintf(a.Stdout, "NOTE: %s is not on PATH. Add: export PATH=\"%s:$PATH\"\n", bin, bin)
+		sayf(a.Stdout, "NOTE: %s is not on PATH. Add: export PATH=\"%s:$PATH\"\n", bin, bin)
 	}
 	return nil
 }

@@ -10,23 +10,15 @@ berth itself: install, upgrade, its image, shell completion
 
 ### Synopsis
 
-berth itself: install, upgrade, its image, shell completion.
-
-Each is also a top-level command, as ccenv spelled it:
-  berth system install       = berth install
-  berth system upgrade       = berth upgrade
-  berth system pull          = berth pull
-  berth system build         = berth build
-  berth system completion    = berth completion
-  berth system parity-check  = berth parity-check
+berth itself: install, upgrade, its image, shell completion
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_system/
 
 ### Examples
 
 ```
+  berth system upgrade
   berth system install
-  berth system install ~/bin --alias ccenv
 ```
 
 ### Options

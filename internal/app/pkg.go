@@ -56,7 +56,7 @@ func (a *App) Pkg(ctx context.Context, o string, args []string) error {
 			return a.writeJSON(pre)
 		}
 		for _, p := range pre.Presets {
-			fmt.Fprintf(a.Stdout, "%s\n  %s\n", p.Name, strings.Join(p.Packages, " "))
+			sayf(a.Stdout, "%s\n  %s\n", p.Name, strings.Join(p.Packages, " "))
 		}
 		return nil
 	case "build":
@@ -87,7 +87,7 @@ func (a *App) pkgLs(ctx context.Context, o string) error {
 		return a.writeJSON(p)
 	}
 	if len(p.Entries) == 0 {
-		fmt.Fprintf(a.Stdout, "(no extra packages; add some: %s pkg %s add <package|@preset>)\n", Tool, o)
+		sayf(a.Stdout, "(no extra packages; add some: %s pkg %s add <package|@preset>)\n", Tool, o)
 		return nil
 	}
 	fmt.Fprintln(a.Stdout, p.File)
@@ -95,13 +95,13 @@ func (a *App) pkgLs(ctx context.Context, o string) error {
 		fmt.Fprintln(a.Stdout, "  "+e)
 	}
 	for _, e := range p.Invalid {
-		fmt.Fprintf(a.Stderr, "%s: '%s' in %s isn't a package name or a known preset: it is left out\n", Tool, e, p.File)
+		sayf(a.Stderr, "%s: '%s' in %s isn't a package name or a known preset: it is left out\n", Tool, e, p.File)
 	}
 	state := "built"
 	if !p.Built {
 		state = "not built yet: " + Tool + " pkg " + o + " build, or the org's next start builds it"
 	}
-	fmt.Fprintf(a.Stdout, "%d packages, in %s (%s)\n", len(p.Packages), p.Image, state)
+	sayf(a.Stdout, "%d packages, in %s (%s)\n", len(p.Packages), p.Image, state)
 	return nil
 }
 
@@ -169,7 +169,7 @@ func (a *App) pkgEdit(ctx context.Context, o string, add bool, names []string, b
 	}
 	unlock()
 	if !build {
-		fmt.Fprintf(a.Stdout, "Saved. %s's image is built at its next start, or now with: %s pkg %s build\n", o, Tool, o)
+		sayf(a.Stdout, "Saved. %s's image is built at its next start, or now with: %s pkg %s build\n", o, Tool, o)
 		return nil
 	}
 	if err := a.pkgBuild(ctx, o, false); err != nil {
@@ -209,10 +209,10 @@ func (a *App) pkgBuild(ctx context.Context, o string, force bool) error {
 		how = Tool + " restart " + o + " (that stops the work running in it)"
 	}
 	if img.tag == set.Tag {
-		fmt.Fprintf(a.Stdout, "%s has no extra packages: it runs on %s. Nothing was restarted; it applies with: %s\n", o, set.Tag, how)
+		sayf(a.Stdout, "%s has no extra packages: it runs on %s. Nothing was restarted; it applies with: %s\n", o, set.Tag, how)
 		return nil
 	}
-	fmt.Fprintf(a.Stdout, "%s is ready (%d packages on %s). Nothing was restarted; it applies with: %s\n", img.tag, img.packages, set.Tag, how)
+	sayf(a.Stdout, "%s is ready (%d packages on %s). Nothing was restarted; it applies with: %s\n", img.tag, img.packages, set.Tag, how)
 	return nil
 }
 
@@ -235,7 +235,7 @@ func (a *App) orgImage(ctx context.Context, o string, set assets.Set, ensure, fo
 	pkgs, bad := ops.ExpandPackages(ops.PackageEntries(a, o))
 	if ensure {
 		for _, e := range bad {
-			fmt.Fprintf(a.Stderr, "%s: '%s' in %s isn't a package name or a known preset: it is left out\n", Tool, e, ops.PackagesFile(a, o))
+			sayf(a.Stderr, "%s: '%s' in %s isn't a package name or a known preset: it is left out\n", Tool, e, ops.PackagesFile(a, o))
 		}
 	}
 	img := orgImg{tag: ops.OrgImage(set.Tag, o, pkgs), dir: set.ImageDir, packages: len(pkgs)}
@@ -263,7 +263,7 @@ func (a *App) orgImage(ctx context.Context, o string, set assets.Set, ensure, fo
 		}
 	}
 	a.Progress.Step("packages", fmt.Sprintf("building %s (%d packages)", img.tag, len(pkgs)))
-	fmt.Fprintf(a.Stderr, "%s: building %s's image with its %d packages\n", Tool, o, len(pkgs))
+	sayf(a.Stderr, "%s: building %s's image with its %d packages\n", Tool, o, len(pkgs))
 	if err := a.passthrough(ctx, false, "docker", "build", "-t", img.tag, img.dir); err != nil {
 		return img, err
 	}

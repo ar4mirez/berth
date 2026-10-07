@@ -28,7 +28,7 @@ func TestInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, errOut, code := run(t, "--home", t.TempDir(), "install", "--alias", "ccenv")
+	out, errOut, code := run(t, "--home", t.TempDir(), "system", "install", "--alias", "ccenv")
 	if code != 0 {
 		t.Fatalf("code %d, stderr %q", code, errOut)
 	}
@@ -61,7 +61,7 @@ func TestInstall(t *testing.T) {
 	if _, errOut, code := run(t, "--home", t.TempDir(), "--read-only", "install"); code != 1 || !strings.Contains(errOut, "read-only") {
 		t.Errorf("--read-only install: code %d, stderr %q", code, errOut)
 	}
-	for _, args := range [][]string{{"install", "--alias"}, {"install", "--alias", "berth"}, {"install", "--frob"}} {
+	for _, args := range [][]string{{"system", "install", "--alias"}, {"install", "--alias", "berth"}, {"system", "install", "--frob"}} {
 		if _, _, code := run(t, append([]string{"--home", t.TempDir()}, args...)...); code != 1 {
 			t.Errorf("%v: code %d, want 1", args, code)
 		}

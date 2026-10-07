@@ -66,7 +66,7 @@ func (a *App) Upgrade(ctx context.Context, args []string) error {
 		if err := a.Host.FS.WriteFile(prevFile, []byte(a.Self+"\n"), 0o644); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.Stdout, "Rolled back to %s. Nothing was restarted.\n", prev)
+		sayf(a.Stdout, "Rolled back to %s. Nothing was restarted.\n", prev)
 		return nil
 	}
 	if a.Upgrader == nil || a.Upgrader.Verifier == nil {
@@ -78,10 +78,10 @@ func (a *App) Upgrade(ctx context.Context, args []string) error {
 	}
 	cur := "v" + strings.TrimPrefix(version.Version, "v")
 	if rel.Tag == cur {
-		fmt.Fprintf(a.Stdout, "%s is already at %s.\n", Tool, rel.Tag)
+		sayf(a.Stdout, "%s is already at %s.\n", Tool, rel.Tag)
 		return nil
 	}
-	fmt.Fprintf(a.Stdout, "Fetching %s (%s/%s), verifying its signature and checksum…\n", rel.Tag, runtime.GOOS, runtime.GOARCH)
+	sayf(a.Stdout, "Fetching %s (%s/%s), verifying its signature and checksum…\n", rel.Tag, runtime.GOOS, runtime.GOARCH)
 	bin, err := upgrade.Fetch(ctx, a.Upgrader.Client, a.Upgrader.Verifier, rel, runtime.GOOS, runtime.GOARCH)
 	if err != nil {
 		return fmt.Errorf("%w; nothing was changed", err)
@@ -113,7 +113,7 @@ func (a *App) Upgrade(ctx context.Context, args []string) error {
 	if err := a.linkBinary(ctx, dst); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.Stdout, "Upgraded to %s (%s). The previous version stays; undo with: %s upgrade --rollback\n", rel.Tag, dst, Tool)
+	sayf(a.Stdout, "Upgraded to %s (%s). The previous version stays; undo with: %s upgrade --rollback\n", rel.Tag, dst, Tool)
 	a.imageNote(ctx, dst)
 	return nil
 }
@@ -164,11 +164,11 @@ func (a *App) imageNote(ctx context.Context, bin string) {
 	next, err := a.capture(ctx, true, bin, "image-tag")
 	switch {
 	case err != nil || next == "":
-		fmt.Fprintf(a.Stdout, "Your orgs keep running on their current image; if this version changes it, each org picks it up at its next restart (docs/image-update.md).\n")
+		sayf(a.Stdout, "Your orgs keep running on their current image; if this version changes it, each org picks it up at its next restart (docs/image-update.md).\n")
 	case next == set.Tag:
-		fmt.Fprintf(a.Stdout, "The container image is unchanged (%s).\n", next)
+		sayf(a.Stdout, "The container image is unchanged (%s).\n", next)
 	default:
-		fmt.Fprintf(a.Stdout, "The container image changes (%s -> %s). Nothing was restarted: each org picks it up at its next restart; get it ready first with: %s pull (or %s build). See docs/image-update.md.\n", set.Tag, next, Tool, Tool)
+		sayf(a.Stdout, "The container image changes (%s -> %s). Nothing was restarted: each org picks it up at its next restart; get it ready first with: %s pull (or %s build). See docs/image-update.md.\n", set.Tag, next, Tool, Tool)
 	}
 }
 

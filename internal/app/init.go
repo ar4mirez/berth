@@ -162,7 +162,7 @@ func (a *App) Init(ctx context.Context, args []string) error {
 			return err
 		}
 	}
-	fmt.Fprintf(a.Stdout, `Created %[1]s
+	sayf(a.Stdout, `Created %[1]s
 
 Next:
   1. Start:   %[2]s up %[3]s
@@ -171,12 +171,12 @@ Next:
   4. Repos:   %[2]s repo add %[3]s <owner/repo>   (only registered repos are allowed)
 `, d, Tool, o, a.catFile(path.Join(d, "ssh", "id_ed25519.pub")))
 	if prof != nil {
-		fmt.Fprintf(a.Stdout, "\nFrom the profile (model provider: %s):\n", prof.Provider)
+		sayf(a.Stdout, "\nFrom the profile (model provider: %s):\n", prof.Provider)
 		for _, k := range prof.Secrets {
-			fmt.Fprintf(a.Stdout, "  - Set %s:  %s env %s set %s\n", k, Tool, o, k)
+			sayf(a.Stdout, "  - Set %s:  %s env %s set %s\n", k, Tool, o, k)
 		}
 		if prof.Setup != "" {
-			fmt.Fprintf(a.Stdout, "  - The setup script runs as node at every start (config/setup.sh); its log: %s\n", contract.SetupLog)
+			sayf(a.Stdout, "  - The setup script runs as node at every start (config/setup.sh); its log: %s\n", contract.SetupLog)
 		}
 	}
 	return nil
@@ -210,7 +210,7 @@ func (a *App) homePubKeys() []byte {
 
 // orgEnvTemplate is init's org.env, with MANAGER=berth first.
 func orgEnvTemplate(o, name, email, bind string, ssh, ttyd int) string {
-	return "MANAGER=berth\n" + `# ---- Claude account (use: ` + Tool + ` token ` + o + `) ---------------------------------
+	return ops.Respell("MANAGER=berth\n" + `# ---- Claude account (use: ` + Tool + ` token ` + o + `) ---------------------------------
 CLAUDE_CODE_OAUTH_TOKEN=
 # Alternative, API/Console billing:
 # ANTHROPIC_API_KEY=
@@ -239,5 +239,5 @@ REPO_POLICY=enforce
 # ---- Resources --------------------------------------------------------------------
 MEM_LIMIT=8g
 CPUS=4
-`
+`)
 }

@@ -54,7 +54,7 @@ func TestUpgradeThroughTheCLI(t *testing.T) {
 
 	// A newer release: fetched, verified, installed next to the others, and linked by its own install.
 	serve(&upgradetest.FakeRelease{Tag: "v9.9.9", Binary: fakeBerth("9.9.9")}, &upgradetest.FakeVerifier{})
-	out, errOut, code := run(t, "--home", state, "upgrade")
+	out, errOut, code := run(t, "--home", state, "system", "upgrade")
 	installed := filepath.Join(home, ".local", "opt", "berth", "9.9.9", "berth")
 	if code != 0 || errOut != "" || !strings.Contains(out, "Upgraded to v9.9.9 ("+installed+")") {
 		t.Fatalf("upgrade: code %d\nstdout %s\nstderr %s", code, out, errOut)
@@ -79,7 +79,7 @@ func TestUpgradeThroughTheCLI(t *testing.T) {
 
 	// A signature that doesn't verify: an error, and nothing installed.
 	serve(&upgradetest.FakeRelease{Tag: "v9.9.10", Binary: fakeBerth("9.9.10")}, &upgradetest.FakeVerifier{Reject: true})
-	_, errOut, code = run(t, "--home", state, "upgrade")
+	_, errOut, code = run(t, "--home", state, "system", "upgrade")
 	if code != 1 || !strings.Contains(errOut, "nothing was changed") {
 		t.Errorf("bad signature: code %d, stderr %q", code, errOut)
 	}
@@ -88,7 +88,7 @@ func TestUpgradeThroughTheCLI(t *testing.T) {
 	}
 
 	// --read-only refuses before anything is fetched.
-	if _, errOut, code = run(t, "--home", state, "--read-only", "upgrade"); code != 1 || !strings.Contains(errOut, "read-only") {
+	if _, errOut, code = run(t, "--home", state, "--read-only", "system", "upgrade"); code != 1 || !strings.Contains(errOut, "read-only") {
 		t.Errorf("--read-only: code %d, stderr %q", code, errOut)
 	}
 }
