@@ -56,7 +56,8 @@ were left.
 - [x] T5. Docs: the Debian and Fedora tabs; `berth upgrade`'s hint for a system package.
 - [x] T6. The aqua registry entry, tested with aqua.
 - [x] T7. Windows recorded as decided.
-- [ ] T8. After the first deploy: check the published repositories, then set `PKG_REPO=true`.
+- [x] T8. After the first deploy: the published repositories were checked (v0.4.0 and v0.4.1, verified and
+      signed; `apt install berth` on Debian and `dnf install berth` on Fedora gave 0.4.1), and `PKG_REPO=true` is set.
 - [ ] T9. Maintainer: submit the aqua entry.
 
 ## Acceptance criteria
