@@ -18,7 +18,38 @@ The API listens on a **Unix socket only you can open** (mode 0600, created that 
 socket: whoever can open it is you, and could run `berth` anyway. A socket left behind by a server that is gone is
 replaced; a file that isn't a socket, or a socket that still answers, is not.
 
-Nothing listens on the network. TCP, with tokens over TLS, is a separate step (#62).
+Nothing listens on the network unless you ask.
+
+### Over the network: TLS and tokens
+
+```bash
+berth serve token add ci --scope read          # prints the token once
+berth serve --listen 127.0.0.1:8443            # the socket, and TCP
+```
+
+- **TLS only** (1.3). berth serves with the certificate you give (`--tls-cert`, `--tls-key`), or with one it makes the
+  first time and keeps in `~/.config/berth/api/`. It prints the certificate's SHA-256 at start: a client pins that,
+  or trusts `~/.config/berth/api/cert.pem` as its CA.
+- **Every request needs a token**: `Authorization: Bearer <token>`. Without one, or with a wrong one, the answer is
+  401, for a read too.
+- **A token has a scope**, and does no more than it:
+
+  | Scope | May |
+  |---|---|
+  | `read` (the default) | read |
+  | `write` | also change things (firewall, repos, backups) |
+  | `restart` | also start, restart and stop orgs, each still with `confirm` |
+
+- **berth keeps only a token's hash** (`~/.config/berth/api/tokens.json`, 0600). `berth serve token ls` lists names,
+  scopes and dates; `berth serve token rm <name>` removes one, and a running server refuses it at once.
+- `--read-only` still wins: no token writes through a read-only server.
+
+```bash
+curl --cacert ~/.config/berth/api/cert.pem -H "Authorization: Bearer $TOKEN" https://127.0.0.1:8443/v1/orgs
+```
+
+Bind `--listen` to the address you mean: `127.0.0.1` for this machine, a VPN address for your tailnet. `0.0.0.0`
+offers the API, behind its tokens, to every network the machine is on.
 
 ## The rules
 
@@ -87,7 +118,8 @@ A failure is a `berth.error/v1` document, as `--output json` prints on stderr, w
 | Status | Kind | |
 |---|---|---|
 | 400 | `usage` | the arguments don't fit |
-| 403 | `refused` | read-only, or a restart without `confirm` |
+| 401 | `refused` | on TCP: no token, or a wrong one |
+| 403 | `refused` | read-only, a token without the scope, or a restart without `confirm` |
 | 404 | `not-found` | no such org, host or endpoint |
 | 409 | `not-running`, `state` | the org isn't in a state for this |
 | 500 | `command`, `failed` | the operation failed |
