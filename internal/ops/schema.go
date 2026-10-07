@@ -201,3 +201,6 @@ func validate(s map[string]any, v any, at string, problems *[]string) {
 		}
 	}
 }
+
+// SchemaOf is the JSON Schema of a Go type, as the documents' schemas are written.
+func SchemaOf(t reflect.Type) map[string]any { return schemaOf(t) }

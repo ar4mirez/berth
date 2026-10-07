@@ -10,8 +10,10 @@ package mcpsrv
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -33,12 +35,31 @@ type Options struct {
 	NewApp func(stdout, stderr io.Writer) *app.App
 }
 
-// Spec is one tool as the catalog sees it. Specs lists them all, for the docs and the tests.
+// Caller is who asks for a tool, and what they may do. The MCP server's is how it was started; the
+// API's (internal/api) is the socket's owner, or a token's scope.
+type Caller struct {
+	// Via names the interface in the audit log: "mcp", "api".
+	Via string
+	// Writes lets tools change things; Restarts lets them recreate or stop containers too.
+	Writes, Restarts bool
+	// Events, when set, gets the operation's progress as it runs (ops.Event).
+	Events func(ops.Event)
+}
+
+// Spec is one tool as the catalog sees it. Specs lists them all, for the docs, the tests, and the
+// API, which serves the same tools over HTTP.
 type Spec struct {
 	Name string
 	// Cmd and Sub are the operation in ops.Catalog that decides what the tool may do.
 	Cmd, Sub string
 	Op       ops.Op
+	// Description is the tool's, with what it needs to run.
+	Description string
+	// In and Out are its arguments and its result.
+	In, Out reflect.Type
+	// Invoke runs it for a caller, with its arguments as JSON: the same gate, audit and errors as
+	// through MCP. An argument the tool doesn't have is refused.
+	Invoke func(ctx context.Context, by Caller, args json.RawMessage) (any, error)
 }
 
 type server struct {
@@ -138,7 +159,6 @@ func addQuery[In, Out any](s *server, name, description string, h func(ctx conte
 
 func register[In, Out any](s *server, spec Spec, description string, h func(ctx context.Context, c *call, in In) (Out, error)) {
 	name, op := spec.Name, spec.Op
-	s.specs = append(s.specs, spec)
 	tool := &mcp.Tool{Name: name, Description: ops.Respell(description), Annotations: &mcp.ToolAnnotations{
 		ReadOnlyHint:    op.Access == ops.Read,
 		DestructiveHint: boolp(op.Restart != ops.Never || destructive[name]),
@@ -151,10 +171,17 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 	case op.Access == ops.Write:
 		tool.Description += " Changes the org: needs the server started with --allow-writes."
 	}
-	mcp.AddTool(s.mcp, tool, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
+	core := func(ctx context.Context, by Caller, in In) (res Out, rerr error) {
 		var zero Out
 		c := &call{s: s}
 		c.app = s.opts.NewApp(&c.stdout, &c.stderr)
+		if by.Events != nil {
+			// What the operation prints becomes events too, as it does for --output json.
+			p := ops.NewProgress(by.Events, strings.TrimSpace(spec.Cmd+" "+spec.Sub), "")
+			c.app.Progress = p
+			c.app.Stdout, c.app.Stderr = io.MultiWriter(&c.stdout, p.Writer("stdout")), io.MultiWriter(&c.stderr, p.Writer("stderr"))
+			defer func() { p.Done(rerr) }() // the last event: done, or failed with the error
+		}
 		defer func() {
 			for _, d := range c.done {
 				d()
@@ -164,7 +191,7 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 			if op.Access != ops.Write {
 				return
 			}
-			e := app.AuditEntry{Via: "mcp", Tool: name, Outcome: outcome, Args: map[string]any{}}
+			e := app.AuditEntry{Via: by.Via, Tool: name, Outcome: outcome, Args: map[string]any{}}
 			if a, ok := any(in).(audited); ok {
 				e.Args = a.auditArgs()
 			}
@@ -173,9 +200,9 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 			}
 			_ = c.app.Audit(ctx, e)
 		}
-		if err := s.allowed(name, op, in); err != nil {
+		if err := allowed(name, op, in, by); err != nil {
 			record("refused", err)
-			return nil, zero, err
+			return zero, err
 		}
 		out, err := h(ctx, c, in)
 		if err != nil {
@@ -187,12 +214,32 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 			} else if o := c.output(); o != "" {
 				msg = o + "\n" + msg
 			}
-			err = fmt.Errorf("%s", ops.Respell(msg))
+			err = &ops.Error{Kind: e.Kind, Code: e.Code, Msg: ops.Respell(msg), Quiet: e.Quiet}
 			record("failed", err)
-			return nil, zero, err
+			return zero, err
 		}
 		record("ok", nil)
-		return nil, out, nil
+		return out, nil
+	}
+	spec.Description, spec.In, spec.Out = tool.Description, reflect.TypeFor[In](), reflect.TypeFor[Out]()
+	spec.Invoke = func(ctx context.Context, by Caller, args json.RawMessage) (any, error) {
+		var in In
+		if len(bytes.TrimSpace(args)) > 0 {
+			dec := json.NewDecoder(bytes.NewReader(args))
+			dec.DisallowUnknownFields()
+			if err := dec.Decode(&in); err != nil {
+				return nil, &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: "the arguments don't fit " + name + ": " + err.Error()}
+			}
+		}
+		return core(ctx, by, in)
+	}
+	s.specs = append(s.specs, spec)
+	mcp.AddTool(s.mcp, tool, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
+		out, err := core(ctx, Caller{Via: "mcp", Writes: s.opts.AllowWrites, Restarts: s.opts.AllowRestarts}, in)
+		if err != nil {
+			err = fmt.Errorf("%s", err.Error()) // the text is the whole of a tool error
+		}
+		return nil, out, err
 	})
 }
 
@@ -200,12 +247,15 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 var destructive = map[string]bool{"repo_remove": true, "firewall_deny": true}
 
 // allowed is the gate: what the catalog says the operation does, against how the server was started.
-func (s *server) allowed(name string, op ops.Op, in any) error {
+func allowed(name string, op ops.Op, in any, by Caller) error {
 	if op.Access == ops.Read {
 		return nil
 	}
 	if op.Restart != ops.Never {
-		if !s.opts.AllowRestarts {
+		if !by.Restarts {
+			if by.Via != "mcp" {
+				return refused("%s restarts or stops a container (%s), and this caller may not: refused", name, op.Note)
+			}
 			return fmt.Errorf("%s restarts or stops a container (%s), and this server wasn't started with --allow-restarts: refused. "+
 				"Tell the user; they can run it themselves, or restart the server with: berth mcp --allow-restarts", name, op.Note)
 		}
@@ -214,14 +264,22 @@ func (s *server) allowed(name string, op ops.Op, in any) error {
 			return fmt.Errorf("%s: no confirmation argument", name)
 		}
 		if org, confirm := c.confirmation(); confirm == "" || confirm != org {
-			return fmt.Errorf("%s stops the work running in %s (%s). To go ahead, ask the user, then call it again with confirm set to %q: refused",
+			return refused("%s stops the work running in %s (%s). To go ahead, ask the user, then call it again with confirm set to %q: refused",
 				name, org, op.Note, org)
 		}
 		return nil
 	}
-	if !s.opts.AllowWrites {
+	if !by.Writes {
+		if by.Via != "mcp" {
+			return refused("%s changes things, and this caller may only read: refused", name)
+		}
 		return fmt.Errorf("%s changes things, and this server is read-only: refused. "+
 			"Tell the user; they can run it themselves, or restart the server with: berth mcp --allow-writes", name)
 	}
 	return nil
+}
+
+// refused is a caller asking for more than it may do.
+func refused(format string, args ...any) error {
+	return &ops.Error{Kind: ops.KindRefused, Code: 1, Msg: fmt.Sprintf(format, args...)}
 }

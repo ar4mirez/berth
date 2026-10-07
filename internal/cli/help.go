@@ -36,7 +36,7 @@ var placement = map[string]string{
 	"account": "account",
 	"backup":  "backups", "restore": "backups", "schedule": "backups", "keygen": "backups",
 	"host": "hosts", "use": "hosts",
-	"system": "system", "mcp": "system", "tui": "system",
+	"system": "system", "mcp": "system", "tui": "system", "serve": "system",
 }
 
 // nounGroups: group -> verb -> the top-level command it copies. A top-level command listed here
@@ -92,6 +92,7 @@ var examples = map[string][]string{
 	"repo":               {"berth repo add acme acme/widgets", "berth repo ls acme", "berth repo policy acme enforce"},
 	"clone":              {"berth clone acme acme/widgets --branch main"},
 	"fw":                 {"berth fw acme show", "berth fw acme allow pypi.org @python", "berth fw acme test"},
+	"serve":              {"berth serve", "berth --read-only serve", "berth serve --socket /run/user/1000/berth.sock", "curl --unix-socket \"$XDG_RUNTIME_DIR/berth.sock\" http://berth/v1/orgs"},
 	"tui":                {"berth tui", "berth --read-only tui"},
 	"mcp":                {"berth mcp", "berth mcp --allow-writes", "claude mcp add berth -- berth mcp"},
 	"pkg":                {"berth pkg acme add @playwright-chromium", "berth pkg acme add libpq-dev", "berth pkg acme", "berth restart acme"},

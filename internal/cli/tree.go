@@ -416,7 +416,7 @@ func layout(root *cobra.Command) {
 	}
 	t.kept("image-tag")
 
-	for _, name := range []string{"tui", "mcp"} {
+	for _, name := range []string{"tui", "mcp", "serve"} {
 		c := t.take(name)
 		c.GroupID = "commands"
 		setExample(c, name)

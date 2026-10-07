@@ -163,6 +163,9 @@ var Catalog = map[string]Op{
 	// The dashboard (#59): it reads; each action in it is one of the operations here, checked as such.
 	"tui": readText("an interactive dashboard: it needs a terminal"),
 
+	// The API (#62): it serves the operations here, each checked as such for each caller.
+	"serve": readText("the API server: clients talk to it over its socket"),
+
 	// The MCP server (#61): read-only unless started with a flag that lets its tools write or restart.
 	"mcp": {Access: BySub, Subs: map[string]Op{
 		"":                 readText("an MCP server: it speaks the protocol on stdin and stdout"),
