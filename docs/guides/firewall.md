@@ -66,6 +66,17 @@ firewall: WARNING skipped (see above): web-git-*.example.app. Remove each with: 
 
 `berth fw acme` then shows `live: on 187 (1 skipped)`. At a container start, the same lines are in `berth logs acme`.
 
+## DNS
+
+Names resolve through a resolver inside the container, which asks the one Docker gave the container, and adds each
+answer for an allowlisted name to the allowlist as it goes. DNS to any other resolver is refused, so a lookup can't
+carry data out.
+
+Each time the list is applied, berth checks that a lookup still gets an answer. If none does, it says so
+(`firewall: WARNING DNS isn't answering …`), the status reads `on 187 (DNS not answering)`, and the command ends with
+exit code 3. While DNS is down, the addresses already allowed stay allowed
+([Troubleshooting](../troubleshooting.md#nothing-resolves)).
+
 ## The model provider
 
 Anthropic's endpoints are allowed unless the file has a `provider` line. With one, that provider's endpoints replace

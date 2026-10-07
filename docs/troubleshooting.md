@@ -13,6 +13,22 @@
 
 See [The firewall](guides/firewall.md).
 
+## Nothing resolves
+
+**Symptom:** every name fails inside the org (`Could not resolve host`, `EAI_AGAIN`), Remote Control shows
+`restarting`, and `berth fw acme` shows `live: on 12 (DNS not answering)`.
+
+The org's lookups go to the resolver Docker gave its container, and to no other.
+
+1. **See what berth says.** `berth fw acme reload` prints `firewall: WARNING DNS isn't answering …` with the
+   resolvers it tried, and ends with exit code 3.
+2. **Check that resolver from the host.** If it is down, or a VPN that provided it is disconnected, DNS comes back
+   when it does, at the next rebuild (within five minutes, or `berth fw acme reload`). The addresses that were
+   allowed stay allowed meanwhile.
+3. **An org still on the image of berth 0.3.0 to 0.4.1** on a host whose Docker forwards to a resolver that isn't loopback
+   (a `dns` setting in `daemon.json`, a LAN or VPN resolver) has no DNS at all. Restart it onto the current image
+   (`berth restart acme`), or allow the resolver until you can: `berth fw acme allow <resolver>/32`.
+
 ## A repo is refused
 
 **Symptom:** `git clone`/`fetch`/`push` fails with a message about an unregistered repo, or Claude is told the repo

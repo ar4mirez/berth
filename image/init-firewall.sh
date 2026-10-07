@@ -4,8 +4,8 @@
 #   init-firewall.sh presets  list available @presets
 # File format: one entry per line. `mode on|off`, a domain (or `*.domain`), an IPv4 address or range,
 # or `@preset`. An entry that is none of these is skipped with a warning, and the rest still applies
-# (#104). Exit codes: 0 applied; 3 applied, but something was skipped or DNS allowlisting is down;
-# anything else, not applied.
+# (#104). Exit codes: 0 applied; 3 applied, but something was skipped, DNS allowlisting is down, or
+# DNS doesn't answer (#98); anything else, not applied.
 set -euo pipefail
 set -f   # entries are split on spaces and may hold a `*`: never expand them against the filesystem
 
@@ -99,6 +99,21 @@ done
 # a compose network), saved once per container; DNS to anywhere else is blocked below.
 UPSTREAM=/run/resolv.conf.upstream
 [ -f "$UPSTREAM" ] || cp /etc/resolv.conf "$UPSTREAM"
+# dns_upstreams: the resolvers this container's DNS traffic goes to, one per line: the upstream
+# file's nameservers, then Docker's ExtServers, which it writes as "[1.2.3.4 host(5.6.7.8) fd00::1]".
+# A host(...) one is asked from the host's network namespace, not from here, so it needs no rule
+# and gets none.
+dns_upstreams() {
+  awk '/^nameserver/ {print $2}' "$UPSTREAM"
+  sed -n 's/^# ExtServers: \[\(.*\)\].*$/\1/p' "$UPSTREAM" | tr ',' ' ' | tr -s ' ' '\n' \
+    | grep -E '^[0-9a-fA-F:.]+$' || true
+}
+# dns_answers: whether a lookup gets an answer from upstream. The name is new each time, so no cache
+# can answer for it, and "no such name" is an answer.
+dns_answers() {
+  dig +time=2 +tries=2 +noall +comments "berth-dns-check-$RANDOM$RANDOM.example.com" 2>/dev/null \
+    | grep -qE 'status: (NOERROR|NXDOMAIN)'
+}
 dns_conf() {  # dns_conf <file> <domain>...: dnsmasq's config, with one ipset line per name
   local f="$1" ns e; shift
   {
@@ -157,6 +172,12 @@ finish() {
   local problems=""
   [ ${#skipped[@]} -eq 0 ] || problems="${#skipped[@]} skipped"
   [ -z "$dns_down" ] || problems+="${problems:+, }$dns_down"
+  # The rules are in place: a lookup must still get through. A firewall that looks fine while
+  # nothing resolves is the worst outcome (#98).
+  if [ -z "${dns_ok-unchecked}" ] || ! dns_answers; then
+    problems+="${problems:+, }DNS not answering"
+    echo "firewall: WARNING DNS isn't answering: names can't be resolved in this container (resolvers: $(dns_upstreams | tr '\n' ' '))" >&2
+  fi
   echo "$1${problems:+ ($problems)}" > "$STATUS"
   echo "firewall: $2"
   [ -n "$problems" ] || exit 0
@@ -176,33 +197,53 @@ fi
 # Build the new set while the old rules still allow DNS/GitHub, then swap atomically.
 ipset create -exist allowed hash:net
 ipset create -exist allowed-new hash:net; ipset flush allowed-new
-if meta=$(curl -fsS --max-time 10 https://api.github.com/meta); then
-  echo "$meta" | jq -r '(.web + .api + .git)[]' | grep -v ':' | while read -r c; do ipset add -exist allowed-new "$c"; done
-else
-  echo "firewall: WARNING could not fetch GitHub ranges" >&2
-fi
-for e in "${ips[@]}"; do
-  ipset add -exist allowed-new "$e" 2>/dev/null || skip "$e" "not an IPv4 address or range"
-done
-for e in "${domains[@]}"; do
-  case " ${skipped[*]} " in *" $e "*) continue ;; esac   # dnsmasq refused it above
-  e="${e#\*.}"
-  for ip in $(dig +short +time=2 +tries=2 A "$e" | grep -E '^[0-9]+(\.[0-9]+){3}$' || true); do
-    ipset add -exist allowed-new "$ip"
+# With no DNS at all (the upstream is down, or can't be reached), nothing below would resolve, at
+# four seconds a name, and the swap would replace the allowlist with an empty one. The addresses
+# already allowed are kept instead, until a rebuild that can resolve (#98).
+dns_ok=1; dns_answers || dns_ok=""
+if [ -n "$dns_ok" ]; then
+  if meta=$(curl -fsS --max-time 10 https://api.github.com/meta); then
+    echo "$meta" | jq -r '(.web + .api + .git)[]' | grep -v ':' | while read -r c; do ipset add -exist allowed-new "$c"; done
+  else
+    echo "firewall: WARNING could not fetch GitHub ranges" >&2
+  fi
+  for e in "${ips[@]}"; do
+    ipset add -exist allowed-new "$e" 2>/dev/null || skip "$e" "not an IPv4 address or range"
   done
-done
-ipset swap allowed-new allowed && ipset destroy allowed-new
+  for e in "${domains[@]}"; do
+    case " ${skipped[*]} " in *" $e "*) continue ;; esac   # dnsmasq refused it above
+    e="${e#\*.}"
+    for ip in $(dig +short +time=2 +tries=2 A "$e" | grep -E '^[0-9]+(\.[0-9]+){3}$' || true); do
+      ipset add -exist allowed-new "$ip"
+    done
+  done
+  ipset swap allowed-new allowed && ipset destroy allowed-new
+else
+  echo "firewall: WARNING no DNS: names weren't resolved again, and the addresses already allowed are kept" >&2
+  for e in "${ips[@]}"; do
+    ipset add -exist allowed "$e" 2>/dev/null || skip "$e" "not an IPv4 address or range"
+  done
+  ipset destroy allowed-new
+fi
 
 iptables -F CLAUDE-EGRESS
 iptables -A CLAUDE-EGRESS -o lo -j ACCEPT
 iptables -A CLAUDE-EGRESS -m state --state ESTABLISHED,RELATED -j ACCEPT
 # DNS goes to dnsmasq (loopback, accepted above), which asks the upstream Docker gave the
-# container. Only that upstream is reachable on port 53 when it isn't loopback: no DNS to arbitrary
-# resolvers, which also closes DNS-based exfiltration.
-for ns in $(awk '/^nameserver/ {print $2}' "$UPSTREAM"); do
-  case "$ns" in 127.*) ;; *[!0-9.]*) ;; *)
-    iptables -A CLAUDE-EGRESS -d "$ns" -p udp --dport 53 -j ACCEPT
-    iptables -A CLAUDE-EGRESS -d "$ns" -p tcp --dport 53 -j ACCEPT ;;
+# container. Only that upstream is reachable on port 53: no DNS to arbitrary resolvers, which also
+# closes DNS-based exfiltration. The upstream is the file's nameservers that aren't loopback, and
+# the resolvers Docker's own DNS (127.0.0.11) forwards to: it lists them as "# ExtServers: [...]",
+# and it sends those queries from this network namespace, through this chain, whenever the host's
+# resolver isn't a loopback stub (a `dns` setting in daemon.json, a LAN or VPN resolver). Without a
+# rule for them, every lookup fails (#98).
+for ns in $(dns_upstreams); do
+  case "$ns" in
+    127.*) ;;
+    *:*) ip6tables -C OUTPUT -d "$ns" -p udp --dport 53 -j ACCEPT 2>/dev/null || ip6tables -A OUTPUT -d "$ns" -p udp --dport 53 -j ACCEPT 2>/dev/null || true
+         ip6tables -C OUTPUT -d "$ns" -p tcp --dport 53 -j ACCEPT 2>/dev/null || ip6tables -A OUTPUT -d "$ns" -p tcp --dport 53 -j ACCEPT 2>/dev/null || true ;;
+    *[!0-9.]*) ;;
+    *) iptables -A CLAUDE-EGRESS -d "$ns" -p udp --dport 53 -j ACCEPT
+       iptables -A CLAUDE-EGRESS -d "$ns" -p tcp --dport 53 -j ACCEPT ;;
   esac
 done
 subnet=$(ip -4 route | awk '!/default/ && /proto kernel/ {print $1; exit}')
@@ -213,5 +254,5 @@ iptables -A CLAUDE-EGRESS -j REJECT --reject-with icmp-admin-prohibited
 ip6tables -P OUTPUT DROP 2>/dev/null || true
 ip6tables -C OUTPUT -o lo -j ACCEPT 2>/dev/null || ip6tables -A OUTPUT -o lo -j ACCEPT 2>/dev/null || true
 
-n=$(ipset list allowed | grep -cE '^[0-9]')
+n=$(ipset list allowed | grep -cE '^[0-9]' || true)   # 0 networks is a count, not a failure (no DNS at all)
 finish "on $n" "ON ($n allowlisted networks)"

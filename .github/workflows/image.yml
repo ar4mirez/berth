@@ -125,6 +125,53 @@ jobs:
               curl -fsS -o /dev/null --max-time 15 https://example.com
               echo "ok: bad entries are skipped and reported; DNS stays up with and without dnsmasq"'
           docker network rm berth-bad-ci >/dev/null
+      - name: firewall - DNS when Docker forwards to a resolver that isn't loopback (#98)
+        run: |
+          set -euo pipefail
+          cfg=$(mktemp -d); printf 'mode on\nexample.com\n' > "$cfg/firewall.txt"
+          docker network create berth-dns-ci >/dev/null
+          # --dns makes Docker's own DNS (127.0.0.11) forward to 1.1.1.1 from the container's network
+          # namespace, through the firewall's chain: the case that had no DNS at all.
+          docker run --rm --network berth-dns-ci --dns 1.1.1.1 --cap-add NET_ADMIN --cap-add NET_RAW -v "$cfg:/config:ro" \
+            --entrypoint bash berth-image-ci -c '
+              set -euo pipefail
+              grep -qx "# ExtServers: \[1.1.1.1\]" /etc/resolv.conf || { echo "Docker wrote another resolv.conf:"; cat /etc/resolv.conf; exit 1; }
+              fresh() { dig +short +time=3 +tries=1 "$@" | grep -E "^[0-9.]+$" | head -1; }   # a name nothing looked up yet
+              init-firewall.sh apply
+              [ "$(cat /run/firewall.status)" = "$(cut -d" " -f1,2 /run/firewall.status)" ] || { echo "status: $(cat /run/firewall.status)"; exit 1; }
+              iptables -S CLAUDE-EGRESS | grep -q -- "-d 1.1.1.1/32 -p udp -m udp --dport 53 -j ACCEPT" || { echo "no port-53 rule for the ExtServer"; exit 1; }
+              [ -n "$(fresh www.iana.org)" ] || { echo "no DNS after the rules are in place"; exit 1; }
+              [ -n "$(fresh @127.0.0.11 www.ietf.org)" ] || { echo "Docker DNS cannot reach its upstream"; exit 1; }
+              curl -fsS -o /dev/null --max-time 15 https://example.com
+              if [ -n "$(fresh @9.9.9.9 example.net)" ]; then echo "another resolver is reachable"; exit 1; fi
+              # The 5-minute rebuild runs with the rules in place: still DNS, and the same allowlist.
+              n=$(ipset list allowed | grep -cE "^[0-9]"); init-firewall.sh apply >/dev/null
+              [ "$(ipset list allowed | grep -cE "^[0-9]")" -ge "$n" ] && [ -n "$(fresh www.rfc-editor.org)" ] || { echo "the rebuild lost DNS or the allowlist"; exit 1; }
+              # The resolver stops answering: reported (exit 3, the status), quickly, and the allowlist is kept.
+              iptables -I OUTPUT 1 -d 1.1.1.1 -p udp --dport 53 -j DROP; iptables -I OUTPUT 1 -d 1.1.1.1 -p tcp --dport 53 -j DROP
+              SECONDS=0; rc=0; init-firewall.sh apply >/dev/null 2>/tmp/err || rc=$?
+              [ "$rc" = 3 ] && grep -q "DNS not answering" /run/firewall.status && grep -q "the addresses already allowed are kept" /tmp/err \
+                || { echo "no DNS: exit $rc, status $(cat /run/firewall.status)"; cat /tmp/err; exit 1; }
+              [ "$SECONDS" -lt 60 ] && [ "$(ipset list allowed | grep -cE "^[0-9]")" -ge "$n" ] || { echo "no DNS: took ${SECONDS}s, or the allowlist shrank"; exit 1; }
+              iptables -D OUTPUT 1; iptables -D OUTPUT 1
+              init-firewall.sh apply >/dev/null && [ -n "$(fresh www.w3.org)" ] || { echo "DNS did not come back"; exit 1; }
+              echo "ok: DNS through an ExtServer; other resolvers blocked; an outage is reported and keeps the allowlist"'
+          # What Docker may write there: an address asked from here gets a rule; a host(...) one is asked
+          # from the host and gets none; IPv6 goes to ip6tables.
+          up=$(mktemp -d); printf 'nameserver 127.0.0.11\noptions ndots:0\n\n# ExtServers: [host(10.9.8.7) 10.9.8.6, fd00::53]\n' > "$up/resolv.conf.upstream"
+          docker run --rm --network berth-dns-ci --cap-add NET_ADMIN --cap-add NET_RAW -v "$cfg:/config:ro" -v "$up:/up:ro" \
+            --entrypoint bash berth-image-ci -c '
+              set -euo pipefail
+              cp /up/resolv.conf.upstream /run/resolv.conf.upstream
+              init-firewall.sh apply >/dev/null
+              rules=$(iptables -S CLAUDE-EGRESS)
+              grep -q -- "-d 10.9.8.6/32 -p udp -m udp --dport 53 -j ACCEPT" <<<"$rules" && grep -q -- "-d 10.9.8.6/32 -p tcp -m tcp --dport 53 -j ACCEPT" <<<"$rules" || { echo "no rule for 10.9.8.6"; exit 1; }
+              if grep -q "10.9.8.7" <<<"$rules"; then echo "a host(...) resolver got a rule"; exit 1; fi
+              if ip6tables -S OUTPUT >/dev/null 2>&1; then
+                ip6tables -S OUTPUT | grep -q -- "-d fd00::53/128 -p udp -m udp --dport 53 -j ACCEPT" || { echo "no ip6tables rule for fd00::53"; exit 1; }
+              fi
+              echo "ok: ExtServers are parsed: plain addresses get a rule, host(...) ones none"'
+          docker network rm berth-dns-ci >/dev/null
       - name: git - github.com over HTTPS with gh's token, for registered repos only (#103)
         run: |
           set -euo pipefail
