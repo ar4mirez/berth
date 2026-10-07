@@ -127,6 +127,7 @@ jobs:
       BERTH_IMAGE: ${{ needs.image-manifest.outputs.image }}
     permissions:
       contents: write      # create the release (tags only)
+      actions: write       # run the docs workflow, which publishes the apt and yum repositories
       id-token: write      # keyless cosign signing, and the provenance attestations
       attestations: write  # build provenance (tags only)
     steps:
@@ -193,3 +194,11 @@ jobs:
             dist/*.rpm
             dist/*.pkg.tar.zst
             dist/checksums.txt
+
+      # The apt and yum repositories (#60) are on the docs site: its workflow rebuilds them from the
+      # latest releases' packages, this one included.
+      - name: publish the apt and yum repositories
+        if: ${{ success() && startsWith(github.ref, 'refs/tags/v') }}
+        run: gh workflow run docs.yml --ref main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

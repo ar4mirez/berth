@@ -9,11 +9,14 @@ name: packages
 #     checksum checked, and refuses a tampered archive;
 #   - mise (ubi:) against the latest release, asking GitHub for it directly (mise's own versions
 #     host can lag a new release; that only warns);
+#   - the apt and yum repositories: built from the snapshot's packages with a throwaway key and
+#     installed from on Debian, Ubuntu and Fedora, with a tampered copy refused; and the published
+#     ones, as the docs tell users to add them (the PKG_REPO repository variable);
 #   - Homebrew and the AUR once they're published (the HOMEBREW_TAP / AUR repository variables).
 # Weekly as well, so a channel that breaks between releases shows up.
 on:
   pull_request:
-    paths: [".goreleaser.yaml", "install.sh", "internal/docgen/**", "tools/gendocs/**", ".github/workflows/packages.yml"]
+    paths: [".goreleaser.yaml", "install.sh", "internal/docgen/**", "tools/gendocs/**", "tools/pkgrepo/**", ".github/workflows/packages.yml"]
   schedule:
     - cron: "17 6 * * 1"
   workflow_dispatch:
@@ -84,6 +87,59 @@ jobs:
           # A package manager's install is upgraded there, not by berth upgrade.
           if out=$(berth upgrade 2>&1); then echo "berth upgrade didn't defer: $out"; exit 1; fi
           echo "$out" | grep -q "package manager"
+
+  # The apt and yum repositories (tools/pkgrepo): built, signed and installed from, end to end.
+  repository:
+    needs: snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: pkgs
+      - run: tools/pkgrepo/test.sh pkgs
+
+  # The published repositories, added exactly as docs/getting-started.md says.
+  repository-published:
+    if: vars.PKG_REPO == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: "debian:stable-slim"
+            install: |
+              apt-get update -qq && apt-get install -y -qq curl ca-certificates >/dev/null
+              install -d -m 755 /etc/apt/keyrings
+              curl -fsSL -o /etc/apt/keyrings/berth.gpg https://ar4mirez.github.io/berth/apt/berth.gpg
+              echo "deb [signed-by=/etc/apt/keyrings/berth.gpg] https://ar4mirez.github.io/berth/apt stable main" > /etc/apt/sources.list.d/berth.list
+              apt-get update -qq && apt-get install -y -qq berth
+          - image: "ubuntu:24.04"
+            install: |
+              apt-get update -qq && apt-get install -y -qq curl ca-certificates >/dev/null
+              install -d -m 755 /etc/apt/keyrings
+              curl -fsSL -o /etc/apt/keyrings/berth.gpg https://ar4mirez.github.io/berth/apt/berth.gpg
+              echo "deb [signed-by=/etc/apt/keyrings/berth.gpg] https://ar4mirez.github.io/berth/apt stable main" > /etc/apt/sources.list.d/berth.list
+              apt-get update -qq && apt-get install -y -qq berth
+          - image: "fedora:latest"
+            install: |
+              curl -fsSL -o /etc/yum.repos.d/berth.repo https://ar4mirez.github.io/berth/rpm/berth.repo
+              dnf install -y -q berth
+    container: ${{ matrix.image }}
+    steps:
+      - name: install from the repository (${{ matrix.image }})
+        run: ${{ matrix.install }}
+      - name: the latest release is what was installed
+        shell: sh
+        run: |
+          set -eu
+          command -v curl >/dev/null || dnf install -y -q curl
+          latest=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/ar4mirez/berth/releases/latest); latest=${latest##*/v}
+          got=$(berth --version); echo "$got"
+          case "$got" in "berth $latest "*) ;; *) echo "the repository has that, and the latest release is $latest"; exit 1 ;; esac
 
   aur:
     needs: snapshot

@@ -73,6 +73,7 @@ bundle format; install those by hand.
 |---|---|
 | `berth_<v>_<os>_<arch>.tar.gz` | the binary, with the README, LICENSE, man pages and completion (linux and darwin, amd64 and arm64) |
 | `berth_<v>_<arch>.deb`, `berth-<v>-1.<arch>.rpm`, `berth-<v>-1-<arch>.pkg.tar.zst` | packages for Debian and Ubuntu, Fedora and RHEL, and Arch (linux, amd64 and arm64) |
+| the apt and yum repositories | the same packages of the latest five releases, at `https://ar4mirez.github.io/berth/apt` and `/rpm`, with an index signed by berth's packages key ([getting started](getting-started.md#install-berth)) |
 | `berth_<v>.tar.gz` | the source, which the AUR's `berth` package builds |
 | `install.sh` | the install script ([Getting started](getting-started.md#install-berth)) |
 | `checksums.txt`, `checksums.txt.sigstore.json` | every file's SHA-256, and its signature |
