@@ -1,20 +1,27 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
+	"github.com/ar4mirez/berth/internal/api"
 	"github.com/ar4mirez/berth/internal/app"
 	"github.com/ar4mirez/berth/internal/config"
 	"github.com/ar4mirez/berth/internal/host"
@@ -86,6 +93,54 @@ func appMaker(st config.State) func(stdout, stderr io.Writer) *app.App {
 		a.Invoked = invokedPath()
 		return a
 	}
+}
+
+// serveCmd is `berth serve [--socket PATH]` (#62): the API.
+func serveCmd() *cobra.Command {
+	var socket string
+	c := reads(&cobra.Command{
+		Use: "serve [--socket PATH]", Short: "the API server: berth's operations over HTTP, on a Unix socket", Args: cobra.NoArgs,
+		Long: "Serves berth's API (docs/api.md) on a Unix socket that only you can open: by default\n" +
+			"$XDG_RUNTIME_DIR/berth.sock, or berth.sock in ~/.config/berth. Access is the socket's file\n" +
+			"permissions (0600): whoever can open it could run berth anyway.\n\n" +
+			"Each endpoint is one of berth's operations, under the command line's rules: a restart needs the\n" +
+			"org's name again as `confirm`, secret values are never returned, and every change asked for is\n" +
+			"in the state root's audit.log. With --read-only it only reads. It runs until interrupted.",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			st := stateFrom(cmd.Context())
+			if socket == "" {
+				socket = api.SocketPath(os.Getenv)
+			}
+			l, err := local.ListenUnix(socket) // closing it removes the socket
+			if err != nil {
+				return err
+			}
+			srv := &http.Server{
+				Handler:           api.Handler(api.Options{Version: version.Version, ReadOnly: st.ReadOnly, NewApp: appMaker(st), Caller: api.Local}),
+				ReadHeaderTimeout: 10 * time.Second,
+			}
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			go func() {
+				<-ctx.Done()
+				// Requests in flight get a moment; a log follow ends with its client's context.
+				end, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = srv.Shutdown(end)
+			}()
+			mode := "reads and writes"
+			if st.ReadOnly {
+				mode = "read-only"
+			}
+			fmt.Fprintf(cmd.ErrOrStderr(), "berth serve: listening on %s (%s)\n", socket, mode)
+			if err := srv.Serve(l); !errors.Is(err, http.ErrServerClosed) {
+				return err
+			}
+			return nil
+		},
+	})
+	c.Flags().StringVar(&socket, "socket", "", "the Unix socket to listen on (default: $XDG_RUNTIME_DIR/berth.sock, or ~/.config/berth/berth.sock)")
+	return c
 }
 
 // tuiCmd is `berth tui` (#59): an interactive dashboard.
@@ -470,6 +525,7 @@ func addCommands(root *cobra.Command) {
 		}),
 		mcpCmd(),
 		tuiCmd(),
+		serveCmd(),
 		reads(&cobra.Command{
 			Use: "image-tag", Short: "the image tag this berth uses", Hidden: true, Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, _ []string) error { return appFor(cmd).ImageTag() },

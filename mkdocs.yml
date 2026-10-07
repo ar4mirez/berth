@@ -63,6 +63,7 @@ nav:
   - Reference:
       - The command line: cli.md
       - Commands: reference/commands/berth.md
+      - The API: api.md
       - Configuration and files: reference/config.md
       - JSON output: json.md
       - Repo policy (canonical form): repo-policy.md

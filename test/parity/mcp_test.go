@@ -265,10 +265,11 @@ func auditLines(t *testing.T, r Result) []string {
 			t.Fatalf("audit line %q: %v", l, err)
 		}
 		args, _ := json.Marshal(e.Args)
-		if e.Via != "mcp" || e.Time == "" {
+		if (e.Via != "mcp" && e.Via != "api") || e.Time == "" {
 			t.Errorf("audit entry: %+v", e)
 		}
 		out = append(out, e.Tool+"|"+e.Outcome+"|"+string(args))
+		auditVia = e.Via
 	}
 	return out
 }
@@ -446,3 +447,6 @@ func TestBerthMCPBackup(t *testing.T) {
 		t.Errorf("no orgs: isError %v, %q", isErr, text)
 	}
 }
+
+// auditVia is the interface the last audit entry read came through.
+var auditVia string

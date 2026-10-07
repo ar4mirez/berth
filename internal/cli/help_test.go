@@ -22,7 +22,7 @@ func TestHelpLayout(t *testing.T) {
 	}
 	last := -1
 	for _, want := range []string{"Everyday:", "\n  ls ", "\n  up ", "\n  down ", "\n  restart ", "\n  shell ", "\n  claude ", "\n  attach ", "\n  logs ", "\n  info ",
-		"Commands:", "\n  org ", "\n  repo ", "\n  fw ", "\n  env ", "\n  pkg ", "\n  account ", "\n  backup ", "\n  host ", "\n  system ", "\n  tui ", "\n  mcp ", "\n  help "} {
+		"Commands:", "\n  org ", "\n  repo ", "\n  fw ", "\n  env ", "\n  pkg ", "\n  account ", "\n  backup ", "\n  host ", "\n  system ", "\n  tui ", "\n  mcp ", "\n  serve ", "\n  help "} {
 		i := strings.Index(out, want)
 		if i < 0 || i < last || strings.Count(out, want) != 1 {
 			t.Errorf("help: %q is missing, repeated or out of order:\n%s", want, out)

@@ -24,6 +24,7 @@ Every command lives in one group, and each group's `--help` lists its verbs. The
 | `berth system` | `install` `upgrade` `pull` `build` `completion` `parity-check` |
 | `berth tui` | (the dashboard: [guide](guides/tui.md)) |
 | `berth mcp` | (the MCP server: [guide](guides/mcp.md)) |
+| `berth serve` | (the API: [reference](api.md)) |
 
 **Everyday shortcuts.** Nine `berth org` commands also work on their own, since you type them all day:
 `berth ls`, `up`, `down`, `restart`, `shell`, `claude`, `attach`, `logs` and `info`. `berth up acme` is
