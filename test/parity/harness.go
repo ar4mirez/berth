@@ -172,6 +172,10 @@ func Berth(bin string) Tool {
 		if filepath.Base(rel) == "org.env" {
 			return strings.TrimPrefix(c, managerLine)
 		}
+		// The template's line about wildcards is berth's own (PARITY.md): TestBerthFirewallTemplate.
+		if filepath.Base(rel) == "firewall.txt" {
+			return strings.Replace(c, berthWildcardLine, ccenvWildcardLine, 1)
+		}
 		return c
 	}
 	// berth builds and runs its own image (plan, decision 5): berth/claude-env:<hash>, from its
@@ -201,6 +205,12 @@ func Berth(bin string) Tool {
 	}
 	return t
 }
+
+// The one line of firewall.txt's template that differs.
+const (
+	berthWildcardLine = "# A domain allows that name and every name under it; *.example.com means the same.\n"
+	ccenvWildcardLine = "# Entries are resolved to IPs, so wildcards (*.example.com) are not supported.\n"
+)
 
 var (
 	// repo add's write-access check (#103): TestBerthRepoAddWriteCheck.

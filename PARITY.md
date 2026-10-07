@@ -100,6 +100,11 @@ intentional addition) · `(pN)` is the plan phase that ports it.
 (`show` included). Changes are applied live (`fw_apply`): if running, `docker exec claude-<org>
 init-firewall.sh apply`; otherwise `(saved; applies on: ccenv up <org>)`.
 
+**One line of the template differs.** ccenv's says `# Entries are resolved to IPs, so wildcards (*.example.com) are
+not supported.` Since #104 a domain allows every name under it and `*.example.com` means the same, so berth's says
+`# A domain allows that name and every name under it; *.example.com means the same.` The comparison maps the line
+back; `TestBerthFirewallTemplate` checks the real text.
+
 | Item | stdout / stderr / exit | Files (modes) | Docker / host calls | Other side effects | Status |
 |---|---|---|---|---|---|
 | `fw <org> [show]` | the file path, the entries (`grep -vE '^\s*(#\|$)'`, indented two spaces), and `live: …` if running (`… \|\| echo unknown`) | the template (mode 0666 minus the umask) if missing | running: `docker exec … cat /run/firewall.status` | quirk, mirrored: a file with no entries ends `show` with exit 1 right after the path (grep selects nothing, pipefail + set -e) | **done** (#15): scenarios `fw show …`. Under `--read-only`, berth shows the template without writing it |
