@@ -6,20 +6,20 @@ Commands that return data accept `--output json`. It's a global flag, so it goes
 ```bash
 berth --output json ls
 berth --output json info acme
-berth --output json whoami
-berth --output json remote acme status
-berth --output json env acme ls
-berth --output json fw acme show
+berth --output json account whoami
+berth --output json account remote status acme
+berth --output json env ls acme
+berth --output json fw show acme
 berth --output json host ls
-berth --output json use
+berth --output json org use
 berth --output json repo ls acme
 berth --output json repo audit acme
 berth --output json repo policy acme
-berth --output json fw acme presets
-berth --output json fw acme test pypi.org
-berth --output json pkg acme
-berth --output json pkg acme presets
-berth --output json schedule status
+berth --output json fw presets acme
+berth --output json fw test acme pypi.org
+berth --output json pkg ls acme
+berth --output json pkg presets acme
+berth --output json backup schedule status
 berth --output json host guard box1 status
 ```
 
@@ -28,16 +28,16 @@ stream, report [events](#progress-bertheventv1) instead. Asking one of those for
 that changes things, fails right away and changes nothing:
 
 ```console
-$ berth --output json completion
+$ berth --output json system completion
 berth: --output json isn't available for "completion": it is a shell script
 ```
 
 | No JSON for | Why |
 |---|---|
-| `completion` | a shell script |
-| `connect` | it holds an SSH tunnel open until interrupted |
-| `password <org>` | a secret, and secrets never appear in JSON |
-| `parity-check` | a line diff against ccenv, for the cutover |
+| `system completion` | a shell script |
+| `org connect` | it holds an SSH tunnel open until interrupted |
+| `org password show <org>` | a secret, and secrets never appear in JSON |
+| `system parity-check` | a line diff against ccenv, for the cutover |
 
 `internal/ops` holds the list (`JSON` or `NoJSON` on each operation), and a test fails for a reading command with
 neither.
@@ -63,21 +63,21 @@ from it; a field that may be `null` says so.
 |---|---|---|
 | `berth.orgs/v1` | `ls` | [`orgs.v1.json`](schemas/orgs.v1.json) |
 | `berth.info/v1` | `info <org>` | [`info.v1.json`](schemas/info.v1.json) |
-| `berth.whoami/v1` | `whoami [org...]` | [`whoami.v1.json`](schemas/whoami.v1.json) |
-| `berth.remote/v1` | `remote <org> status` | [`remote.v1.json`](schemas/remote.v1.json) |
-| `berth.env/v1` | `env <org> ls` | [`env.v1.json`](schemas/env.v1.json) |
-| `berth.firewall/v1` | `fw <org> show` | [`firewall.v1.json`](schemas/firewall.v1.json) |
-| `berth.firewall-presets/v1` | `fw <org> presets` | [`firewall-presets.v1.json`](schemas/firewall-presets.v1.json) |
-| `berth.firewall-test/v1` | `fw <org> test [host...]` | [`firewall-test.v1.json`](schemas/firewall-test.v1.json) |
+| `berth.whoami/v1` | `account whoami [org...]` | [`whoami.v1.json`](schemas/whoami.v1.json) |
+| `berth.remote/v1` | `account remote status <org>` | [`remote.v1.json`](schemas/remote.v1.json) |
+| `berth.env/v1` | `env ls <org>` | [`env.v1.json`](schemas/env.v1.json) |
+| `berth.firewall/v1` | `fw show <org>` | [`firewall.v1.json`](schemas/firewall.v1.json) |
+| `berth.firewall-presets/v1` | `fw presets <org>` | [`firewall-presets.v1.json`](schemas/firewall-presets.v1.json) |
+| `berth.firewall-test/v1` | `fw test <org> [host...]` | [`firewall-test.v1.json`](schemas/firewall-test.v1.json) |
 | `berth.repos/v1` | `repo ls <org>` | [`repos.v1.json`](schemas/repos.v1.json) |
 | `berth.repo-audit/v1` | `repo audit <org>` | [`repo-audit.v1.json`](schemas/repo-audit.v1.json) |
 | `berth.repo-policy/v1` | `repo policy <org>` | [`repo-policy.v1.json`](schemas/repo-policy.v1.json) |
-| `berth.schedule/v1` | `schedule status` | [`schedule.v1.json`](schemas/schedule.v1.json) |
+| `berth.schedule/v1` | `backup schedule status` | [`schedule.v1.json`](schemas/schedule.v1.json) |
 | `berth.hosts/v1` | `host ls` | [`hosts.v1.json`](schemas/hosts.v1.json) |
 | `berth.host-guard/v1` | `host guard <name> status` | [`host-guard.v1.json`](schemas/host-guard.v1.json) |
-| `berth.packages/v1` | `pkg <org>` | [`packages.v1.json`](schemas/packages.v1.json) |
-| `berth.package-presets/v1` | `pkg <org> presets` | [`package-presets.v1.json`](schemas/package-presets.v1.json) |
-| `berth.default-org/v1` | `use` | [`default-org.v1.json`](schemas/default-org.v1.json) |
+| `berth.packages/v1` | `pkg ls <org>` | [`packages.v1.json`](schemas/packages.v1.json) |
+| `berth.package-presets/v1` | `pkg presets <org>` | [`package-presets.v1.json`](schemas/package-presets.v1.json) |
+| `berth.default-org/v1` | `org use` | [`default-org.v1.json`](schemas/default-org.v1.json) |
 | `berth.image/v1` | `image-tag` | [`image.v1.json`](schemas/image.v1.json) |
 | `berth.error/v1` | any command that fails (on stderr) | [`error.v1.json`](schemas/error.v1.json) |
 | `berth.event/v1` | the long operations (one per line) | [`event.v1.json`](schemas/event.v1.json) |
@@ -100,7 +100,7 @@ $ berth --output json info nope
   "kind": "not-found",
   "code": 1,
   "message": "unknown org 'nope'",
-  "hint": "run: berth init nope"
+  "hint": "run: berth org create nope"
 }
 ```
 
@@ -127,7 +127,7 @@ happened.
 
 ## Progress: `berth.event/v1`
 
-`up`, `restart`, `build`, `pull`, `backup`, `restore`, `logs` and `remote <org> logs` take a while, or never end.
+`up`, `restart`, `system build`, `system pull`, `backup create`, `backup restore`, `logs` and `account remote logs <org>` take a while, or never end.
 With `--output json` they print one event per line on stdout as they go, and nothing on stderr:
 
 ```console
@@ -160,6 +160,10 @@ error's `code` after `failed`.
 | `backup` | `org`, once per org (`message` is its name) |
 | `restore` | `restore`, then `start` when the restored org is started |
 | `logs`, `remote <org> logs` | none: every line is an `output` event |
+
+An operation keeps one name whatever the command is called: the event's `op` is `build` for `berth system build`,
+`backup` for `berth backup create`, `restore` for `berth backup restore`, and `remote logs` for
+`berth account remote logs <org>`.
 
 Steps may be added without changing the schema's version. `backup -o -` writes the backup itself to stdout, so it
 can't be combined with `--output json`.
@@ -197,7 +201,7 @@ can't be combined with `--output json`.
 | `unreachable` | the registered hosts whose orgs couldn't be listed: `{"host": "box1", "error": "…"}`. Always present, `[]` when none. |
 | `destroyed` | orgs `destroy` removed (offboarded), where, and when (UTC), that don't exist again since. Always present, `[]` when none. |
 
-## `berth.env/v1`: `env <org> ls`
+## `berth.env/v1`: `env ls <org>`
 
 ```json
 { "schema": "berth.env/v1", "org": "acme", "vars": [ { "name": "OPENROUTER_API_KEY", "present": true } ] }
@@ -206,7 +210,7 @@ can't be combined with `--output json`.
 `present` is `false` when `CCENV_ENV_KEYS` lists the variable but `org.env` has no line for it. The text output
 shows the same case as `(listed but missing)`.
 
-## `berth.firewall/v1`: `fw <org> show`
+## `berth.firewall/v1`: `fw show <org>`
 
 ```json
 {
@@ -272,11 +276,11 @@ shows the same case as `(listed but missing)`.
 | `ssh_port`, `ttyd_port` | numbers, or `null` when `org.env` has no valid value |
 | `user`, `ssh_host` | the account SSH uses, and the `Host` alias berth suggests for `~/.ssh/config` |
 | `git_public_key` | the org's git key; `""` if it can't be read (the reason is on stderr) |
-| `tunnel` | `null`, or `{"connect": "acme@box1", "ssh_target": "ops@box1.example"}` for an org reached through an SSH tunnel: the argument for `berth connect`, and where to tunnel by hand (`""` when unknown) |
+| `tunnel` | `null`, or `{"connect": "acme@box1", "ssh_target": "ops@box1.example"}` for an org reached through an SSH tunnel: the argument for `berth org connect`, and where to tunnel by hand (`""` when unknown) |
 
-The browser terminal's password is never included: `berth password acme` prints it.
+The browser terminal's password is never included: `berth org password show acme` prints it.
 
-## `berth.whoami/v1`: `whoami [org...]`
+## `berth.whoami/v1`: `account whoami [org...]`
 
 ```json
 {
@@ -299,7 +303,7 @@ The browser terminal's password is never included: `berth password acme` prints 
 | `github` | the gh CLI's login in the container; `""` when it isn't signed in, or the org is down |
 | `claude` | the Remote Control login; `null` when not logged in, or the org is down |
 
-## `berth.remote/v1`: `remote <org> status`
+## `berth.remote/v1`: `account remote status <org>`
 
 ```json
 { "schema": "berth.remote/v1", "org": "acme", "state": "on", "url": "https://claude.ai/code?environment=env_0123", "capacity": "Capacity: 1/8 sessions" }
@@ -313,7 +317,7 @@ The browser terminal's password is never included: `berth password acme` prints 
 The org must be running: otherwise the command fails as the text one does. Where the text output ends with exit 1
 because the service hasn't logged a capacity line yet, the JSON has `"capacity": ""` and exit 0.
 
-## `berth.default-org/v1`: `use`
+## `berth.default-org/v1`: `org use`
 
 ```json
 { "schema": "berth.default-org/v1", "org": "acme@box1" }
@@ -368,13 +372,13 @@ quarantine folder: the command then fails with exit 2, as the text one does.
 { "schema": "berth.repo-policy/v1", "org": "acme", "policy": "enforce" }
 ```
 
-## `berth.firewall-presets/v1`: `fw <org> presets`
+## `berth.firewall-presets/v1`: `fw presets <org>`
 
 ```json
 { "schema": "berth.firewall-presets/v1", "presets": [ { "name": "@python", "hosts": ["pypi.org", "files.pythonhosted.org"] } ] }
 ```
 
-## `berth.firewall-test/v1`: `fw <org> test [host...]`
+## `berth.firewall-test/v1`: `fw test <org> [host...]`
 
 ```json
 { "schema": "berth.firewall-test/v1", "org": "acme", "results": [ { "url": "https://pypi.org", "allowed": true } ] }
@@ -382,7 +386,7 @@ quarantine folder: the command then fails with exit 2, as the text one does.
 
 Each `url` is tried from inside the running container; a bare host is tried over `https`.
 
-## `berth.schedule/v1`: `schedule status`
+## `berth.schedule/v1`: `backup schedule status`
 
 ```json
 { "schema": "berth.schedule/v1", "kind": "systemd", "timer": ["NEXT …", "Tue 2026-10-06 02:30:00 …"], "runs": ["== acme", "Wrote …"], "jobs": [], "log": "" }
@@ -403,7 +407,7 @@ Each `url` is tried from inside the running container; a bare host is tried over
 `rules` is the guard's own report of its chains. When the guard isn't installed, `installed` is `false` and the
 other two are `""`.
 
-## `berth.packages/v1`: `pkg <org>`
+## `berth.packages/v1`: `pkg ls <org>`
 
 ```json
 {
@@ -427,7 +431,7 @@ other two are `""`.
 | `base_image`, `image` | berth's image, and the one this org runs on (the same when it lists no packages) |
 | `built` | whether `image` exists on the org's host now |
 
-## `berth.package-presets/v1`: `pkg <org> presets`
+## `berth.package-presets/v1`: `pkg presets <org>`
 
 ```json
 { "schema": "berth.package-presets/v1", "presets": [ { "name": "@playwright-chromium", "packages": ["libasound2", "…"] } ] }

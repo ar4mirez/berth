@@ -24,11 +24,11 @@ if ! repo_allowed_canon "$canon"; then
     berth repo add $ORG ${canon#*/}"
 fi
 
-# gh's own login only (berth gh-login), as git-transport chose by it: a GH_TOKEN variable is ignored.
+# gh's own login only (berth account gh), as git-transport chose by it: a GH_TOKEN variable is ignored.
 unset GH_TOKEN GITHUB_TOKEN
 gh auth token --hostname github.com >/dev/null 2>&1 \
   || deny "the gh CLI isn't signed in for '$ORG', so git can't use its token. Ask the user to run on the host:
-    berth gh-login $ORG"
+    berth account gh $ORG"
 # The first, empty helper drops any other credential helper: only gh's token is offered.
 exec git -c credential.helper= -c 'credential.helper=!gh auth git-credential' \
   remote-https "$1" "https://github.com/${canon#github.com/}.git"

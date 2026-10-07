@@ -3,7 +3,7 @@
 #   https  the gh CLI is signed in: git uses its token, through git-remote-berth
 #   ssh    it isn't, or org.env has GIT_TRANSPORT=ssh: git uses the org's key, through git-ssh-guard
 # Both only connect for repos in /config/repos.txt. Runs as root: at container start, every 30
-# seconds after (a sign-in or sign-out inside the container is picked up), and from `berth gh-login`.
+# seconds after (a sign-in or sign-out inside the container is picked up), and from `berth account gh`.
 #   git-transport apply   choose, and rewrite the config if the choice changed
 #   git-transport show    print the current choice
 set -euo pipefail
@@ -14,7 +14,7 @@ RULES=/etc/claude-env/git-transport.gitconfig   # included by git's system confi
 if [ "${1:-apply}" = show ]; then cat "$STATE" 2>/dev/null || echo ssh; exit 0; fi
 
 want=ssh
-# Only gh's own login counts (berth gh-login), not a GH_TOKEN variable: this runs with the container's
+# Only gh's own login counts (berth account gh), not a GH_TOKEN variable: this runs with the container's
 # environment at start and with docker exec's from berth, and both must choose the same.
 if [ "${GIT_TRANSPORT:-auto}" != ssh ] \
    && runuser -u node -- env -u GH_TOKEN -u GITHUB_TOKEN gh auth token --hostname github.com >/dev/null 2>&1; then

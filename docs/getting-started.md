@@ -32,7 +32,7 @@ Every channel installs a signed release. Pick one:
     - **Install:** it installs into `~/.local/opt/berth/<version>/`, links `~/.local/bin/berth`, and adds shell
       completion. It needs no root.
 
-    **Upgrade:** `berth upgrade` (same checks; `berth upgrade --rollback` goes back).
+    **Upgrade:** `berth system upgrade` (same checks; `berth system upgrade --rollback` goes back).
 
 === "Homebrew (macOS)"
 
@@ -120,7 +120,7 @@ Each package in them comes from a release whose own signature was verified first
 repository's signed index lists every package's checksum, which is what apt and dnf check; the packages themselves
 carry no signature of their own.
 
-**Which upgrade path applies:** with a package manager, `berth upgrade` says which one installed berth and
+**Which upgrade path applies:** with a package manager, `berth system upgrade` says which one installed berth and
 leaves the upgrade to it.
 
 **What's in every archive and package:** the man pages (`man berth`, `man berth-org-up`, …) and bash, zsh and fish
@@ -136,18 +136,18 @@ you reach them over SSH or the browser terminal.
 ## Your first org
 
 ```bash
-berth init acme --name "Ada Lovelace" --email ada@example.com
+berth org create acme --name "Ada Lovelace" --email ada@example.com
 berth up acme                   # pulls berth's image (or builds it), then starts the container
-berth auth acme                 # sign in: the Claude token, then the Remote Control login
+berth account signin acme                 # sign in: the Claude token, then the Remote Control login
 ```
 
-`berth auth` runs inside the container and prints a sign-in link. **Open it in a private browser window**, or a
+`berth account signin` runs inside the container and prints a sign-in link. **Open it in a private browser window**, or a
 browser profile for that org, and sign in with that org's Claude account. The rest of your browser, your own `claude`
-and your other orgs are never touched. `berth whoami` shows which account each org uses.
+and your other orgs are never touched. `berth account whoami` shows which account each org uses.
 
 Then give the org access to GitHub:
 
-1. **`berth gh-login acme`.** It signs in the `gh` CLI inside the container, for PRs, issues and the API. git then
+1. **`berth account gh acme`.** It signs in the `gh` CLI inside the container, for PRs, issues and the API. git then
    reaches the org's registered GitHub repos with that login's token, so they are writable with nothing more to set
    up. It also puts the org's git key on that GitHub account, with this machine's `gh`, if that is signed in to the
    same account.
@@ -167,17 +167,17 @@ Then give the org access to GitHub:
 |---|---|
 | This machine | `berth attach acme`: the org's persistent tmux session, `main` |
 | Any device (your tailnet) | `ssh -t -p <SSH_PORT> node@<address> tmux new -A -s main` |
-| A browser, phone or tablet | `http://<address>:<TTYD_PORT>` (password: `berth password acme`) |
+| A browser, phone or tablet | `http://<address>:<TTYD_PORT>` (password: `berth org password show acme`) |
 | claude.ai/code, the Claude app | the org's Remote Control environment: pick it and start a **New session** |
 | VS Code, Cursor | Remote-SSH to `claude-acme` (the `~/.ssh/config` block is in `berth info acme`) |
-| Scripts, cron | `berth run acme "your prompt"` (headless `claude -p`) |
+| Scripts, cron | `berth org run acme "your prompt"` (headless `claude -p`) |
 | A quick question | `berth claude acme` (interactive `claude` in `/workspace`) |
 
 All the terminal ways join **the same** tmux session. You can start on your laptop and pick it up on your phone.
 
 ## Next
 
-- Open the firewall for what the org needs: `berth fw acme allow @python pypi.org` ([Firewall](guides/firewall.md)).
-- Nightly encrypted backups: `berth keygen`, then `berth schedule` ([Backups](guides/backups.md)).
+- Open the firewall for what the org needs: `berth fw allow acme @python pypi.org` ([Firewall](guides/firewall.md)).
+- Nightly encrypted backups: `berth backup keygen`, then `berth backup schedule on` ([Backups](guides/backups.md)).
 - Run orgs on another machine: `berth host add box1 ops@box1.example` ([Hosts](hosts.md)).
-- A default org, so you can leave it out: `berth use acme` ([The command line](cli.md)).
+- A default org, so you can leave it out: `berth org use acme` ([The command line](cli.md)).

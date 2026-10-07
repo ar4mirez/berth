@@ -72,7 +72,7 @@ uses to refuse writes under `--read-only`.
 | `backups_list`, `schedule_status` | the backup files here; the nightly schedule | |
 | `firewall_allow`, `firewall_deny` | add or remove allowlist entries, applied live | `--allow-writes` |
 | `repo_add`, `repo_remove` | register and clone a repo; unregister one (its folder goes to quarantine, not deleted) | `--allow-writes` |
-| `backup_create` | an encrypted backup of orgs on this machine | `--allow-writes`, and a backup key (`berth keygen`) |
+| `backup_create` | an encrypted backup of orgs on this machine | `--allow-writes`, and a backup key (`berth backup keygen`) |
 | `org_up`, `org_restart`, `org_down` | start, recreate or stop an org's container | `--allow-restarts`, and `confirm` |
 
 An org is named as on the command line: `acme`, or `acme@box1` for one on a registered host.
@@ -81,7 +81,7 @@ Results are the same documents `--output json` prints ([JSON output](../json.md)
 documented there. A tool that changes something also returns what berth printed doing it. A failure is a tool error
 with berth's message and its hint.
 
-What isn't there on purpose: setting a variable's value (a secret would pass through the agent), `init`, `destroy`,
+What isn't there on purpose: setting a variable's value (a secret would pass through the agent), `org create`, `org destroy`,
 sign-ins, and anything interactive.
 
 ## Resources

@@ -9,9 +9,9 @@ An org on a host is addressed as `org@host` (#45). A bare org name stays on this
 ## org@host
 
 ```bash
-berth init acme@box1 --name "Ada" --email ada@example.com   # the org lives in box1's state root
+berth org create acme@box1 --name "Ada" --email ada@example.com   # the org lives in box1's state root
 berth up acme@box1
-berth fw acme@box1 allow pypi.org
+berth fw allow acme@box1 pypi.org
 berth repo add acme@box1 acme/widgets
 berth attach acme@box1                        # interactive commands go through your ssh binary (ssh -t)
 berth ls                                      # this machine's orgs, then each host's, with a HOST column
@@ -24,15 +24,15 @@ berth ls                                      # this machine's orgs, then each h
 - **Addressing forms.**
   - `acme@local` is the same as `acme`.
   - An unknown host is refused before anything connects.
-  - `whoami` takes several orgs, all on one host.
+  - `account whoami` takes several orgs, all on one host.
 - **What `ls` shows.**
   - `ls` lists every host's orgs and never hides one it can't reach: it says so on stderr, and
     `--output json` lists it under `unreachable`.
   - With no hosts registered, its output is exactly as before.
 - **Completion.** After an `@`, completion offers the registered hosts. It reads the registry and never connects.
-- **Not remote yet.** `backup`, `restore`, `secrets migrate` and `parity-check` refuse an
-  `org@host`, because they read your backup key or write your files. For those, use `schedule --host` and `migrate`
-  (below). `build` and `pull` act on this machine. `schedule` takes `--host` (below).
+- **Not remote yet.** `backup create`, `backup restore`, `env migrate` and `system parity-check` refuse an
+  `org@host`, because they read your backup key or write your files. For those, use `backup schedule on --host` and `org migrate`
+  (below). `system build` and `system pull` act on this machine. `backup schedule` takes `--host` (below).
 - **`fw edit` on a host.** It opens the editor on that host, over `ssh -t`.
 
 ## Commands
@@ -40,7 +40,7 @@ berth ls                                      # this machine's orgs, then each h
 ```bash
 berth host add box1 ops@box1.example           # [user@]host[:port]; the user defaults to $USER, the port to 22
 berth host add box2 box2.example --engine podman   # the engine is detected (Docker, else Podman) unless given
-berth host add box3 ops@203.0.113.7 --bind localhost   # new orgs there bind to localhost: reach them with berth connect
+berth host add box3 ops@203.0.113.7 --bind localhost   # new orgs there bind to localhost: reach them with berth org connect
 berth host ls                                  # every host: reachable, Docker version, number of orgs
 berth --output json host ls                    # the same, as berth.hosts/v1 (docs/json.md)
 berth host rotate-access box1                  # replace berth's key on box1
@@ -107,15 +107,15 @@ reminds you to remove the `berth:<name>` line by hand.
 
 ## Moving an org between hosts
 
-`berth migrate acme box1` moves `acme` from this machine to `box1`. `berth migrate acme@box1 local` moves it back,
+`berth org migrate acme box1` moves `acme` from this machine to `box1`. `berth org migrate acme@box1 local` moves it back,
 and `acme@box1 box2` moves it between hosts (#50). There are two stages.
 
 **1. Rehearsal (no downtime).**
 
 - The org is streamed into a **stopped** copy on the target, while it keeps running where it is. The stream is
   the backup format, unencrypted, over berth's SSH connections.
-- The copy's ports and bind address are fitted to the target, as `restore` does.
-- The copy is then checked: `org.env` (except what `restore` adjusts), every file under `config/`, and every
+- The copy's ports and bind address are fitted to the target, as `backup restore` does.
+- The copy is then checked: `org.env` (except what `backup restore` adjusts), every file under `config/`, and every
   file's path and size except the regenerable data backups skip. Files that changed while the org ran are
   reported, not counted against it.
 
@@ -147,15 +147,15 @@ when the target isn't a registered host.
 
 ## Backups on a host
 
-`berth schedule --host box1` gives a host its own nightly `backup --all` (#49). It takes the same flags as a local
+`berth backup schedule on --host box1` gives a host its own nightly `backup --all` (#49). It takes the same flags as a local
 schedule (`--at`, `--keep`, `-o <dir on the host>`, `status`, `run`, `off`).
 
-`schedule --host` does the following:
+`backup schedule on --host` does the following:
 
 1. **Puts berth on the host.** For a release, that's the signed release binary for the host's architecture, verified
-   as `berth upgrade` does. It goes in `~/.local/opt/berth/<version>/`, linked from `~/.local/bin/berth` there.
+   as `berth system upgrade` does. It goes in `~/.local/opt/berth/<version>/`, linked from `~/.local/bin/berth` there.
    (A development build can only be pushed to a host of its own platform, unverified, and berth says so.)
-2. **Runs the host's own `berth schedule`** with `BERTH_BACKUP_RECIPIENTS` set to your public key: the one in
+2. **Runs the host's own `berth backup schedule on`** with `BERTH_BACKUP_RECIPIENTS` set to your public key: the one in
    `$BERTH_BACKUP_RECIPIENTS`, or `backup.key`'s public half. The host sets up a systemd user timer, or cron where
    it has no systemd user manager, just as a local schedule does.
 
@@ -164,7 +164,7 @@ Things to know:
 - **Only public keys reach the host.** Its backups are encrypted to your key, and your private `backup.key` never
   leaves this machine. The host can make backups but can't read them.
 - **Upgrades keep it working.** The job calls `~/.local/bin/berth`, so upgrading berth on the host (running
-  `schedule --host` again with a newer berth, or `berth upgrade` there) keeps it running.
+  `backup schedule on --host` again with a newer berth, or `berth system upgrade` there) keeps it running.
 - **Where backups go:** the host's `<state root>/backups/` by default, or `-o`.
 - **Logged-out runs:** with systemd, the host reports whether linger is on. Without it, runs happen only while that
   user is logged in (`sudo loginctl enable-linger <user>` there).
@@ -179,7 +179,7 @@ rsync -a ops@box1.example:.local/share/berth/backups/ ~/berth-backups/box1/     
 rclone copy ops@box1:.local/share/berth/backups remote:berth/box1                  # or object storage
 ```
 
-Restore one here with `berth restore <file>`, which uses your key. Automatic pulls may come later.
+Restore one here with `berth backup restore <file>`, which uses your key. Automatic pulls may come later.
 
 ## The host guard
 

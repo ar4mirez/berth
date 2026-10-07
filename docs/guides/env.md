@@ -3,11 +3,11 @@
 ## Custom variables (API keys)
 
 ```bash
-berth env acme set OPENROUTER_API_KEY       # prompts for the value (hidden), or reads one line from stdin
-echo "$KEY" | berth env acme set OPENROUTER_API_KEY
-berth env acme                              # names only, never values (--output json too)
-berth env acme unset OPENROUTER_API_KEY
-berth env acme set OPENROUTER_API_KEY --no-restart   # apply at the next restart instead
+berth env set acme OPENROUTER_API_KEY       # prompts for the value (hidden), or reads one line from stdin
+echo "$KEY" | berth env set acme OPENROUTER_API_KEY
+berth env ls acme                           # names only, never values (--output json too)
+berth env unset acme OPENROUTER_API_KEY
+berth env set acme OPENROUTER_API_KEY --no-restart   # apply at the next restart instead
 ```
 
 **When a variable applies:** the container is recreated so a new value takes effect; `--no-restart` defers that. Once
@@ -24,15 +24,15 @@ browser terminal, SSH, `berth attach`):
 ```console
 (acme) /workspace $ berth-secret-drop OPENROUTER_API_KEY
 Value for OPENROUTER_API_KEY (hidden):
-Dropped OPENROUTER_API_KEY. It isn't set yet: on the host, run  berth env acme accept
+Dropped OPENROUTER_API_KEY. It isn't set yet: on the host, run  berth env accept acme
 ```
 
 Then, on the host:
 
 ```bash
-berth env acme accept --list              # the names waiting (never the values)
-berth env acme accept                     # set them all, as env set would; or: accept OPENROUTER_API_KEY
-berth env acme accept --no-restart        # apply at the next restart instead
+berth env accept acme --list              # the names waiting (never the values)
+berth env accept acme                     # set them all, as env set would; or: accept OPENROUTER_API_KEY
+berth env accept acme --no-restart        # apply at the next restart instead
 ```
 
 - **The value is never typed, pasted or passed on a command line on the host**, and it doesn't go through a chat
@@ -44,14 +44,14 @@ berth env acme accept --no-restart        # apply at the next restart instead
 - A running org is recreated so the variable reaches its sessions, as with `env set`.
 
 With the value in a password manager on the host, a pipe does it without the drop: `op read 'op://vault/item/field'
-| berth env acme set OPENROUTER_API_KEY`.
+| berth env set acme OPENROUTER_API_KEY`.
 
 ## Where tokens and variables live
 
 By default, the Claude token, `GH_TOKEN` and custom variables are in `org.env` (0600). They reach the container as its
 environment, so anyone with Docker access on the host can read them with `docker inspect`.
 
-`berth secrets migrate acme` moves them into one file each, under the org's `config/secrets/env/`. The container reads
+`berth env migrate acme` moves them into one file each, under the org's `config/secrets/env/`. The container reads
 them at start, and they're no longer in its environment. A backup is taken first, and nothing restarts: the org uses
 the files from its next restart on. [Secrets as files](../secrets.md) has the details.
 
@@ -61,6 +61,6 @@ the files from its next restart on. [Secrets as files](../secrets.md) has the de
 or the logs.
 
 ```bash
-berth password acme           # show it
-berth password acme rotate    # a new one (restarts a running org so the terminal uses it)
+berth org password show acme           # show it
+berth org password rotate acme    # a new one (restarts a running org so the terminal uses it)
 ```

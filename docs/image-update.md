@@ -12,7 +12,7 @@ It's written for **v0.2.0**, the first image update after the cutover. That upda
 | #39 | every tool pinned by version and checksum (Claude Code stays at the version the orgs run) |
 | #38 | the container user is set to your host user at start, not baked into the image. It's the same UID on this host, so file ownership doesn't change |
 | #1 | DNS goes through a local dnsmasq that adds allowlisted answers to the firewall, so rotating hosts (`sum.golang.org`, CDNs) stop being blocked, and DNS to outside resolvers is blocked. An allowlist entry now also covers its subdomains |
-| #37 | the image can read secrets from files. Nothing uses that until you run `berth secrets migrate` (phase 2, optional) |
+| #37 | the image can read secrets from files. Nothing uses that until you run `berth env migrate` (phase 2, optional) |
 
 The steps are the same for later image updates. Only the table changes.
 
@@ -26,9 +26,9 @@ NEW=v0.2.0                         # the release to install
 | Phase | Restarts? |
 |---|---|
 | A. Preflight | no |
-| B. Install the new berth; `berth build` | no. Every org keeps running as it is |
+| B. Install the new berth; `berth system build` | no. Every org keeps running as it is |
 | C. Per org: the image switch (`berth restart <org>`) | **yes: about 10–20 seconds per org, when you say so** |
-| D. Optional, later: secrets as files (`berth secrets migrate`, then a restart) | **yes: one more restart per org, when you say so** |
+| D. Optional, later: secrets as files (`berth env migrate`, then a restart) | **yes: one more restart per org, when you say so** |
 
 During a restart, everything *running* in that org's container stops: commands, tmux and Claude sessions, SSH, and
 the browser terminal. Remote Control reconnects afterwards. **Files are not affected:** workspace, history, logins
@@ -40,13 +40,13 @@ and toolchains live on the host.
 berth --version                                # the version running now: note it for rollback
 ls ~/.local/opt/berth/                         # installed versions; keep the current one
 berth ls                                       # every org up, on its usual ports
-berth schedule status                          # the nightly backup ran: "Wrote …" for each org, no "failed"
+berth backup schedule status                          # the nightly backup ran: "Wrote …" for each org, no "failed"
 systemctl --user cat berth-backup.service | grep ExecStart   # should run ~/.local/bin/berth (the link)
 df -h ~/.local/share/docker /var/lib/docker 2>/dev/null; docker system df   # room for one more image (~2 GB)
 ```
 
 If `ExecStart` names a versioned path (`~/.local/opt/berth/<version>/berth`), note its `--keep` and `-o`. After step
-B, run `berth schedule` again with the same values, so the job runs the link from then on. That restarts nothing.
+B, run `berth backup schedule on` again with the same values, so the job runs the link from then on. That restarts nothing.
 
 ## B. Install the new berth and build its image (no restarts)
 
@@ -63,7 +63,7 @@ ver=${NEW#v}; mkdir -p ~/.local/opt/berth/"$ver"
 tar -xzf "$dl"/berth_"${ver}"_linux_"$arch".tar.gz -C "$dl" berth && install -m 0755 "$dl"/berth ~/.local/opt/berth/"$ver"/berth
 ~/.local/opt/berth/"$ver"/berth install && berth --version && rm -rf "$dl"
 
-berth build                     # the new image, ahead of the restarts (a few minutes: every pinned tool downloads)
+berth system build                     # the new image, ahead of the restarts (a few minutes: every pinned tool downloads)
 docker images berth/claude-env  # the new tag, next to the one the orgs run now
 berth ls                        # nothing restarted: every org is up, as before
 ```
@@ -86,7 +86,7 @@ berth restart "$ORG"                                         # THE RESTART (abou
 
 docker inspect -f '{{.Config.Image}}' claude-"$ORG"         # the new tag from step B
 berth ls                                                     # up, same ports
-berth fw "$ORG" show | tail -1                               # "live: on <N>" (N can differ a little: DNS)
+berth fw show "$ORG" | tail -1                               # "live: on <N>" (N can differ a little: DNS)
 docker exec claude-"$ORG" sh -c 'grep -q "^nameserver 127.0.0.1" /etc/resolv.conf && pgrep -x dnsmasq >/dev/null && echo dns-ok'
 docker exec claude-"$ORG" sh -c '[ "$(id -u node)" = "$HOST_UID" ] && echo uid-ok'
 docker exec -u node claude-"$ORG" touch /home/node/.config/.berth-uid-check
@@ -119,7 +119,7 @@ report.
 Only after every org runs the new image and has been fine for a while. `docs/secrets.md` has the details. Per org:
 
 ```bash
-berth secrets migrate "$ORG"      # backup first; moves the tokens and custom variables into files; no restart
+berth env migrate "$ORG"      # backup first; moves the tokens and custom variables into files; no restart
 berth restart "$ORG"              # THE RESTART: from now on docker inspect shows no secret
 docker inspect claude-"$ORG" | grep -c 'CLAUDE_CODE_OAUTH_TOKEN\|GH_TOKEN\|ANTHROPIC_API_KEY'   # 0
 docker exec -u node claude-"$ORG" bash -lc 'test -n "${CLAUDE_CODE_OAUTH_TOKEN:-}${ANTHROPIC_API_KEY:-}" && echo token-ok'

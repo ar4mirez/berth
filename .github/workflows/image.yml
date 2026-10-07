@@ -207,7 +207,7 @@ jobs:
             set -euo pipefail
             mkdir -p /etc/claude-env; echo t-ci > /etc/claude-env/org
             n() { runuser -u node -- "$@"; }
-            echo "sk-ci-value" | n berth-secret-drop CI_KEY | grep -q "on the host, run  berth env t-ci accept"
+            echo "sk-ci-value" | n berth-secret-drop CI_KEY | grep -q "on the host, run  berth env accept t-ci"
             [ "$(n berth-secret-drop --list)" = CI_KEY ] && [ "$(n berth-secret-drop --show CI_KEY)" = sk-ci-value ]
             [ "$(stat -c "%a %U" /home/node/.config/berth-drop)" = "700 node" ] && [ "$(stat -c %a /home/node/.config/berth-drop/CI_KEY)" = 600 ]
             # A link in the drop folder is never a drop, whatever it points at.
