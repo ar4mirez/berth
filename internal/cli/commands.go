@@ -10,14 +10,18 @@ import (
 	"slices"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/ar4mirez/berth/internal/app"
+	"github.com/ar4mirez/berth/internal/config"
 	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/host/local"
 	"github.com/ar4mirez/berth/internal/mcpsrv"
 	"github.com/ar4mirez/berth/internal/ops"
+	"github.com/ar4mirez/berth/internal/tui"
 	"github.com/ar4mirez/berth/internal/upgrade"
 	"github.com/ar4mirez/berth/internal/version"
 )
@@ -50,13 +54,7 @@ func mcpCmd() *cobra.Command {
 			srv, _ := mcpsrv.New(mcpsrv.Options{
 				AllowWrites: writes, AllowRestarts: restarts, Version: version.Version,
 				// Each call gets its own App, printing into buffers: this process's stdout is the protocol's.
-				NewApp: func(stdout, stderr io.Writer) *app.App {
-					a := app.New(st, host.WithEngine(local.New(), st.Engine), strings.NewReader(""), stdout, stderr, os.Getenv)
-					a.DefaultBind = st.Bind
-					a.Self, _ = os.Executable()
-					a.Invoked = invokedPath()
-					return a
-				},
+				NewApp: appMaker(st),
 			})
 			mode := "read-only"
 			switch {
@@ -76,6 +74,44 @@ func mcpCmd() *cobra.Command {
 	c.Flags().BoolVar(&writes, "allow-writes", false, "let tools change orgs (firewall, repos, backups)")
 	c.Flags().BoolVar(&restarts, "allow-restarts", false, "let tools start, restart and stop orgs too (implies --allow-writes)")
 	return c
+}
+
+// appMaker makes Apps that print where they are told and read nothing: for a front end that owns
+// the terminal or the process's stdout (the MCP server, the dashboard).
+func appMaker(st config.State) func(stdout, stderr io.Writer) *app.App {
+	return func(stdout, stderr io.Writer) *app.App {
+		a := app.New(st, host.WithEngine(local.New(), st.Engine), strings.NewReader(""), stdout, stderr, os.Getenv)
+		a.DefaultBind = st.Bind
+		a.Self, _ = os.Executable()
+		a.Invoked = invokedPath()
+		return a
+	}
+}
+
+// tuiCmd is `berth tui` (#59): an interactive dashboard.
+func tuiCmd() *cobra.Command {
+	return reads(&cobra.Command{
+		Use: "tui", Short: "an interactive dashboard for hosts and orgs", Args: cobra.NoArgs,
+		Long: "A dashboard in the terminal: every org and host with its state, and a page per org with its\n" +
+			"connection sheet, firewall, repos, variable names, backups and log.\n\n" +
+			"It can start, stop and restart an org, allow and deny firewall entries, add, remove and sync repos,\n" +
+			"take a backup, and hand the terminal to attach or a shell. Anything that restarts a container says\n" +
+			"what stops and runs only after a \"y\". With --read-only it only reads. Press ? for the keys.",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
+				return &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: "berth tui needs a terminal", Hint: "for scripts, the commands take --output json"}
+			}
+			st := stateFrom(cmd.Context())
+			self, err := os.Executable()
+			if err != nil {
+				return err
+			}
+			global := []string{"--home", st.Home.Path}
+			m := tui.New(cmd.Context(), tui.NewBackend(appMaker(st), st.ReadOnly, self, global))
+			_, err = tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(cmd.Context())).Run()
+			return err
+		},
+	})
 }
 
 type nopWriteCloser struct{ io.Writer }
@@ -433,6 +469,7 @@ func addCommands(root *cobra.Command) {
 			RunE: func(cmd *cobra.Command, args []string) error { return appFor(cmd).Upgrade(cmd.Context(), args) },
 		}),
 		mcpCmd(),
+		tuiCmd(),
 		reads(&cobra.Command{
 			Use: "image-tag", Short: "the image tag this berth uses", Hidden: true, Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, _ []string) error { return appFor(cmd).ImageTag() },

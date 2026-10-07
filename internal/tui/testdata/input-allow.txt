@@ -1,0 +1,24 @@
+berth  acme
+
+╭─────────────────────────────────────────────────────────────────────╮
+│ Allow (a domain, IP, CIDR or @preset; several separated by spaces): │
+│                                                                     │
+│ > pypi.org█                                                         │
+╰─────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+enter confirm · esc cancel

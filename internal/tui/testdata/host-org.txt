@@ -1,0 +1,24 @@
+berth  initech@box1
+
+1 Info   2 Firewall   3 Repos   4 Env   5 Backups   6 Logs
+
+  Container         claude-initech@box1
+  State             running
+  Remote Control    https://claude.ai/code?environment=env_x
+  Address           100.64.0.7
+  SSH               ssh -p 2201 node@100.64.0.7
+  Browser terminal  port 7701
+  Git key           ssh-ed25519 AAAAC3Nza… claude-acme
+  Firewall          4 entries
+  Repos             3 registered
+  Variables         2
+  Packages          1
+
+
+
+
+
+
+
+
+tab/1-6 switch · esc back · u/d/r up/down/restart · A attach · S shell · ? help · q quit

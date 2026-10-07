@@ -1,0 +1,24 @@
+berth  acme
+
+1 Info   2 Firewall   3 Repos   4 Env   5 Backups   6 Logs
+
+  OPENROUTER_API_KEY
+  SENTRY_DSN  (listed, not set)
+
+
+  Names only: values are never shown. Set one: berth env set acme KEY
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+tab/1-6 switch · esc back · u/d/r up/down/restart · A attach · S shell · ? help · q quit
