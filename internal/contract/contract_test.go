@@ -62,6 +62,11 @@ func TestImageAndComposeAgree(t *testing.T) {
 		{"profile setup script, copied", entrypoint, "install -m 644 " + SetupScript + " /run/berth-setup.sh\n"},
 		{"profile setup script, as node", entrypoint, "as_node timeout 300 bash /run/berth-setup.sh ) > " + SetupLog + " 2>&1"},
 		{"firewall provider line", firewall, `"provider "*)`},
+		{"Remote Control supervisor: its own script", entrypoint, `CFG="$CFG" RC_LOG="$RC_LOG" /usr/local/bin/rc-supervisor.sh &`},
+		{"Remote Control supervisor: shipped", dockerfile, "COPY init-firewall.sh entrypoint.sh rc-supervisor.sh /usr/local/bin/"},
+		{"Remote Control supervisor: the retry file", shipped(t, "image/rc-supervisor.sh"), "RETRY=" + RemoteRetry + "\n"},
+		{"Remote Control supervisor: the log line restart waits for", shipped(t, "image/rc-supervisor.sh"), `log "` + RemoteControlStarting + `"`},
+		{"Remote Control supervisor: the blocked line", shipped(t, "image/rc-supervisor.sh"), `log "` + RemoteControlBlocked + `, retrying in 1h"`},
 		{"runtime UID remap: first in the entrypoint", entrypoint, ". /usr/local/lib/claude-env/uid-remap.sh\n"},
 	}
 	for _, c := range checks {

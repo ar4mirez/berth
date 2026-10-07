@@ -298,9 +298,7 @@ func (a *App) Remote(ctx context.Context, o, sub string) error {
 	case "logs":
 		return a.rcLog(ctx, o, 40, a.Stdout)
 	case "restart":
-		_ = a.passthrough(ctx, false, "docker", "exec", "claude-"+o, "pkill", "-f", "claude remote-control") // || true
-		fmt.Fprintln(a.Stdout, "Restarting; back in ~5s.")
-		return nil
+		return a.remoteRestart(ctx, o)
 	}
 	return fmt.Errorf("usage: %s remote <org> [status|logs|restart]", Tool)
 }

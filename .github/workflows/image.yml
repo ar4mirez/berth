@@ -172,6 +172,34 @@ jobs:
               fi
               echo "ok: ExtServers are parsed: plain addresses get a rule, host(...) ones none"'
           docker network rm berth-dns-ci >/dev/null
+      - name: Remote Control - a retry ends the supervisor's wait, and nothing ends the supervisor (#7)
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint bash berth-image-ci -c '
+            set -euo pipefail
+            # A stand-in for claude: refused by policy while /tmp/blocked exists, else it stays up.
+            printf "#!/bin/sh\nif [ -e /tmp/blocked ]; then echo \"Error: Remote Control is disabled by your organization'"'"'s policy.\"; exit 1; fi\necho connected; exec sleep 300\n" > /usr/local/sbin/claude
+            chmod 755 /usr/local/sbin/claude
+            export ORG=t-ci CFG=/home/node/.claude; log=$CFG/remote-control.log
+            touch $CFG/.credentials.json /tmp/blocked
+            starts() { grep -c "starting remote-control" $log 2>/dev/null || true; }
+            up() { pgrep -f "claude remote-control" >/dev/null; }
+            rc-supervisor.sh & sup=$!
+            sleep 3
+            [ "$(starts)" = 1 ] && tail -1 $log | grep -q "blocked by organization policy, retrying in 1h" || { echo "not in its blocked wait:"; cat $log; exit 1; }
+            # The case from #7: an admin enables Remote Control, and a retry is asked for during the hour.
+            rm /tmp/blocked; touch /run/rc-retry; sleep 5
+            [ "$(starts)" = 2 ] && up && [ ! -e /run/rc-retry ] || { echo "a retry did not end the blocked wait:"; cat $log; exit 1; }
+            # A restart while it runs: killed, and started again without waiting out the 5 seconds.
+            pkill -f "claude remote-control"; touch /run/rc-retry; sleep 5
+            [ "$(starts)" = 3 ] && up || { echo "not restarted:"; cat $log; exit 1; }
+            # Whatever is killed under it, the supervisor goes on: back in its blocked wait, then its sleep dies.
+            touch /tmp/blocked; pkill -f "claude remote-control"; sleep 9
+            n=$(starts); pkill -x sleep || true; sleep 3
+            kill -0 $sup || { echo "the supervisor is gone"; exit 1; }
+            rm /tmp/blocked; touch /run/rc-retry; sleep 5
+            [ "$(starts)" -gt "$n" ] && up || { echo "the supervisor no longer retries:"; cat $log; exit 1; }
+            echo "ok: a retry ends the blocked wait; a restart is immediate; the supervisor survives"'
       - name: git - github.com over HTTPS with gh's token, for registered repos only (#103)
         run: |
           set -euo pipefail
