@@ -89,18 +89,24 @@ Every channel installs a signed release. Pick one:
 === "mise"
 
     ```bash
-    mise use -g ubi:ar4mirez/berth
+    mise use -g github:ar4mirez/berth
     ```
 
-    **Upgrade:** `mise upgrade berth`. mise doesn't check berth's signature; the install script and
-    `berth upgrade` do.
+    This is mise's GitHub backend: it takes the release's archive for your platform, and checks its checksum
+    and its build provenance (the GitHub artifact attestation each berth release is published with) before
+    installing. It needs no plugin and no registry entry.
+
+    **Upgrade:** `mise upgrade github:ar4mirez/berth`.
+
+    **Coming from `ubi:ar4mirez/berth`?** mise has deprecated its `ubi` backend. Switch once:
+    `mise unuse -g ubi:ar4mirez/berth && mise use -g github:ar4mirez/berth`.
 
     **Right after a release,** mise may still install the one before: it caches each tool's list of versions,
     for up to a day. To get a release now, name it, or have mise ask GitHub:
 
     ```bash
-    mise use -g ubi:ar4mirez/berth@<version>              # as in: berth@1.2.3
-    MISE_USE_VERSIONS_HOST=0 mise use -g ubi:ar4mirez/berth
+    mise use -g github:ar4mirez/berth@<version>           # as in: berth@1.2.3
+    MISE_USE_VERSIONS_HOST=0 mise use -g github:ar4mirez/berth
     ```
 
 **The apt and yum repositories** hold the latest five releases and are signed with berth's packages key:
