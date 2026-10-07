@@ -44,22 +44,35 @@ Every channel installs a signed release. Pick one:
 
 === "Debian, Ubuntu"
 
+    berth's apt repository, signed (amd64 and arm64):
+
     ```bash
-    v=0.4.0; a=$(dpkg --print-architecture)          # amd64 or arm64
-    curl -fsSLO https://github.com/ar4mirez/berth/releases/download/v$v/berth_${v}_${a}.deb
-    sudo apt install ./berth_${v}_${a}.deb
+    sudo install -d -m 755 /etc/apt/keyrings
+    sudo curl -fsSL -o /etc/apt/keyrings/berth.gpg https://ar4mirez.github.io/berth/apt/berth.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/berth.gpg] https://ar4mirez.github.io/berth/apt stable main" \
+      | sudo tee /etc/apt/sources.list.d/berth.list
+    sudo apt update && sudo apt install berth
     ```
 
-    **Upgrade:** the same, with the new version. A signed apt repository is planned.
+    **Upgrade:** `sudo apt update && sudo apt install berth`, or with the rest of the system.
+
+    Without the repository, install a release's package as a file:
+    `sudo apt install ./berth_<version>_<amd64|arm64>.deb`, from the
+    [release page](https://github.com/ar4mirez/berth/releases/latest).
 
 === "Fedora, RHEL"
 
+    berth's yum repository, signed (x86_64 and aarch64):
+
     ```bash
-    v=0.4.0; a=$(uname -m)                           # x86_64 or aarch64
-    sudo dnf install https://github.com/ar4mirez/berth/releases/download/v$v/berth-$v-1.$a.rpm
+    sudo curl -fsSL -o /etc/yum.repos.d/berth.repo https://ar4mirez.github.io/berth/rpm/berth.repo
+    sudo dnf install berth
     ```
 
-    **Upgrade:** the same, with the new version. A signed yum repository is planned.
+    dnf asks once to accept the repository's key (fingerprint below). **Upgrade:** `sudo dnf upgrade berth`.
+
+    Without the repository, install a release's package by URL:
+    `sudo dnf install https://github.com/ar4mirez/berth/releases/download/v<version>/berth-<version>-1.<x86_64|aarch64>.rpm`.
 
 === "Arch Linux"
 
@@ -89,6 +102,16 @@ Every channel installs a signed release. Pick one:
     mise use -g ubi:ar4mirez/berth@<version>              # as in: berth@1.2.3
     MISE_USE_VERSIONS_HOST=0 mise use -g ubi:ar4mirez/berth
     ```
+
+**The apt and yum repositories** hold the latest five releases and are signed with berth's packages key:
+
+```
+B377 15D1 5535 BEC5 35AC  1C8F 2DD9 5203 64B7 0A65
+```
+
+Each package in them comes from a release whose own signature was verified first ([Releases](releases.md)). The
+repository's signed index lists every package's checksum, which is what apt and dnf check; the packages themselves
+carry no signature of their own.
 
 **Which upgrade path applies:** with a package manager, `berth upgrade` says which one installed berth and
 leaves the upgrade to it.

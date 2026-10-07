@@ -128,7 +128,7 @@ func PackageManager(self string) (name, how string) {
 	case strings.Contains(self, "/mise/installs/"):
 		return "mise", "mise upgrade berth (or: mise use -g ubi:ar4mirez/berth@latest)"
 	case strings.HasPrefix(self, "/usr/bin/") || strings.HasPrefix(self, "/usr/sbin/"):
-		return "your system's package manager", "apt install ./berth_<v>_linux_<arch>.deb, dnf install ./….rpm, pacman -U ./….pkg.tar.zst, or the AUR (docs: getting started)"
+		return "your system's package manager", "apt install berth or dnf upgrade berth with berth's repository, else the release's .deb, .rpm or .pkg.tar.zst, or the AUR (docs: getting started)"
 	}
 	return "", ""
 }
