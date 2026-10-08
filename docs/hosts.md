@@ -317,12 +317,30 @@ berth host reconcile --prune  # deletes what belongs to no registered host
 
 **Know before you use it:**
 
-- **It has had one run against Hetzner itself** (October 2026, `cax21` in `fsn1`): `host create` made the server,
-  which joined the tailnet and was registered, and an org on it started and was closed off as intended.
-  `host destroy` and `host reconcile` are still tested against a stand-in for the API only. Try it in a project
-  you can delete.
-- Use an auth key that is **not reusable**: it stays readable in the server's user data.
+- **Use an auth key that is tagged and not reusable.** It stays readable in the server's user data, so a reusable
+  one could enrol other machines. A host that joins without a tag has a key that expires, and is out of reach when
+  it does: `host create` warns when it sees that, with the date.
+- **`host destroy` doesn't touch your tailnet**: berth has no credential for it. It names the machine
+  (`berth-<name>`) for you to remove in the Tailscale admin console.
 - The token can do anything in its project: give berth a project of its own.
 - The server's user data (its host key, and the used auth key) can be read back from the VM's metadata service.
   Org containers can't reach it: the host guard and each org's firewall both block 169.254.0.0/16.
+
+### Testing against Hetzner
+
+`host create` is tested against a stand-in for Hetzner's API in the ordinary test run, and against Hetzner itself by
+one acceptance test (#52). It makes a real server (billed by the hour, deleted at the end whatever happens), an org
+on it, checks that no TCP port of the public address is open and that the server presents the pinned host key, then
+destroys both and checks that nothing labelled is left.
+
+```bash
+# from a machine on the tailnet, with both variables set as above
+go test -tags cloud -count=1 -timeout 30m -v ./test/cloud/
+```
+
+The `cloud` workflow runs the same test, started by hand (`gh workflow run cloud`). It needs three repository
+secrets: `HCLOUD_TOKEN`, and `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET` of a Tailscale OAuth client that owns
+`tag:ci` and `tag:berth` and may write auth keys and devices. The tailnet's policy must let `tag:ci` reach
+`tag:berth`. The workflow makes a single-use tagged key for each run and removes the test's machine from the
+tailnet afterwards.
 

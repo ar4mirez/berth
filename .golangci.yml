@@ -1,9 +1,10 @@
 version: "2"
 
-# Lint the Docker-only tests too, even though a plain build skips them.
+# Lint the Docker-only tests and the cloud acceptance test too, even though a plain build skips them.
 run:
   build-tags:
     - integration
+    - cloud
 
 linters:
   default: standard

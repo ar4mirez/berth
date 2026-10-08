@@ -1,9 +1,12 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"path"
 	"slices"
@@ -14,6 +17,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/ar4mirez/berth/internal/cloud"
+	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/hosts"
 	"github.com/ar4mirez/berth/internal/ops"
 )
@@ -203,7 +207,48 @@ func (a *App) registerCloudHost(ctx context.Context, c CloudHost) error {
 	if c.Bind != "" {
 		args = append(args, "--bind", c.Bind)
 	}
-	return a.HostAdd(ctx, args)
+	if err := a.HostAdd(ctx, args); err != nil {
+		return err
+	}
+	a.warnTailnet(ctx, c)
+	return nil
+}
+
+// tailnetWarning reads `tailscale status --json` from a new host: a node that joined without a tag
+// has a key that expires, and the tailnet is the only way in (#52). "" when there is nothing to say.
+func tailnetWarning(vm string, status []byte) string {
+	var st struct {
+		Self struct {
+			Tags      []string
+			KeyExpiry *time.Time
+		}
+	}
+	if json.Unmarshal(status, &st) != nil || len(st.Self.Tags) > 0 {
+		return ""
+	}
+	when := "in time"
+	if st.Self.KeyExpiry != nil && !st.Self.KeyExpiry.IsZero() {
+		when = "on " + st.Self.KeyExpiry.Format("2006-01-02")
+	}
+	return fmt.Sprintf("%s joined the tailnet without a tag: its key expires %s, and the host is then out of reach. "+
+		"Use a tagged auth key next time; for this host, disable key expiry for %s in the Tailscale admin console (Machines)", vm, when, vm)
+}
+
+// warnTailnet says so when the new host joined the tailnet without a tag. What can't be read is
+// not a failure: the host is registered.
+func (a *App) warnTailnet(ctx context.Context, c CloudHost) {
+	b, _, done, err := a.At(ctx, "x@"+c.Name)
+	if err != nil {
+		return
+	}
+	defer done()
+	var out bytes.Buffer
+	if b.Host.Exec.Run(ctx, host.Cmd{Args: []string{"tailscale", "status", "--json", "--peers=false"}, Stdout: &out, Stderr: io.Discard}) != nil {
+		return
+	}
+	if w := tailnetWarning(c.Addr, out.Bytes()); w != "" {
+		sayf(a.Stderr, "%s: WARNING %s\n", Tool, w)
+	}
 }
 
 // HostDestroy is `berth host destroy <name> [--force]`: the host leaves the registry as with host
@@ -255,6 +300,8 @@ func (a *App) HostDestroy(ctx context.Context, args []string) error {
 	if len(removed) == 0 {
 		sayf(a.Stdout, "Nothing labelled for %s was left at Hetzner.\n", name)
 	}
+	// berth has no credential for the tailnet: the machine's entry there is the operator's to remove.
+	sayf(a.Stdout, "Still listed in your tailnet: berth-%s. Remove it in the Tailscale admin console (Machines).\n", name)
 	return nil
 }
 

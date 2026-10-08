@@ -315,7 +315,8 @@ func TestHostReconcileAndDestroy(t *testing.T) {
 		t.Errorf("destroy of a host that can't be checked: %v, %s", err, f.names())
 	}
 	out.Reset()
-	if err := a.HostDestroy(ctx, []string{"box3", "--force"}); err != nil || !strings.Contains(out.String(), "Deleted at Hetzner: server berth-box3, firewall berth-box3") {
+	if err := a.HostDestroy(ctx, []string{"box3", "--force"}); err != nil || !strings.Contains(out.String(), "Deleted at Hetzner: server berth-box3, firewall berth-box3") ||
+		!strings.Contains(out.String(), "Still listed in your tailnet: berth-box3.") {
 		t.Errorf("destroy --force: %v\n%s", err, out)
 	}
 	if got := f.names(); got != "server:someone-elses" {
@@ -336,5 +337,21 @@ func TestHostReconcileAndDestroy(t *testing.T) {
 	}
 	if err := a.HostDestroy(ctx, []string{"nope"}); err == nil || !strings.Contains(err.Error(), "unknown host") {
 		t.Errorf("destroy of an unknown host: %v", err)
+	}
+}
+
+// TestTailnetWarning: a host that joined the tailnet without a tag has a key that expires (#52).
+func TestTailnetWarning(t *testing.T) {
+	untagged := `{"BackendState":"Running","Self":{"HostName":"berth-box3","KeyExpiry":"2027-04-06T18:22:58Z"}}`
+	if w := tailnetWarning("berth-box3", []byte(untagged)); !strings.Contains(w, "berth-box3 joined the tailnet without a tag: its key expires on 2027-04-06") {
+		t.Errorf("untagged: %q", w)
+	}
+	if w := tailnetWarning("berth-box3", []byte(`{"Self":{}}`)); !strings.Contains(w, "its key expires in time") {
+		t.Errorf("untagged, no expiry given: %q", w)
+	}
+	for _, quiet := range []string{`{"Self":{"Tags":["tag:berth"]}}`, `not json`, ``} {
+		if w := tailnetWarning("berth-box3", []byte(quiet)); w != "" {
+			t.Errorf("%q: %q", quiet, w)
+		}
 	}
 }
