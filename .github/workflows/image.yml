@@ -125,6 +125,14 @@ jobs:
               curl -fsS -o /dev/null --max-time 15 https://example.com
               echo "ok: bad entries are skipped and reported; DNS stays up with and without dnsmasq"'
           docker network rm berth-bad-ci >/dev/null
+      - name: firewall - applies run one at a time, and each change leaves dnsmasq running (#149)
+        run: |
+          set -euo pipefail
+          cfg=$(mktemp -d); chmod 777 "$cfg"
+          docker network create berth-race-ci >/dev/null
+          docker run --rm --network berth-race-ci --cap-add NET_ADMIN --cap-add NET_RAW -v "$cfg:/config" \
+            -v "$PWD/test/image/firewall_race.sh:/firewall_race.sh:ro" --entrypoint bash berth-image-ci /firewall_race.sh
+          docker network rm berth-race-ci >/dev/null
       - name: firewall - DNS when Docker forwards to a resolver that isn't loopback (#98)
         run: |
           set -euo pipefail

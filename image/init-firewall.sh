@@ -53,6 +53,15 @@ if [ "${1:-apply}" = "presets" ]; then
   exit 0
 fi
 
+# One apply at a time (#149). A change from the host can arrive while the container's own refresh
+# runs (entrypoint.sh), and two runs rebuilding the sets and restarting dnsmasq at once leave
+# neither's result: the second one's dnsmasq found the first one's still on port 53.
+exec 9>/run/firewall.lock
+if ! flock -w 120 9; then
+  echo "firewall: another apply has been running for two minutes; this one was not applied" >&2
+  exit 1
+fi
+
 mode=on; entries="$BASE"; provider="$ANTHROPIC"
 if [ -f "$CONF" ]; then
   while read -r line; do
@@ -125,7 +134,26 @@ dns_conf() {  # dns_conf <file> <domain>...: dnsmasq's config, with one ipset li
   } > "$f"
 }
 dns_ok() { dnsmasq --test --conf-file="$1" >/dev/null 2>&1; }
-dns_running() { [ -f /run/dnsmasq.pid ] && kill -0 "$(cat /run/dnsmasq.pid)" 2>/dev/null; }
+# dns_pid: the running dnsmasq's pid, or nothing. A pid file can outlive its process, and the pid
+# be another process's by then: it counts only while that process is dnsmasq.
+dns_pid() {
+  local pid; pid=$(cat /run/dnsmasq.pid 2>/dev/null) || return 1
+  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$(cat "/proc/$pid/comm" 2>/dev/null)" = dnsmasq ] && echo "$pid"
+}
+dns_running() { dns_pid >/dev/null; }
+# dns_stop: stop dnsmasq and wait until it is gone, so the next one finds port 53 free (#149: a
+# fixed 0.2 s wasn't always enough).
+dns_stop() {
+  local pid; pid=$(dns_pid) || return 0
+  kill "$pid" 2>/dev/null || true
+  for _ in $(seq 1 30); do [ -e "/proc/$pid" ] || return 0; sleep 0.1; done
+  kill -9 "$pid" 2>/dev/null || true
+  for _ in $(seq 1 10); do [ -e "/proc/$pid" ] || return 0; sleep 0.1; done
+}
+# dns_start: start dnsmasq on the config in place. It doesn't keep the apply lock (9), which it
+# would hold for as long as it runs.
+dns_start() { dnsmasq --conf-file="$1" --pid-file=/run/dnsmasq.pid --user=root 9>&-; }
 dns_setup() {  # dns_setup <domain>...: (re)start dnsmasq for these names, point resolv.conf at it
   local conf=/run/berth-dnsmasq.conf new=/run/berth-dnsmasq.conf.new e ok=()
   ipset create -exist allowed-dns hash:ip timeout 3600
@@ -148,9 +176,11 @@ dns_setup() {  # dns_setup <domain>...: (re)start dnsmasq for these names, point
     rm -f "$new"
   elif dns_ok "$new"; then
     mv "$new" "$conf"
-    if [ -f /run/dnsmasq.pid ]; then kill "$(cat /run/dnsmasq.pid)" 2>/dev/null || true; sleep 0.2; fi
-    dnsmasq --conf-file="$conf" --pid-file=/run/dnsmasq.pid --user=root || true
-    for _ in 1 2 3 4 5; do dns_running && break; sleep 0.2; done
+    dns_stop
+    rm -f /run/dnsmasq.pid
+    # Once more if it couldn't start: the port can take a moment to be free after a kill -9.
+    dns_start "$conf" || { sleep 0.5; dns_start "$conf" || true; }
+    for _ in 1 2 3 4 5 6 7 8 9 10; do dns_running && break; sleep 0.2; done
   else
     dns_down="DNS allowlist not updated"
     echo "firewall: dnsmasq refuses its config, kept as $new:" >&2
