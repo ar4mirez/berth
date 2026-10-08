@@ -178,7 +178,11 @@ func TestRemoteLifecycle(t *testing.T) {
 		}
 	}
 	strip := regexp.MustCompile(`(?m)(ssh-ed25519 \S+ \S+|\d{4,5}|claude-t-life@\S+)`)
-	if a, b := strip.ReplaceAllString(l["init"], "X"), strip.ReplaceAllString(r["init"], "X"); a != b {
+	// On the host, the next steps name it (t-life@box, #159): the one difference there should be.
+	if !strings.Contains(r["init"], "berth up t-life@box\n") {
+		t.Errorf("init on the host doesn't name it in its next steps:\n%s", r["init"])
+	}
+	if a, b := strip.ReplaceAllString(l["init"], "X"), strip.ReplaceAllString(strings.ReplaceAll(r["init"], "t-life@box", "t-life"), "X"); a != b {
 		t.Errorf("init differs:\nlocal:\n%s\nbox:\n%s", a, b)
 	}
 }
