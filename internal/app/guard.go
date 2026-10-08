@@ -24,11 +24,9 @@ import (
 // and keep its rules in it (guardArgs).
 
 // guardUnavailable is why b's host can't have the guard ("" when it can).
-func guardUnavailable(ctx context.Context, b *App) string {
-	switch e := b.Host.EngineName(); {
-	case e == host.EngineDocker:
-		return ""
-	case e == host.EnginePodman:
+func guardUnavailable(_ context.Context, b *App) string {
+	switch e := b.Host.EngineName(); e {
+	case host.EngineDocker, host.EnginePodman:
 		return ""
 	default:
 		return "not available with " + e + " (docs/engines.md)"
