@@ -5,6 +5,7 @@ package integration
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/ar4mirez/berth/internal/upgrade"
@@ -18,6 +19,11 @@ func TestReleaseSignature(t *testing.T) {
 	ctx := context.Background()
 	c := upgrade.NewClient()
 	rel, err := c.Get(ctx, "v0.2.0")
+	// GitHub limits anonymous API calls by address, and a runner shares its address: that isn't
+	// what this test is about.
+	if err != nil && strings.Contains(err.Error(), "403") {
+		t.Skipf("GitHub's API refused the lookup (rate limit): %v", err)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
