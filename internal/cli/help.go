@@ -120,6 +120,9 @@ var examples = map[string][]string{
 	"host rm":            {"berth host rm box1", "berth host rm box1 --force"},
 	"host guard":         {"berth host guard box1", "berth host guard box1 off"},
 	"host rotate-access": {"berth host rotate-access box1"},
+	"host create":        {"berth host create box3 --provider hetzner", "berth host create box3 --provider hetzner --size cax31 --region hel1"},
+	"host destroy":       {"berth host destroy box3"},
+	"host reconcile":     {"berth host reconcile", "berth host reconcile --prune"},
 	"secrets migrate":    {"berth secrets migrate acme", "berth secrets migrate acme --no-backup"},
 }
 

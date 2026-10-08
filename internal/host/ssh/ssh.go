@@ -118,7 +118,9 @@ func Dial(ctx context.Context, cfg Config, operator *host.Host) (*host.Host, err
 		return errors.Join(sc.Close(), client.Close())
 	}
 	name := "ssh://" + cfg.User + "@" + addr
-	return host.New(name, &sftpFS{c: sc, ex: ex}, ex, d, host.ExecFacts{Exec: ex, Docker: d}, closeFn), nil
+	h := host.New(name, &sftpFS{c: sc, ex: ex}, ex, d, host.ExecFacts{Exec: ex, Docker: d}, closeFn)
+	h.Unix = func(ctx context.Context, path string) (net.Conn, error) { return client.DialContext(ctx, "unix", path) }
+	return h, nil
 }
 
 func dial(ctx context.Context, addr string, cc *gossh.ClientConfig) (*gossh.Client, error) {

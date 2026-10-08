@@ -263,3 +263,62 @@ To move an org to another host, use `migrate` (below). It hands the lease over a
   their users, just as with `~/.ssh`. `host rotate-access` replaces a key; `host rm` revokes it.
 - **What berth trusts:** a host key only after you confirm its fingerprint (or pass `--accept-new-host-key`), and
   after that only that key.
+
+## A host that runs `berth serve`
+
+When a registered host runs its own [`berth serve`](api.md), berth asks it for whole operations instead of
+driving it one ssh command at a time (#148). It forwards the host's API socket over the ssh connection it already
+has, so nothing listens on the host's network, and the host's berth runs the command there.
+
+- **What goes that way:** what is the same wherever it runs: `fw show|allow|deny|presets|test`,
+  `repo ls|add|rm`, `env ls`, `pkg ls`, `account remote status`.
+- **What keeps the ssh path:** what depends on this machine: `up`, `restart`, `down` (the active-host lease, the
+  host guard), `info` and `ls` (the registry, the tunnel), backups (your key), and anything interactive.
+- **Nothing to set up here.** berth looks for the socket at each command; a host with no server, or one that
+  doesn't answer, is driven over ssh as before. `BERTH_HOST_API=off` keeps everything on ssh.
+- **On the host**, run `berth serve` as the user berth logs in as (an OS service for it is #63). A change that
+  comes through it is in that host's `audit.log`, with `"via":"api"`.
+
+Output, messages and exit codes are the command's own, from the host's berth: keep it at the version you run here.
+
+## Creating a host at a cloud provider
+
+`berth host create` makes a VM and registers it, closed to the internet from the first second (#52). The provider
+is [Hetzner Cloud](decisions/051-first-cloud-provider.md).
+
+```bash
+export HCLOUD_TOKEN=…               # an API token (read and write) of a project for berth's hosts alone
+export BERTH_TAILSCALE_AUTHKEY=…    # a single-use, tagged Tailscale auth key
+berth host create box3 --provider hetzner            # cax21 (4 vCPU arm64, 8 GB) in fsn1, Ubuntu 24.04
+berth host create box4 --provider hetzner --size cax31 --region hel1
+```
+
+Both secrets come from the environment, never the command line.
+
+**What it does:**
+
+1. Makes an ssh host key for the server, and a firewall with **no rules**: nothing comes in from the internet.
+2. Creates the server behind that firewall, with cloud-init that installs the host key, an `ops` user for berth,
+   Docker (the newest 28.x, from Docker's own repository) and Tailscale, turns password logins off, and joins your
+   tailnet as `berth-<name>`.
+3. Waits for it on the tailnet, then registers it as `host add` does, the host guard included. The host key is
+   pinned before the first connection: there is no trust on first use.
+
+- **This machine must be on the tailnet**, since that is the only way in.
+- **Everything is labelled** `berth.managed=true` and `berth.host=<name>`.
+- **A failure at any step removes what was created.**
+
+```bash
+berth host destroy box3       # forgets the host and deletes its server and firewall; refused while it has orgs
+berth host reconcile          # what carries berth's labels, against the registry (exit 3 if something is left)
+berth host reconcile --prune  # deletes what belongs to no registered host
+```
+
+**Know before you use it:**
+
+- **It has not been run against Hetzner itself.** The provider calls are tested against a stand-in for the API; the
+  cloud-init document and the wait on the tailnet have not met a real VM. Try it in a project you can delete.
+- The token can do anything in its project: give berth a project of its own.
+- The server's user data (its host key, and the used auth key) can be read back from the VM's metadata service.
+  Org containers can't reach it: the host guard and each org's firewall both block 169.254.0.0/16.
+

@@ -64,6 +64,7 @@ nav:
       - The command line: cli.md
       - Commands: reference/commands/berth.md
       - The API: api.md
+      - "Decision: the first cloud provider": decisions/051-first-cloud-provider.md
       - Configuration and files: reference/config.md
       - JSON output: json.md
       - Repo policy (canonical form): repo-policy.md

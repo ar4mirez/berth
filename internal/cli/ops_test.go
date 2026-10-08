@@ -104,3 +104,18 @@ func TestOutputJSONOnlyWhereSupported(t *testing.T) {
 }
 
 func contains(s, sub string) bool { return strings.Contains(s, sub) }
+
+// TestHostAPIOpsAreServed: every operation berth sends to a registered host's own berth (#148) is
+// one the API serves, and none is one that depends on the machine berth runs on.
+func TestHostAPIOpsAreServed(t *testing.T) {
+	for key := range hostAPIOps {
+		name, sub, _ := strings.Cut(key, " ")
+		if !daemonCan(name, sub) {
+			t.Errorf("%q goes to a host's berth, which has no endpoint for it", key)
+		}
+		switch name {
+		case "up", "down", "restart", "info", "ls", "backup", "restore", "init", "destroy", "migrate":
+			t.Errorf("%q depends on this machine (the lease, the registry, the backup key): it must keep the ssh path", key)
+		}
+	}
+}
