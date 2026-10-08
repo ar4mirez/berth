@@ -39,6 +39,48 @@ jobs:
       - name: integration tests (compose lifecycle, ssh host and remote lifecycle against sshd + dind, backup matrix)
         run: BERTH_BIN="$RUNNER_TEMP/berth" go test -tags integration -count=1 -v ./test/integration/...
 
+  # berth serve as a service (#63), with the real service managers: systemd's user manager on Linux,
+  # launchd on macOS. No container engine is needed: GET /v1 says only who is serving.
+  service:
+    name: service (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - name: install, use, and uninstall the service
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          go build -o "$HOME/.local/bin/berth" ./cmd/berth
+          export PATH="$HOME/.local/bin:$PATH"
+          if [ "$(uname -s)" = Linux ]; then
+            export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+            systemctl --user show-environment >/dev/null   # the runner has a user manager
+            sock="$XDG_RUNTIME_DIR/berth.sock"
+          else
+            sock="$HOME/.config/berth/berth.sock"
+          fi
+          if berth system service status; then echo "a service was there before the test"; exit 1; fi
+          berth system service install
+          for _ in $(seq 1 30); do [ -S "$sock" ] && break; sleep 1; done
+          curl -fsS --unix-socket "$sock" http://berth/v1 | tee /tmp/v1.json
+          grep -q '"schema": "berth.api/v1"' /tmp/v1.json
+          berth system service status
+          berth system service logs | tail -5
+          # Installing again applies the unit and leaves it running.
+          berth system service install >/dev/null
+          for _ in $(seq 1 30); do curl -fsS --unix-socket "$sock" http://berth/v1 >/dev/null 2>&1 && break; sleep 1; done
+          berth system service status
+          berth system service uninstall
+          if berth system service status; then echo "still installed"; exit 1; fi
+          if curl -fsS -m 3 --unix-socket "$sock" http://berth/v1 2>/dev/null; then echo "still serving"; exit 1; fi
+          echo "ok: the service installs, serves, and goes away"
+
   # Podman (#57): the org lifecycle and backups on Podman, rootless (this user) and rootful (root).
   # `podman compose` runs Docker's compose against Podman's API socket, which is started here.
   podman:

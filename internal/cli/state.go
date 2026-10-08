@@ -94,6 +94,8 @@ func subOf(cmd string, args []string) string {
 			return "policy/"
 		}
 		return at(0)
+	case "service": // service <install|uninstall|status|logs>
+		return at(0)
 	case "use": // use [<org>[@host] | --clear]
 		switch at(0) {
 		case "", "--clear":

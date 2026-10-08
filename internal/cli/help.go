@@ -57,7 +57,7 @@ var nounGroups = []struct {
 	}},
 	{"system", "berth itself: install, upgrade, its image, shell completion", [][2]string{
 		{"install", "install"}, {"upgrade", "upgrade"}, {"pull", "pull"}, {"build", "build"},
-		{"completion", "completion"}, {"parity-check", "parity-check"},
+		{"completion", "completion"}, {"parity-check", "parity-check"}, {"service", "service"},
 	}},
 }
 
@@ -97,6 +97,7 @@ var examples = map[string][]string{
 	"serve token add":    {"berth serve token add ci", "berth serve token add deploy --scope restart"},
 	"serve token ls":     {"berth serve token ls", "berth --output json serve token ls"},
 	"serve token rm":     {"berth serve token rm ci"},
+	"service":            {"berth service install", "berth service status", "berth service logs -f", "berth service uninstall"},
 	"tui":                {"berth tui", "berth --read-only tui"},
 	"mcp":                {"berth mcp", "berth mcp --allow-writes", "claude mcp add berth -- berth mcp"},
 	"pkg":                {"berth pkg acme add @playwright-chromium", "berth pkg acme add libpq-dev", "berth pkg acme", "berth restart acme"},

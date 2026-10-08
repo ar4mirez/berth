@@ -34,7 +34,8 @@ import (
 // Fakes are the tools the harness replaces. The first six are the host tools ccenv drives; the
 // rest would make runs slow or non-deterministic (sleep, random keys, the host's name, the clock).
 var Fakes = []string{"docker", "tailscale", "gh", "ssh", "systemctl", "crontab",
-	"loginctl", "journalctl", "rsync", "ssh-keygen", "hostname", "date", "sleep"}
+	"loginctl", "journalctl", "rsync", "ssh-keygen", "hostname", "date", "sleep",
+	"launchctl"} // berth's own: `system service` on macOS (#63)
 
 // Rule scripts a fake's answer (see test/parity/fakebin).
 type Rule struct {
