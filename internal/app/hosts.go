@@ -220,6 +220,9 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 	if err := host.CheckEngine(engine); err != nil {
 		return err
 	}
+	if engine == host.EngineApple {
+		return fmt.Errorf("the engine \"container\" (Apple's) is for this machine (engine: container in config.yaml): a registered host runs docker or podman")
+	}
 	if err := CheckBind(bind); err != nil {
 		return err
 	}
@@ -351,8 +354,8 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 
 	// The host guard (#48), unless the operator opted out.
 	guarded := "off (--no-guard)"
-	if guard && engine != host.EngineDocker {
-		guarded = "not available with " + engine + " yet (it works on Docker's DOCKER-USER chain; docs/engines.md)"
+	if why := guardUnavailable(ctx, a.On(name, h, home)); guard && why != "" {
+		guarded = why
 	} else if guard {
 		b := a.On(name, h, home)
 		if err := a.installGuard(ctx, b); err != nil {

@@ -73,7 +73,11 @@ jq '.hasCompletedOnboarding = true
     | .remoteDialogSeen = true
     | .projects["/workspace"].hasTrustDialogAccepted = true' \
   "$CFG/.claude.json" > "$tmp" && cat "$tmp" > "$CFG/.claude.json" && rm -f "$tmp"
-chown -R node:node "$CFG"
+# A bind mount shared through virtiofs (Apple's container, #95) refuses a chown of the mount itself.
+# Its files are the host user's whoever writes them, so node can use them anyway.
+if ! chown -R node:node "$CFG" 2>/dev/null; then
+  [ "$(awk -v m="$CFG" '$2 == m { print $3 }' /proc/mounts)" = virtiofs ] || { echo "entrypoint: can't make $CFG node's" >&2; exit 1; }
+fi
 
 # --- Profile setup (berth org create --profile): as node, at every start, before any session opens ---
 # Its output goes to /run/berth-setup.log. A failure or a timeout is logged; the container still starts.

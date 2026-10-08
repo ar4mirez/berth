@@ -3,11 +3,12 @@
 berth drives a container engine through its command line, with Docker's commands. Each host has one engine:
 
 - **Docker** (the default);
-- **Podman**, rootful or rootless (#57).
+- **Podman**, rootful or rootless (#57);
+- **Apple's `container`**, on this machine only, on Apple silicon (#96; [below](#apple-container)).
 
 | Where | How to choose |
 |---|---|
-| This machine | `engine: podman` in `~/.config/berth/config.yaml`, or `BERTH_ENGINE=podman` |
+| This machine | `engine: podman` (or `container`) in `~/.config/berth/config.yaml`, or `BERTH_ENGINE=podman` |
 | A registered host | detected at `berth host add` (Docker if it answers, else Podman), or `--engine podman`; recorded in `hosts.yaml` |
 
 `berth host ls` shows each host's engine.
@@ -16,19 +17,20 @@ berth drives a container engine through its command line, with Docker's commands
 
 | | Docker | Podman, rootful | Podman, rootless | Apple `container` |
 |---|---|---|---|---|
-| org lifecycle (`init`, `up`, `down`, `restart`, `attach`, `shell`, `claude`, `run`) | yes | yes | yes | not yet (see below) |
-| the egress firewall (allow and block) | yes | yes | yes | – |
-| the repo allowlist | yes | yes | yes | – |
-| files in the org's folders stay yours | yes | yes | yes (`keep-id`, below) | – |
-| backup and restore | yes | yes | yes | – |
-| Remote Control, the browser terminal, SSH | yes | expected; not covered by CI | expected; not covered by CI | – |
-| registered hosts (`org@host`) | yes | yes | yes | – |
-| the host guard | yes | no: it uses Docker's `DOCKER-USER` chain (#97) | no (#97) | – |
-| orgs start again after a reboot | yes (`restart: unless-stopped`) | with `podman-restart.service` enabled | with `systemctl --user enable podman-restart.service`, and linger | – |
+| org lifecycle (`org create`, `up`, `down`, `restart`, `attach`, `shell`, `claude`, `org run`) | yes | yes | yes | yes, run by hand (below) |
+| the egress firewall (allow and block) | yes | yes | yes | yes |
+| the repo allowlist | yes | yes | yes | yes |
+| files in the org's folders stay yours | yes | yes | yes (`keep-id`, below) | yes (virtiofs) |
+| backup and restore | yes | yes | yes | yes |
+| Remote Control, the browser terminal, SSH | yes | expected; not covered by CI | expected; not covered by CI | not verified: published ports (below) |
+| registered hosts (`org@host`) | yes | yes | yes | no: this machine only |
+| the host guard | yes | yes (#97) | no: its networks are out of the guard's reach (below) | – |
+| orgs start again after a reboot | yes (`restart: unless-stopped`) | with `podman-restart.service` enabled | with `systemctl --user enable podman-restart.service`, and linger | no: `berth up` again |
 
 CI runs the whole lifecycle on each Docker and Podman variant: the `docker` and `podman (rootful|rootless)` jobs,
 `TestEngineLifecycle`. That covers start, the firewall allowing and blocking, file ownership, repo add, backup, restore
-and down.
+and down. The host guard is tested on a Docker host and on a rootful Podman host (`TestHostGuard`,
+`TestHostGuardPodman`). Apple's `container` has no CI runner: what the table says of it was run by hand.
 
 ## Podman
 
@@ -54,29 +56,50 @@ delegated to your user, which is the default on current systemd distributions.
 
 **Differences from Docker:**
 
-- **The host guard** is Docker-only for now: `berth host add` skips it on a Podman host and says so.
+- **The host guard** works on a rootful Podman host (#97): the same container, on Podman's socket, with its
+  forwarding rules in `FORWARD` and DNS to the host let through (aardvark-dns listens on each bridge's gateway).
+  On a **rootless** Podman host it isn't available, and `berth host add` says so: rootless networks live in the
+  user's own network namespace, where a container with the host's network has no say, and the host is reached
+  from there through pasta, not through the host's own firewall.
 - **Restarts after a reboot** need `podman-restart.service` (above). With Docker, the daemon restarts `unless-stopped`
   containers itself.
 - **Image names:** Podman keeps images under `localhost/…` and `docker.io/…` names. berth refers to its image by the
   short name, which Podman resolves to either.
 
-## Apple `container` (spike)
+## Apple `container`
 
-Apple's `container` runs each container in its own lightweight VM (Virtualization.framework) on Apple silicon, from
-macOS 26. It isn't supported yet.
+Apple's `container` runs each container in its own lightweight VM, on Apple silicon, from macOS 26. berth drives it
+on this machine with `engine: container` (or `BERTH_ENGINE=container`).
 
-This is a **desk spike**. It's based on the tool's documentation and design, not on hardware: CI has no macOS 26
-runner yet, and berth hasn't been run against it. The gaps are tracked in #95 (a hands-on spike on macOS 26) and #96
-(starting orgs without compose).
+```bash
+brew install container
+container system start          # its service, and a kernel the first time
+BERTH_ENGINE=container berth up acme
+```
 
-| Area | What we know | The gap for berth |
-|---|---|---|
-| Orchestration | No compose, and no Docker API socket | berth would start orgs itself (the Engine-API path, #43, is the pattern), with `container run` flags standing in for `compose.yml` |
-| Networking | Each container gets its own IP on a virtual network; ports are published with `--publish` | Ports and `BIND_ADDR` map to `--publish`. Tailscale binding needs checking. |
-| Firewall | Each container has its own kernel, so `iptables`/`ipset` in the container should behave as on Linux | To verify: `NET_ADMIN`, and DNS through the VM's resolver |
-| Bind mounts | Shared through virtiofs | To verify: ownership (the uid remap, #38) and file-watching performance |
-| Exec and TTY | `container exec -it` exists | To verify: `attach`, `shell`, `claude` over tmux |
-| Images | Pulls OCI images from registries; builds with BuildKit | Should pull berth's released image as is |
-| Backups | Needs a root container with the org's folder mounted | Likely works once bind mounts do |
+**How berth starts an org there.** `container` has no compose and no Docker API. berth runs the same commands as
+with Docker, and maps each to what `container` has (`internal/host/apple.go`): what `compose.yml` sets becomes one
+`container run` (the capabilities, `org.env`, the two ports on the bind address, the eight mounts, memory and
+CPUs); `down` is stop and remove; the image is built with `container build` when it isn't there.
 
-The next step is #95: a hands-on spike on a macOS 26 Mac, turning each "to verify" into a yes or an issue.
+**Run by hand** on macOS 27 (Apple silicon) with `container` 1.5.0 (#95, 2026-10-08). There is no CI for it.
+
+| Area | Result |
+|---|---|
+| Lifecycle | `up` (building the image), `restart`, `down`, `org destroy`, `ls`, `info`, `org exec`: work |
+| Firewall | `NET_ADMIN` works in the VM: `iptables`, `ipset` and dnsmasq as on Linux. An allowlisted host answers, another times out, 169.254.169.254 is unreachable; `fw allow` and `fw test` apply live |
+| Bind mounts | virtiofs. Files are yours on the Mac whoever writes them inside, and `node` gets your uid (the remap, #38). The mount itself takes no owner, mode or time, so the image no longer insists on them there |
+| File watching | a change made inside the org is seen inside. **A change made on the Mac isn't**: no event crosses virtiofs |
+| Exec and TTY | `container exec -it` gives a TTY; the tmux session is there; exit codes pass through |
+| Images | berth's released image pulls and runs. Pulls from ghcr.io failed with HTTP/2 stream errors until limited to one download at a time, which berth does |
+| Backups | `backup create` and `backup restore` work |
+| Published ports | `container` lists them, and they listen. **On the test Mac no data passed**: its forwarder logged `connect failed: No route to host`, though the same address answered from a shell. That looks like macOS's Local Network permission for the forwarder; it wasn't resolved. The org's own address (`container ls`) answers directly from the Mac |
+
+**What is different from Docker:**
+
+- **No restart policy:** an org doesn't come back by itself after a reboot.
+- **No hostname option:** the container's hostname is `claude-<org>`, not `<org>`.
+- **CPUs are whole:** `CPUS=0.5` is rounded up to 1.
+- **Each org has its own address** on a virtual network (192.168.64.x), reachable from the Mac whatever
+  `BIND_ADDR` says. Binding to a Tailscale address wasn't verified, since published ports weren't.
+- **This machine only:** a registered host is Docker or Podman.
