@@ -37,7 +37,9 @@ jobs:
           CGO_ENABLED=0 go build -o "$RUNNER_TEMP/berth" ./cmd/berth   # static, as releases are (goreleaser): it runs on other hosts (schedule --host)
           "$RUNNER_TEMP/berth" --version
       - name: integration tests (compose lifecycle, ssh host and remote lifecycle against sshd + dind, backup matrix)
-        run: BERTH_BIN="$RUNNER_TEMP/berth" go test -tags integration -count=1 -v ./test/integration/...
+        # go test stops a package after 10 minutes by default, and this one takes about that now
+        # (the host guard on three engines, the host API): the job's own limit is the one that counts.
+        run: BERTH_BIN="$RUNNER_TEMP/berth" go test -tags integration -count=1 -timeout 25m -v ./test/integration/...
 
   # berth serve as a service (#63), with the real service managers: systemd's user manager on Linux,
   # launchd on macOS. No container engine is needed: GET /v1 says only who is serving.
