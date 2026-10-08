@@ -623,6 +623,17 @@ func addCommands(root *cobra.Command) {
 			Short: "install a verified release and switch to it (the previous one stays; restarts nothing)", DisableFlagParsing: true,
 			RunE: func(cmd *cobra.Command, args []string) error { return appFor(cmd).Upgrade(cmd.Context(), args) },
 		}),
+		reads(&cobra.Command{
+			Use:   "service <install [--listen ADDR] | uninstall | status | logs [-f]>",
+			Short: "berth serve as a service of yours: at login, without starting it by hand", DisableFlagParsing: true,
+			Long: "Installs `berth serve` (the API, docs/api.md) as a service of your user: a systemd user unit on\n" +
+				"Linux, a launchd agent on macOS. It starts now and at each login, restarts if it stops, and runs\n" +
+				"berth through the path you ran this as, so an upgrade keeps it working.\n\n" +
+				"With it running, `berth --via-daemon` and MCP over HTTP have a server to talk to, and so does a\n" +
+				"berth elsewhere that has this machine as a registered host.",
+			ValidArgsFunction: completeArgs([]string{"install", "uninstall", "status", "logs"}),
+			RunE:              func(cmd *cobra.Command, args []string) error { return appFor(cmd).Service(cmd.Context(), args) },
+		}),
 		mcpCmd(),
 		tuiCmd(),
 		serveCmd(),

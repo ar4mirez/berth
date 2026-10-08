@@ -429,6 +429,17 @@ func layout(root *cobra.Command) {
 	for _, name := range []string{"upgrade", "pull", "build", "parity-check"} {
 		t.move(sys, name, name)
 	}
+	svc := t.group(sys, "service", "berth serve as a service of yours: at login, without starting it by hand", "berth system service install", "berth system service status")
+	svc.Long = t.flat["service"].Long
+	for _, v := range [][3]string{
+		{"install", "install [--listen ADDR]", "install and start it (a systemd user unit, or a launchd agent)"},
+		{"uninstall", "uninstall", "stop it and remove it"},
+		{"status", "status", "whether it is installed and running"},
+		{"logs", "logs [-f]", "its last log lines (-f: follow)"},
+	} {
+		ex := "berth system service " + v[0]
+		t.verb(svc, "service", v[0], v[1], v[2], prefixed(v[0]), completeArgs(), ex)
+	}
 	t.kept("image-tag")
 
 	for _, name := range []string{"tui", "mcp", "serve"} {

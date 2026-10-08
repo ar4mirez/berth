@@ -163,6 +163,12 @@ var Catalog = map[string]Op{
 	// The default org (#55): showing it reads; setting or clearing it writes the operator's config.
 	"use": {Access: BySub, Subs: map[string]Op{"": readJSON, "<org>": write, "--clear": write}},
 
+	// berth serve as a service of the user (#63): a unit file and the service manager. No org is touched.
+	"service": {Access: BySub, Subs: map[string]Op{
+		"status": readText("a report for a person"), "logs": readText("the service's log, as text"),
+		"install": write, "uninstall": write,
+	}},
+
 	// The dashboard (#59): it reads; each action in it is one of the operations here, checked as such.
 	"tui": readText("an interactive dashboard: it needs a terminal"),
 
@@ -194,7 +200,7 @@ var groups = map[string]map[string]string{
 		"rehydrate": "rehydrate", "migrate": "migrate", "password": "password", "remote": "remote",
 		"takeover": "takeover", "handback": "handback", "connect": "connect", "destroy": "destroy"},
 	"account": {"signin": "auth", "token": "token", "login": "login", "logout": "logout", "gh": "gh-login", "whoami": "whoami"},
-	"system":  {"install": "install", "upgrade": "upgrade", "pull": "pull", "build": "build", "completion": "completion", "parity-check": "parity-check"},
+	"system":  {"install": "install", "upgrade": "upgrade", "pull": "pull", "build": "build", "completion": "completion", "parity-check": "parity-check", "service": "service"},
 }
 
 func init() {

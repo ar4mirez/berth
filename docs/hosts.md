@@ -276,7 +276,8 @@ has, so nothing listens on the host's network, and the host's berth runs the com
   host guard), `info` and `ls` (the registry, the tunnel), backups (your key), and anything interactive.
 - **Nothing to set up here.** berth looks for the socket at each command; a host with no server, or one that
   doesn't answer, is driven over ssh as before. `BERTH_HOST_API=off` keeps everything on ssh.
-- **On the host**, run `berth serve` as the user berth logs in as (an OS service for it is #63). A change that
+- **On the host**, run `berth serve` as the user berth logs in as: `berth system service install` there keeps
+  it running ([as a service](api.md#running-it-as-a-service)). A change that
   comes through it is in that host's `audit.log`, with `"via":"api"`.
 
 Output, messages and exit codes are the command's own, from the host's berth: keep it at the version you run here.

@@ -12,6 +12,31 @@ berth --read-only serve     # the same, and nothing can change anything through 
 curl --unix-socket "$XDG_RUNTIME_DIR/berth.sock" http://berth/v1/orgs
 ```
 
+## Running it as a service
+
+```bash
+berth system service install      # berth serve now, and at each login
+berth system service status
+berth system service logs -f
+berth system service uninstall
+```
+
+It installs `berth serve` as a service of your user: a **systemd user unit** (`berth-serve.service`) on Linux, a
+**launchd agent** (`dev.berth.serve`) on macOS. It starts at once and at each login, and is restarted if it stops.
+
+- **It survives upgrades**: the unit runs berth through the path you ran the install as (the link on your `PATH`),
+  not a versioned file.
+- **On Linux it lives with your login session.** Without lingering, a user unit stops at your last logout; the
+  install says so, and how to change it: `loginctl enable-linger <you>`, which also starts it at boot.
+- **It is given the few variables berth needs** when they are set where you install it (`DOCKER_HOST`,
+  `XDG_CONFIG_HOME`, `BERTH_ENGINE`, `BERTH_SOCKET`, and on macOS your `PATH`): a service manager starts with
+  almost nothing. Install it again after changing one.
+- `berth system service install --listen 127.0.0.1:8443` has it serve [TCP](#over-the-network-tls-and-tokens) too.
+- `status` ends with 0 when it is running, and 3 when it isn't or isn't installed.
+
+With it running, `berth --via-daemon`, MCP over HTTP, and a berth elsewhere that has this machine as a
+[registered host](hosts.md#a-host-that-runs-berth-serve) all have a server to talk to.
+
 ## Who may call it
 
 The API listens on a **Unix socket only you can open** (mode 0600, created that way). There is no token on the

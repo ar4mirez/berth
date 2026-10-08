@@ -44,5 +44,6 @@ Docs: https://ar4mirez.github.io/berth/reference/commands/berth_system/
 * [berth system install](berth_system_install.md)	 - link berth onto PATH (default ~/.local/bin) with bash completion; --alias ccenv at cutover
 * [berth system parity-check](berth_system_parity-check.md)	 - compare every read command under ccenv and berth --read-only on this state root (pre-cutover)
 * [berth system pull](berth_system_pull.md)	 - get the released image now, so restarts don't wait for it (restarts nothing)
+* [berth system service](berth_system_service.md)	 - berth serve as a service of yours: at login, without starting it by hand
 * [berth system upgrade](berth_system_upgrade.md)	 - install a verified release and switch to it (the previous one stays; restarts nothing)
 

@@ -21,7 +21,7 @@ Every command lives in one group, and each group's `--help` lists its verbs. The
 | `berth account` | `signin` `token` `login` `logout` `gh` `whoami` `remote status\|logs\|restart` |
 | `berth backup` | `create` `restore` `keygen` `schedule on\|off\|status\|run` |
 | `berth host` | `add` `ls` `rm` `guard` `rotate-access` |
-| `berth system` | `install` `upgrade` `pull` `build` `completion` `parity-check` |
+| `berth system` | `install` `upgrade` `pull` `build` `completion` `parity-check` `service install\|uninstall\|status\|logs` |
 | `berth tui` | (the dashboard: [guide](guides/tui.md)) |
 | `berth mcp` | (the MCP server: [guide](guides/mcp.md)) |
 | `berth serve` | (the API: [reference](api.md)) |
