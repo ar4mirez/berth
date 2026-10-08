@@ -18,15 +18,16 @@ const (
 	EnginePodman = "podman"
 )
 
-// Engines are the engines berth can drive.
-var Engines = []string{EngineDocker, EnginePodman}
+// Engines are the engines berth can drive: Docker and Podman anywhere, Apple's container on this
+// machine (apple.go).
+var Engines = []string{EngineDocker, EnginePodman, EngineApple}
 
 // CheckEngine refuses an engine berth doesn't know ("" is Docker).
 func CheckEngine(e string) error {
 	if e == "" || slices.Contains(Engines, e) {
 		return nil
 	}
-	return fmt.Errorf("unknown container engine %q (docker or podman)", e)
+	return fmt.Errorf("unknown container engine %q (docker, podman, or container for Apple's)", e)
 }
 
 // EngineName is h's engine: docker unless WithEngine said otherwise.
@@ -79,6 +80,9 @@ func (e engineExec) isRootless(ctx context.Context) bool {
 // (compose.yml): the host user is the same uid inside, so what those containers write stays the
 // operator's.
 func (e engineExec) Run(ctx context.Context, c Cmd) error {
+	if len(c.Args) > 0 && c.Args[0] == EngineDocker && e.bin == EngineApple {
+		return e.runApple(ctx, c)
+	}
 	if len(c.Args) > 0 && c.Args[0] == EngineDocker {
 		args := []string{e.bin}
 		if len(c.Args) > 1 && c.Args[1] == "run" && e.bin == EnginePodman && e.isRootless(ctx) {
@@ -112,6 +116,18 @@ func (f cliFacts) PortsInUse(ctx context.Context) ([]int, error) {
 		return nil, err
 	}
 	var out bytes.Buffer
+	if e, ok := f.ex.(engineExec); ok && e.bin == EngineApple {
+		if err := e.inner.Run(ctx, Cmd{Args: []string{EngineApple, "ls", "--format", "json"}, Stdout: &out, Stderr: io.Discard}); err != nil {
+			return nil, fmt.Errorf("listing Apple container's containers: %w", err)
+		}
+		pub, err := parseApplePorts(out.Bytes())
+		if err != nil {
+			return nil, err
+		}
+		ports = append(ports, pub...)
+		slices.Sort(ports)
+		return slices.Compact(ports), nil
+	}
 	if err := f.ex.Run(ctx, Cmd{Args: []string{EngineDocker, "ps", "--format", "json"}, Stdout: &out}); err != nil {
 		return nil, fmt.Errorf("listing the engine's containers: %w", err)
 	}

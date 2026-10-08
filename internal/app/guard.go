@@ -15,11 +15,37 @@ import (
 // firewall keep org containers away from the host itself and from cloud metadata
 // (internal/hosts/guard.sh). It runs as a container of berth's image, so it needs no root login
 // and persists across reboots through Docker's restart policy.
+//
+// On a rootful Podman (#97) it is the same container on Podman's socket, with its rules hooked
+// into FORWARD. A rootless Podman keeps org networks in its own network namespace, where a
+// container with the host's network has no say: the guard isn't available there.
+
+// guardUnavailable is why b's host can't have the guard ("" when it can).
+func guardUnavailable(ctx context.Context, b *App) string {
+	switch e := b.Host.EngineName(); {
+	case e == host.EngineDocker:
+		return ""
+	case e == host.EnginePodman && b.Host.Rootless(ctx):
+		return "not available with a rootless Podman: its org networks live in the user's own network namespace, out of the guard's reach (docs/engines.md)"
+	case e == host.EnginePodman:
+		return ""
+	default:
+		return "not available with " + e + " (docs/engines.md)"
+	}
+}
+
+// engineSocket is the engine's API socket on b's host, which the guard lists org networks through.
+func engineSocket(b *App) string {
+	if b.Host.EngineName() == host.EnginePodman {
+		return "/run/podman/podman.sock"
+	}
+	return "/var/run/docker.sock"
+}
 
 // installGuard (re)starts the guard on b's host and applies its rules once, now.
 func (a *App) installGuard(ctx context.Context, b *App) error {
-	if e := b.Host.EngineName(); e != host.EngineDocker {
-		return fmt.Errorf("the host guard works on Docker's DOCKER-USER chain; it isn't available with %s yet (docs/engines.md)", e)
+	if why := guardUnavailable(ctx, b); why != "" {
+		return fmt.Errorf("the host guard is %s", why)
 	}
 	sayf(a.Stdout, "Installing the host guard (%s): org containers can't reach the host or 169.254.0.0/16…\n", hosts.GuardContainer)
 	if !b.imageFromRelease(ctx) {
@@ -34,7 +60,7 @@ func (a *App) installGuard(ctx context.Context, b *App) error {
 	_ = b.quietRun(ctx, "docker", "rm", "-f", hosts.GuardContainer)
 	if _, err := b.capture(ctx, true, "docker", "run", "-d", "--name", hosts.GuardContainer, "--restart", "always",
 		"--network", "host", "--cap-add", "NET_ADMIN", "--cap-add", "NET_RAW",
-		"-v", "/var/run/docker.sock:/var/run/docker.sock", "--label", "berth.guard=1",
+		"-v", engineSocket(b)+":/var/run/docker.sock", "--label", "berth.guard=1",
 		"--entrypoint", "/usr/bin/tini", set.Tag, "--", "bash", "-c", hosts.GuardScript, "guard", "run"); err != nil {
 		return fmt.Errorf("starting %s: %w", hosts.GuardContainer, err)
 	}

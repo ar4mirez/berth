@@ -102,6 +102,22 @@ case "${1:-}" in
       *) echo "archive: not a ccenv backup (unrecognized format)" >&2; exit 4 ;;
     esac
     echo "$fmt" > "$DST/.ccenv-format"
+    if [ "$(awk -v m="$DST" '$2 == m { print $3 }' /proc/mounts)" = virtiofs ]; then
+      # Apple's container (#95) shares the folder through virtiofs: its files are the host user's
+      # whoever writes them, and the mount itself takes no owner or time. There is nothing to chown.
+      set +e
+      cat /tmp/head - | dec | zstd -dc | tar -xf - -C "$DST" --no-same-owner --no-overwrite-dir 2>/tmp/tar.err
+      st=("${PIPESTATUS[@]}")
+      set -e
+      # The mount takes no mode either: what tar says about "." itself is expected, and nothing else is.
+      rest=$(grep -v -e '^tar: \.: Cannot ' -e '^tar: Exiting with failure status' /tmp/tar.err || true)
+      if [ "${st[0]}${st[1]}${st[2]}" != 000 ] || [ -n "$rest" ] || [ "${st[3]}" -gt 2 ]; then
+        cat /tmp/tar.err >&2
+        exit 1
+      fi
+      chmod 600 "$DST"/sshd/*_key 2>/dev/null || true
+      exit 0
+    fi
     cat /tmp/head - | dec | zstd -dc | tar -xf - -C "$DST" --numeric-owner
     # Files belong to whoever runs ccenv on this host; sshd host keys stay root-only. $DST itself
     # too: tar gives it the owner it had where the backup was made, which on another machine (a
