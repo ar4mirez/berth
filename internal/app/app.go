@@ -55,6 +55,9 @@ type App struct {
 	Progress *ops.Progress
 	// Self is the berth binary itself (symlinks resolved): what install links to.
 	Self string
+	// CloudRegister registers a host berth created at a cloud provider, once it answers (the tests
+	// replace the wait and the ssh that it takes).
+	CloudRegister func(ctx context.Context, c CloudHost) error
 	// Invoked is the path berth was run as, symlinks kept (~/.local/bin/berth): what the scheduled
 	// backup job runs, so it keeps working when an upgrade moves the link to a new binary.
 	Invoked string

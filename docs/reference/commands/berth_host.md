@@ -40,8 +40,11 @@ Docs: https://ar4mirez.github.io/berth/reference/commands/berth_host/
 
 * [berth](berth.md)	 - berth: one Claude Code container per organization
 * [berth host add](berth_host_add.md)	 - register a host: pin its SSH key, check Docker, and give berth its own key there
+* [berth host create](berth_host_create.md)	 - create a VM at a cloud provider and register it: nothing open to the internet, reached over Tailscale
+* [berth host destroy](berth_host_destroy.md)	 - delete a host berth created, and forget it (refused while it has orgs, unless --force)
 * [berth host guard](berth_host_guard.md)	 - the host guard: org containers can't reach the host or cloud metadata (on at host add; restarts nothing)
 * [berth host ls](berth_host_ls.md)	 - each host: reachable, its Docker version and its number of orgs
+* [berth host reconcile](berth_host_reconcile.md)	 - what berth created at the provider, against the registry (--prune deletes what belongs to no host)
 * [berth host rm](berth_host_rm.md)	 - forget a host and revoke berth's key there (refused while it has orgs, unless --force)
 * [berth host rotate-access](berth_host_rotate-access.md)	 - replace berth's key on a host (the old one goes only once the new one works)
 

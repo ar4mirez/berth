@@ -29,6 +29,9 @@ type Host struct {
 	Exec   Execer
 	Docker Docker
 	Facts  Facter
+	// Unix opens a connection to a Unix socket on the host: over ssh, a direct-streamlocal channel
+	// (as the engine's socket is reached). Nil on this machine.
+	Unix   func(ctx context.Context, path string) (net.Conn, error)
 	close  func() error
 	engine string // WithEngine: the container engine ("" is Docker)
 }

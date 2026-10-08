@@ -53,6 +53,8 @@ type Entry struct {
 	Engine string `yaml:"engine,omitempty"`
 	// Bind is BIND_ADDR for new orgs on the host ("": ccenv's default; #58).
 	Bind string `yaml:"bind,omitempty"`
+	// Provider is the cloud provider berth created the host at ("" for a host that was added; #52).
+	Provider string `yaml:"provider,omitempty"`
 }
 
 // Address is user@host:port, as shown to the operator.

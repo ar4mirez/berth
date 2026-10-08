@@ -153,6 +153,9 @@ var Catalog = map[string]Op{
 	// host's authorized_keys. No org or container on any host is touched.
 	"host": {Access: BySub, Subs: map[string]Op{
 		"ls": readJSON, "add": write, "rm": write, "rotate-access": write,
+		// Cloud hosts (#52): a VM at the provider, and berth's registry. No org is touched.
+		"create": write, "destroy": write,
+		"reconcile": {Access: BySub, Subs: map[string]Op{"": readText("a report for a person"), "--prune": write}},
 		// The host guard's rules apply live to running containers; nothing restarts.
 		"guard": {Access: BySub, Subs: map[string]Op{"": readJSON, "status": readJSON, "on": write, "off": write}},
 	}},

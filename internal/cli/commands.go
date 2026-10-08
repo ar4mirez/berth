@@ -329,6 +329,30 @@ func hostCmd() *cobra.Command {
 			DisableFlagParsing: true,
 			RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostRm(cmd.Context(), args) },
 		}),
+		writes(&cobra.Command{
+			Use:   "create <name> --provider hetzner [--size cax21] [--region fsn1] [--image ubuntu-24.04] [--home <dir>] [--bind <mode>]",
+			Short: "create a VM at a cloud provider and register it: nothing open to the internet, reached over Tailscale",
+			Long: "Creates a server at Hetzner Cloud behind a firewall that lets nothing in, has it install Docker and\n" +
+				"join your tailnet, and registers it as host add does. berth makes the server's ssh host key itself and\n" +
+				"pins it before the first connection. Everything it creates is labelled (berth.managed, berth.host).\n\n" +
+				"From the environment, never the command line: HCLOUD_TOKEN (the project's API token) and\n" +
+				"BERTH_TAILSCALE_AUTHKEY (a single-use, tagged auth key). This machine must be on the tailnet.\n" +
+				"A failure at any step removes what was created.",
+			DisableFlagParsing: true,
+			RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostCreate(cmd.Context(), args) },
+		}),
+		writes(&cobra.Command{
+			Use:                "destroy <name> [--force]",
+			Short:              "delete a host berth created, and forget it (refused while it has orgs, unless --force)",
+			DisableFlagParsing: true,
+			RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostDestroy(cmd.Context(), args) },
+		}),
+		reads(&cobra.Command{
+			Use:                "reconcile [--prune]",
+			Short:              "what berth created at the provider, against the registry (--prune deletes what belongs to no host)",
+			DisableFlagParsing: true,
+			RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostReconcile(cmd.Context(), args) },
+		}),
 		reads(&cobra.Command{
 			Use:                "guard <name> [on|off|status]",
 			Short:              "the host guard: org containers can't reach the host or cloud metadata (on at host add; restarts nothing)",
@@ -384,6 +408,9 @@ func orgArgs(pick func([]string) int, verbs []string, useContext bool, fn func(a
 		defer done()
 		args = slices.Clone(args)
 		args[i] = o
+		if handled, err := throughHostAPI(cmd, b, args); handled {
+			return err
+		}
 		return fn(b, cmd, args)
 	}
 }
