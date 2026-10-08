@@ -52,7 +52,10 @@ func TestConnectTunnel(t *testing.T) {
 	}
 	must("host", "add", "box", "ops@"+target.addr, "--identity", target.keyFile, "--fingerprint", m[1], "--no-guard", "--bind", "localhost")
 
-	must("init", o+"@box", "--name", "Test User", "--email", "test@example.com")
+	// The next steps name the org as it must be typed: with its host (#159).
+	if out := must("init", o+"@box", "--name", "Test User", "--email", "test@example.com"); !strings.Contains(out, "berth up "+o+"@box\n") || !strings.Contains(out, "repo add "+o+"@box ") {
+		t.Errorf("init's next steps don't name the host:\n%s", out)
+	}
 	if env := docker(t, "exec", fixture, "cat", "/home/ops/.local/share/berth/orgs/"+o+"/org.env"); !strings.Contains(env, "\nBIND_ADDR=localhost\n") {
 		t.Fatalf("the host's default bind didn't reach the org:\n%s", env)
 	}

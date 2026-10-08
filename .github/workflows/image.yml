@@ -133,6 +133,14 @@ jobs:
           docker run --rm --network berth-race-ci --cap-add NET_ADMIN --cap-add NET_RAW -v "$cfg:/config" \
             -v "$PWD/test/image/firewall_race.sh:/firewall_race.sh:ro" --entrypoint bash berth-image-ci /firewall_race.sh
           docker network rm berth-race-ci >/dev/null
+      - name: firewall - the DNS check asks again after a lost query (#159)
+        run: |
+          set -euo pipefail
+          cfg=$(mktemp -d); chmod 777 "$cfg"
+          docker network create berth-dnscheck-ci >/dev/null
+          docker run --rm --network berth-dnscheck-ci --cap-add NET_ADMIN --cap-add NET_RAW -v "$cfg:/config" \
+            -v "$PWD/test/image/dns_check.sh:/dns_check.sh:ro" --entrypoint bash berth-image-ci /dns_check.sh
+          docker network rm berth-dnscheck-ci >/dev/null
       - name: firewall - DNS when Docker forwards to a resolver that isn't loopback (#98)
         run: |
           set -euo pipefail
