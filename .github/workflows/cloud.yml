@@ -41,7 +41,7 @@ jobs:
             [ -n "${!v}" ] || { echo "::error::the secret $v is not set (docs/hosts.md, Testing against Hetzner)"; exit 1; }
           done
       # The runner joins the tailnet: the new host is reached over it only.
-      - uses: tailscale/github-action@v3
+      - uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}

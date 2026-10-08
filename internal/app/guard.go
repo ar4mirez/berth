@@ -7,6 +7,7 @@ import (
 	"io"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/hosts"
@@ -84,6 +85,18 @@ func (a *App) installGuard(ctx context.Context, b *App) error {
 		"--entrypoint", "/usr/bin/tini", set.Tag, "--", "bash", "-c", hosts.GuardScript, "guard", "run")
 	if _, err := b.capture(ctx, true, append([]string{"docker"}, run...)...); err != nil {
 		return fmt.Errorf("starting %s: %w", hosts.GuardContainer, err)
+	}
+	// The container may not take an exec the instant after its start (Podman: "container state
+	// improper"), and a rootless one may be on its way round a restart: a few tries, then the error.
+	for range 5 {
+		if b.quietRun(ctx, "docker", "exec", hosts.GuardContainer, "bash", "-c", hosts.GuardScript, "guard", "apply") == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
 	}
 	return b.guard(ctx, "apply", a.Stderr)
 }
