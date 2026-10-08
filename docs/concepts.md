@@ -46,7 +46,8 @@ A **host** is a machine that runs orgs:
 
 - **`local`:** this machine, always there.
 - **Registered hosts:** machines added with `berth host add`, reached over SSH with a key of berth's own. They need
-  sshd, a POSIX shell, Docker and compose, and nothing of berth's.
+  sshd, a POSIX shell, Docker and compose (or Podman), and nothing of berth's. `berth host create` makes one at a
+  cloud provider.
 
 `acme@box1` names the org `acme` on `box1`. Every org command takes that form. See [Hosts](hosts.md).
 
@@ -121,8 +122,3 @@ history, uncommitted work, config, keys and Claude's memory.
 
 **The private key never leaves your machine.** A registered host that runs its own backup schedule only gets your
 public key. See [Backups](guides/backups.md).
-
-## Coming later
-
-- **Apple `container`** as an engine: Docker and Podman are supported today ([Container engines](engines.md)).
-- **Cloud hosts** provisioned from the CLI.

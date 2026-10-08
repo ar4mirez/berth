@@ -30,14 +30,15 @@ berth attach acme                # or: berth info acme, for every other way in
 | | |
 |---|---|
 | [Getting started](getting-started.md) | Install berth, create your first org, connect to it |
+| [What berth does](features.md) | Every feature on one page, with where to read more |
 | [Concepts](concepts.md) | Orgs, hosts, the state root, the firewall, the repo allowlist, the security model |
-| Guides | [Repos](guides/repos.md), [the firewall](guides/firewall.md), [secrets and env vars](guides/env.md), [backups](guides/backups.md), [hosts](hosts.md), [toolchains](guides/tools.md) |
-| [Command reference](reference/commands/berth.md) | Every command, generated from `berth --help` |
-| [Troubleshooting](troubleshooting.md) | Blocked hosts, Remote Control states, restore errors |
-| [Coming from ccenv](host-install.md) | berth is ccenv's successor and runs the same orgs |
+| Guides | [Repos](guides/repos.md), [the firewall](guides/firewall.md), [secrets and env vars](guides/env.md), [backups](guides/backups.md), [hosts](hosts.md), [engines](engines.md), [networking](networking.md), [the dashboard](guides/tui.md) |
+| For agents and scripts | [MCP](guides/mcp.md), [the API](api.md), [JSON output](json.md) |
+| [The command line](cli.md) | How commands are laid out, and the [reference](reference/commands/berth.md) for each one |
+| [Troubleshooting](troubleshooting.md) | Blocked hosts, DNS, Remote Control states, restore errors |
 
 ## What runs where
 
-berth is a single binary that runs on your machine. It drives Docker with `docker compose`, either here or on a
-registered host over SSH. Each org's files live under berth's **state root**; the container sees them through bind
-mounts, so everything survives a restart or a rebuild, and moves with the org.
+berth is a single binary that runs on your machine. It drives a container engine (Docker, Podman or Apple's
+`container`), either here or on a registered host over SSH. Each org's files live under berth's **state root**; the
+container sees them through bind mounts, so everything survives a restart or a rebuild, and moves with the org.

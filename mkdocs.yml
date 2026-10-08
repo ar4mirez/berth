@@ -44,6 +44,7 @@ validation:
 nav:
   - Home: index.md
   - Getting started: getting-started.md
+  - What berth does: features.md
   - Concepts: concepts.md
   - Guides:
       - Repos: guides/repos.md
@@ -55,7 +56,7 @@ nav:
       - Backups and restore: guides/backups.md
       - Networking (Tailscale, VPNs, tunnels): networking.md
       - Hosts, leases and moving orgs: hosts.md
-      - Container engines (Docker, Podman): engines.md
+      - Container engines (Docker, Podman, Apple container): engines.md
       - Toolchains and Claude Code: guides/tools.md
       - The dashboard: guides/tui.md
       - MCP, for agents: guides/mcp.md
@@ -64,7 +65,6 @@ nav:
       - The command line: cli.md
       - Commands: reference/commands/berth.md
       - The API: api.md
-      - "Decision: the first cloud provider": decisions/051-first-cloud-provider.md
       - Configuration and files: reference/config.md
       - JSON output: json.md
       - Repo policy (canonical form): repo-policy.md
@@ -77,3 +77,4 @@ nav:
       - Plan: plan.md
       - Releases: releases.md
       - Phase 0: phase-0.md
+      - "Decision: the first cloud provider": decisions/051-first-cloud-provider.md
