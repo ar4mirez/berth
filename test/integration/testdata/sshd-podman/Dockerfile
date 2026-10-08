@@ -13,7 +13,7 @@ RUN dnf install -y -q openssh-server iproute util-linux git iptables-nft procps-
 
 # The image's root account is locked, which sshd refuses even for key logins: unlock it with no
 # usable password instead.
-RUN usermod -p '*' root
+RUN usermod -p '*' root && usermod -p '*' podman
 
 # The image is set up to run containers in its own namespaces (host network, UTS and so on), which
 # is no host for an org: back to Podman's defaults, with cgroupfs (there is no systemd here).
