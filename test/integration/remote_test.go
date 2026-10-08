@@ -149,7 +149,9 @@ func TestRemoteLifecycle(t *testing.T) {
 			}
 
 			// How many addresses DNS returns for the allowlist varies from one resolver and moment to the next.
-			res["fw allow"] = regexp.MustCompile(`\d+ allowlisted networks`).ReplaceAllString(norm(must("fw", s.org, "allow", "example.com")), "N allowlisted networks")
+			// And GitHub may refuse one side's lookup of its address ranges (a rate limit by address).
+			rateLimited := regexp.MustCompile(`(?m)^(curl: \(22\) The requested URL returned error: 403|firewall: WARNING could not fetch GitHub ranges)\n`)
+			res["fw allow"] = regexp.MustCompile(`\d+ allowlisted networks`).ReplaceAllString(rateLimited.ReplaceAllString(norm(must("fw", s.org, "allow", "example.com")), ""), "N allowlisted networks")
 			res["fw show"] = regexp.MustCompile(`on \d+`).ReplaceAllString(norm(must("fw", s.org, "show")), "on N")
 			res["repo add"] = norm(must("repo", "add", s.org, "acme/widgets", "--no-clone"))
 			res["repo ls"] = norm(must("repo", "ls", s.org))
