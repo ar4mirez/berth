@@ -85,7 +85,9 @@ func (e engineExec) Run(ctx context.Context, c Cmd) error {
 	}
 	if len(c.Args) > 0 && c.Args[0] == EngineDocker {
 		args := []string{e.bin}
-		if len(c.Args) > 1 && c.Args[1] == "run" && e.bin == EnginePodman && e.isRootless(ctx) {
+		// A command that chooses its own user namespace keeps it (the host guard, #153).
+		ownNS := slices.ContainsFunc(c.Args, func(a string) bool { return strings.HasPrefix(a, "--userns") })
+		if len(c.Args) > 1 && c.Args[1] == "run" && e.bin == EnginePodman && e.isRootless(ctx) && !ownNS {
 			args = append(args, "run", "--userns=keep-id", "--user", "0:0")
 			args = append(args, c.Args[2:]...)
 		} else {

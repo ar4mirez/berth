@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path"
+	"strings"
 
 	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/hosts"
@@ -17,16 +19,15 @@ import (
 // and persists across reboots through Docker's restart policy.
 //
 // On a rootful Podman (#97) it is the same container on Podman's socket, with its rules hooked
-// into FORWARD. A rootless Podman keeps org networks in its own network namespace, where a
-// container with the host's network has no say: the guard isn't available there.
+// into FORWARD. A rootless Podman (#153) keeps org networks in the user's own network namespace:
+// there the guard is started without a nested user namespace, so that it may enter that namespace
+// and keep its rules in it (guardArgs).
 
 // guardUnavailable is why b's host can't have the guard ("" when it can).
 func guardUnavailable(ctx context.Context, b *App) string {
 	switch e := b.Host.EngineName(); {
 	case e == host.EngineDocker:
 		return ""
-	case e == host.EnginePodman && b.Host.Rootless(ctx):
-		return "not available with a rootless Podman: its org networks live in the user's own network namespace, out of the guard's reach (docs/engines.md)"
 	case e == host.EnginePodman:
 		return ""
 	default:
@@ -34,12 +35,30 @@ func guardUnavailable(ctx context.Context, b *App) string {
 	}
 }
 
-// engineSocket is the engine's API socket on b's host, which the guard lists org networks through.
-func engineSocket(b *App) string {
-	if b.Host.EngineName() == host.EnginePodman {
-		return "/run/podman/podman.sock"
+// guardArgs are the `docker run` arguments that differ by engine: where the guard runs, and the
+// engine's API socket, through which it lists org networks.
+func guardArgs(ctx context.Context, b *App) ([]string, error) {
+	host0 := []string{"--network", "host", "--cap-add", "NET_ADMIN", "--cap-add", "NET_RAW"}
+	switch {
+	case b.Host.EngineName() != host.EnginePodman:
+		return append(host0, "-v", "/var/run/docker.sock:/var/run/docker.sock"), nil
+	case !b.Host.Rootless(ctx):
+		return append(host0, "-v", "/run/podman/podman.sock:/var/run/docker.sock"), nil
 	}
-	return "/var/run/docker.sock"
+	// Rootless: Podman says where its socket and its run root are; the network namespace is a file
+	// under the run root. The directories are mounted, not the files: the socket comes and goes,
+	// and guard.sh has what the namespace's file needs.
+	out, err := b.capture(ctx, true, "docker", "info", "--format", "{{.Host.RemoteSocket.Path}}|{{.Store.RunRoot}}")
+	sock, runRoot, ok := strings.Cut(strings.TrimPrefix(strings.TrimSpace(out), "unix://"), "|")
+	if err != nil || !ok || !path.IsAbs(sock) || !path.IsAbs(runRoot) {
+		return nil, fmt.Errorf("can't tell where the rootless Podman's socket and run root are (%q): %w", out, err)
+	}
+	return append(host0,
+		// The user's own namespace, not one nested in it (which is what berth gives its other
+		// containers there): only from it may the guard enter the rootless network namespace.
+		"--userns=host", "--cap-add", "SYS_ADMIN", "--security-opt", "label=disable",
+		"-v", path.Dir(sock)+":/berth-sock", "-e", "BERTH_GUARD_SOCK=/berth-sock/"+path.Base(sock),
+		"-v", runRoot+":/berth-run", "-e", "BERTH_GUARD_NETNS=/berth-run/networks/rootless-netns/rootless-netns"), nil
 }
 
 // installGuard (re)starts the guard on b's host and applies its rules once, now.
@@ -57,11 +76,15 @@ func (a *App) installGuard(ctx context.Context, b *App) error {
 	if err != nil {
 		return err
 	}
+	where, err := guardArgs(ctx, b)
+	if err != nil {
+		return err
+	}
 	_ = b.quietRun(ctx, "docker", "rm", "-f", hosts.GuardContainer)
-	if _, err := b.capture(ctx, true, "docker", "run", "-d", "--name", hosts.GuardContainer, "--restart", "always",
-		"--network", "host", "--cap-add", "NET_ADMIN", "--cap-add", "NET_RAW",
-		"-v", engineSocket(b)+":/var/run/docker.sock", "--label", "berth.guard=1",
-		"--entrypoint", "/usr/bin/tini", set.Tag, "--", "bash", "-c", hosts.GuardScript, "guard", "run"); err != nil {
+	run := append([]string{"run", "-d", "--name", hosts.GuardContainer, "--restart", "always"}, where...)
+	run = append(run, "--label", "berth.guard=1",
+		"--entrypoint", "/usr/bin/tini", set.Tag, "--", "bash", "-c", hosts.GuardScript, "guard", "run")
+	if _, err := b.capture(ctx, true, append([]string{"docker"}, run...)...); err != nil {
 		return fmt.Errorf("starting %s: %w", hosts.GuardContainer, err)
 	}
 	return b.guard(ctx, "apply", a.Stderr)
@@ -94,10 +117,20 @@ func (a *App) refreshGuard(ctx context.Context) {
 	if a.HostName == "" {
 		return
 	}
-	_ = a.Host.Exec.Run(ctx, host.Cmd{
-		Args:   []string{"docker", "exec", hosts.GuardContainer, "bash", "-c", hosts.GuardScript, "guard", "apply"},
-		Stdout: io.Discard, Stderr: io.Discard,
-	})
+	apply := func() error {
+		return a.Host.Exec.Run(ctx, host.Cmd{
+			Args:   []string{"docker", "exec", hosts.GuardContainer, "bash", "-c", hosts.GuardScript, "guard", "apply"},
+			Stdout: io.Discard, Stderr: io.Discard,
+		})
+	}
+	if apply() == nil || !a.Host.Rootless(ctx) {
+		return
+	}
+	// A rootless Podman's network namespace came up with this org, after the guard started: the
+	// guard sees it only from a fresh start (guard.sh).
+	if a.quietRun(ctx, "docker", "restart", hosts.GuardContainer) == nil {
+		_ = apply()
+	}
 }
 
 // HostGuard is `berth host guard <name> [on|off|status]`.

@@ -16,10 +16,34 @@
 #   - containers resolve names through aardvark-dns, which listens on the bridge's gateway, on the
 #     host: DNS to the host is let through before the drop.
 #
+#
+# On a rootless Podman (#153) org networks live in the user's own network namespace, and the host
+# is reached from there through pasta, at 169.254.1.2 (host.containers.internal): the 169.254.0.0/16
+# drop is what keeps an org from the host. The guard is still a container, started without a
+# nested user namespace so that it may enter that namespace (BERTH_GUARD_NETNS) and keep the same
+# chains there.
+#
+# That namespace exists only while a bridge container runs, and its file is a mount made inside
+# Podman's own mount namespace: a container sees it only if it was there when the container
+# started. So a guard that finds the namespace up but out of its sight (stale) ends, and its
+# restart policy starts it again with a fresh view; berth does the same when it starts an org.
+# With no org network at all there is nothing to guard, and apply says so quietly.
+#
 # Usage: bash -c "$(cat guard.sh)" guard run|apply|remove|status
 set -u
 
-api() { curl -fsS --unix-socket /var/run/docker.sock "http://docker$1"; }
+SOCK=${BERTH_GUARD_SOCK:-/var/run/docker.sock}
+NETNS=${BERTH_GUARD_NETNS:-}
+
+api() { curl -fsS --unix-socket "$SOCK" "http://docker$1"; }
+
+# ns runs a command where the rules live: the rootless network namespace, or right here.
+ns() { if [ -n "$NETNS" ]; then nsenter --net="$NETNS" "$@"; else "$@"; fi; }
+# no_ns: rootless, and its network namespace can't be entered from here.
+no_ns() { [ -n "$NETNS" ] && ! nsenter --net="$NETNS" true 2>/dev/null; }
+# stale: the namespace is up (pasta, which connects it, left its pid beside it) but this
+# container started before it and can't see it.
+stale() { no_ns && [ -e "$(dirname "$NETNS")/rootless-netns-conn.pid" ]; }
 
 # podman: whether the socket is Podman's (its own API answers beside Docker's).
 podman() { api '/libpod/_ping' >/dev/null 2>&1; }
@@ -33,11 +57,11 @@ forward_chain() { if podman; then echo FORWARD; else echo DOCKER-USER; fi; }
 backend() {
   local b
   if podman; then
-    if iptables-legacy -w -S NETAVARK_FORWARD >/dev/null 2>&1; then echo legacy; else echo nft; fi
+    if ns iptables-legacy -w -S NETAVARK_FORWARD >/dev/null 2>&1; then echo legacy; else echo nft; fi
     return 0
   fi
   for b in nft legacy; do
-    if "iptables-$b" -w -S DOCKER-USER >/dev/null 2>&1; then echo "$b"; return 0; fi
+    if ns "iptables-$b" -w -S DOCKER-USER >/dev/null 2>&1; then echo "$b"; return 0; fi
   done
   return 1
 }
@@ -62,6 +86,8 @@ org_bridges() {
 
 apply() {
   local b ipt ifs i fwd dns=
+  if stale; then echo "berth-guard: the rootless network came up after this container: it must restart to see it" >&2; return 75; fi
+  if no_ns; then return 0; fi
   b=$(backend) || { echo "berth-guard: Docker's DOCKER-USER chain isn't there (yet)" >&2; return 1; }
   ipt="iptables-$b"
   fwd=$(forward_chain)
@@ -83,20 +109,21 @@ apply() {
       echo "-A BERTH-FORWARD -i $i -d 169.254.0.0/16 -j DROP"
     done
     echo 'COMMIT'
-  } | "$ipt-restore" -w -n || return 1
-  "$ipt" -w -C INPUT -j BERTH-INPUT 2>/dev/null || "$ipt" -w -I INPUT 1 -j BERTH-INPUT || return 1
-  "$ipt" -w -C "$fwd" -j BERTH-FORWARD 2>/dev/null || "$ipt" -w -I "$fwd" 1 -j BERTH-FORWARD || return 1
+  } | ns "$ipt-restore" -w -n || return 1
+  ns "$ipt" -w -C INPUT -j BERTH-INPUT 2>/dev/null || ns "$ipt" -w -I INPUT 1 -j BERTH-INPUT || return 1
+  ns "$ipt" -w -C "$fwd" -j BERTH-FORWARD 2>/dev/null || ns "$ipt" -w -I "$fwd" 1 -j BERTH-FORWARD || return 1
 }
 
 remove() {
   local b ipt
+  if no_ns; then return 0; fi
   for b in nft legacy; do
     ipt="iptables-$b"
-    while "$ipt" -w -D INPUT -j BERTH-INPUT 2>/dev/null; do :; done
-    while "$ipt" -w -D DOCKER-USER -j BERTH-FORWARD 2>/dev/null; do :; done
-    while "$ipt" -w -D FORWARD -j BERTH-FORWARD 2>/dev/null; do :; done
+    while ns "$ipt" -w -D INPUT -j BERTH-INPUT 2>/dev/null; do :; done
+    while ns "$ipt" -w -D DOCKER-USER -j BERTH-FORWARD 2>/dev/null; do :; done
+    while ns "$ipt" -w -D FORWARD -j BERTH-FORWARD 2>/dev/null; do :; done
     for c in BERTH-INPUT BERTH-FORWARD; do
-      "$ipt" -w -F "$c" 2>/dev/null && "$ipt" -w -X "$c" 2>/dev/null
+      ns "$ipt" -w -F "$c" 2>/dev/null && ns "$ipt" -w -X "$c" 2>/dev/null
     done
   done
   return 0
@@ -104,9 +131,11 @@ remove() {
 
 status() {
   local b
+  if stale; then echo "the rootless network came up after the guard started: it restarts within 20 seconds, or at the next berth up"; return 1; fi
+  if no_ns; then echo "no org network yet: nothing to guard (rootless Podman makes its network namespace with the first org)"; return 0; fi
   b=$(backend) || { echo "no DOCKER-USER chain"; return 1; }
-  "iptables-$b" -w -C "$(forward_chain)" -j BERTH-FORWARD 2>/dev/null || { echo "BERTH-FORWARD isn't hooked into $(forward_chain)"; return 1; }
-  "iptables-$b" -w -S BERTH-INPUT && "iptables-$b" -w -S BERTH-FORWARD
+  ns "iptables-$b" -w -C "$(forward_chain)" -j BERTH-FORWARD 2>/dev/null || { echo "BERTH-FORWARD isn't hooked into $(forward_chain)"; return 1; }
+  ns "iptables-$b" -w -S BERTH-INPUT && ns "iptables-$b" -w -S BERTH-FORWARD
 }
 
 case "${1:-run}" in
@@ -116,7 +145,8 @@ case "${1:-run}" in
   run)
     trap 'exit 0' TERM INT
     while :; do
-      apply || true
+      apply
+      [ $? -ne 75 ] || exit 75   # stale: end, and be started again with the namespace in sight
       sleep 20 & wait $!
     done ;;
   *) echo "usage: guard run|apply|remove|status" >&2; exit 2 ;;

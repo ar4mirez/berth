@@ -39,6 +39,16 @@ func TestHostGuardPodman(t *testing.T) {
 	hostGuard(t, startPodmanTarget(t), "berth-t-podman", "podman", "root")
 }
 
+// TestHostGuardPodmanRootless: on a host with a rootless Podman (#153) the guard keeps its rules in
+// the user's network namespace. The host is reached from there at 169.254.1.2
+// (host.containers.internal): an org container can't, a container on another network can.
+func TestHostGuardPodmanRootless(t *testing.T) {
+	if os.Getenv("BERTH_BIN") == "" {
+		t.Skip("BERTH_BIN not set (the integration workflow builds berth and sets it)")
+	}
+	hostGuard(t, startPodmanTarget(t), "berth-t-podman", "podman", "podman")
+}
+
 // startPodmanTarget is the sshd + rootful Podman fixture.
 func startPodmanTarget(t *testing.T) *sshTarget {
 	t.Helper()
@@ -80,6 +90,7 @@ func startPodmanTarget(t *testing.T) *sshTarget {
 func hostGuard(t *testing.T, target *sshTarget, fixture, engine, user string) {
 	bin := os.Getenv("BERTH_BIN")
 	const o = "t-guard"
+	rootless := engine == "podman" && user != "root"
 	home := t.TempDir()
 	env := append(os.Environ(), "HOME="+home, "XDG_CONFIG_HOME="+filepath.Join(home, "cfg"),
 		"BERTH_SPELLINGS=ccenv", "BERTH_HOME="+filepath.Join(home, "state"), "SSH_AUTH_SOCK=", "BERTH_PUBLISHED_IMAGE="+publishedImage)
@@ -98,12 +109,21 @@ func hostGuard(t *testing.T, target *sshTarget, fixture, engine, user string) {
 		return out
 	}
 	inner := func(args ...string) (string, error) {
-		b, err := exec.Command("docker", append([]string{"exec", fixture, engine}, args...)...).CombinedOutput()
+		pre := []string{"exec", fixture, engine}
+		if rootless {
+			pre = []string{"exec", "-u", "podman", "-w", "/tmp", fixture, engine}
+		}
+		b, err := exec.Command("docker", append(pre, args...)...).CombinedOutput()
 		return strings.TrimSpace(string(b)), err
 	}
 	rules := func() string {
-		b, _ := exec.Command("docker", "exec", fixture, "sh", "-c",
-			"iptables-nft -S 2>/dev/null; iptables-legacy -S 2>/dev/null; iptables -S 2>/dev/null").Output()
+		list := "iptables-nft -S 2>/dev/null; iptables-legacy -S 2>/dev/null; iptables -S 2>/dev/null"
+		cmd := exec.Command("docker", "exec", fixture, "sh", "-c", list)
+		if rootless {
+			// In the user's network namespace, which is there while a bridge container runs.
+			cmd = exec.Command("docker", "exec", "-u", "podman", "-w", "/tmp", fixture, "podman", "unshare", "--rootless-netns", "sh", "-c", list)
+		}
+		b, _ := cmd.Output()
 		var out []string
 		for _, l := range strings.Split(string(b), "\n") {
 			if strings.Contains(l, "BERTH-") {
@@ -153,7 +173,9 @@ func hostGuard(t *testing.T, target *sshTarget, fixture, engine, user string) {
 
 	bridge := map[string]string{"docker": "br-", "podman": "podman"}[engine]
 	if s := rules(); !strings.Contains(s, "-A BERTH-INPUT -i "+bridge) || !strings.Contains(s, "169.254.0.0/16") {
-		t.Fatalf("the guard's rules don't cover the org's network:\n%s", s)
+		status, _ := berth("host", "guard", "box")
+		logs, _ := inner("logs", "--tail", "20", "berth-host-guard")
+		t.Fatalf("the guard's rules don't cover the org's network:\n%s\nhost guard box:\n%s\nthe guard's log:\n%s", s, status, logs)
 	}
 	if engine == "podman" {
 		// Podman's containers resolve names through aardvark-dns on the gateway: the guard lets DNS through.
@@ -165,11 +187,19 @@ func hostGuard(t *testing.T, target *sshTarget, fixture, engine, user string) {
 		}
 	}
 	// The host's sshd (port 22 on the dind host), through each network's gateway.
-	if !reach("t-other", gateway("t-other")+":22") {
+	// With a rootless Podman the gateway is the user's network namespace, not the host: the host is
+	// at 169.254.1.2 (host.containers.internal), through pasta.
+	hostFrom := func(network string) string {
+		if rootless {
+			return "169.254.1.2:22"
+		}
+		return gateway(network) + ":22"
+	}
+	if !reach("t-other", hostFrom("t-other")) {
 		t.Fatal("control: a container on another network can't reach the host's sshd either; the test proves nothing")
 	}
-	if reach(orgNet, gateway(orgNet)+":22") {
-		t.Error("an org container reaches the host through its gateway")
+	if reach(orgNet, hostFrom(orgNet)) {
+		t.Error("an org container reaches the host")
 	}
 	// Cloud metadata: the runner's own endpoint, when it answers at all from nested containers.
 	if reach("t-other", "169.254.169.254:80") {
@@ -195,6 +225,29 @@ func hostGuard(t *testing.T, target *sshTarget, fixture, engine, user string) {
 
 	if out := must("host", "guard", "box"); !strings.Contains(out, "running") || !strings.Contains(out, "BERTH-INPUT") {
 		t.Errorf("host guard status:\n%s", out)
+	}
+
+	if rootless {
+		// The org comes back without berth (a reboot, podman-restart): its network namespace is a
+		// new one, which the running guard can't see. It ends, its restart policy starts it again,
+		// and the rules are back by themselves.
+		if _, err := inner("stop", "-t", "2", "claude-"+o); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := inner("start", "claude-"+o); err != nil {
+			t.Fatal(err)
+		}
+		deadline := time.Now().Add(2 * time.Minute)
+		for !strings.Contains(rules(), "-A BERTH-FORWARD") {
+			if time.Now().After(deadline) {
+				status, _ := berth("host", "guard", "box")
+				t.Fatalf("the rules didn't come back after the org restarted without berth:\n%s\n%s", rules(), status)
+			}
+			time.Sleep(3 * time.Second)
+		}
+		if reach(orgNet, hostFrom(orgNet)) {
+			t.Error("after the org restarted without berth, a container on its network reaches the host")
+		}
 	}
 
 	// host rm takes the guard and its rules away.

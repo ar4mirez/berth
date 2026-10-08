@@ -207,8 +207,8 @@ host are left alone.
   (from Docker's `DOCKER-USER`).
 - **On a rootful Podman host** it is the same container on Podman's socket. `BERTH-FORWARD` hangs from `FORWARD`,
   since there is no `DOCKER-USER`, and DNS to the host is let through: Podman's containers resolve names through
-  aardvark-dns on their bridge's gateway. A rootless Podman host can't have the guard
-  ([Container engines](engines.md#podman)).
+  aardvark-dns on their bridge's gateway. On a rootless Podman host the guard keeps its rules inside the user's
+  network namespace instead ([Container engines](engines.md#podman)).
 - **Updates:** it rebuilds both chains every 20 seconds, and at once when berth starts an org there. New orgs are
   covered without a restart.
 - **Reboots:** Docker's restart policy brings it back after a reboot.
