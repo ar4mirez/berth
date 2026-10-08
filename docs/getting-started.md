@@ -4,7 +4,8 @@
 
 - **An OS:** Linux (amd64 or arm64), or macOS (Apple silicon or Intel).
 - **Docker** with the compose plugin (`docker compose version`); on macOS, Docker Desktop or any engine that provides
-  the Docker API and `docker compose`. **Or Podman**, rootful or rootless ([Container engines](engines.md)).
+  the Docker API and `docker compose`. **Or Podman**, rootful or rootless, **or Apple's `container`** on Apple
+  silicon ([Container engines](engines.md)).
 - **Optional: [Tailscale](https://tailscale.com).** With it, each org's SSH and browser terminal are bound to this
   machine's Tailscale address, so you can reach them from your other devices and nobody else can. Without it, they're
   bound to `127.0.0.1`. Another VPN, or only SSH, works too ([Networking](networking.md)).
@@ -21,7 +22,7 @@ Every channel installs a signed release. Pick one:
     ```bash
     curl -fsSLO https://github.com/ar4mirez/berth/releases/latest/download/install.sh
     less install.sh
-    sh install.sh                     # or: sh install.sh --version v0.4.0 --bin-dir ~/bin
+    sh install.sh                     # or: sh install.sh --version v0.9.0 --bin-dir ~/bin
     ```
 
     It prints each step as it goes:
@@ -181,3 +182,6 @@ All the terminal ways join **the same** tmux session. You can start on your lapt
 - Nightly encrypted backups: `berth backup keygen`, then `berth backup schedule on` ([Backups](guides/backups.md)).
 - Run orgs on another machine: `berth host add box1 ops@box1.example` ([Hosts](hosts.md)).
 - A default org, so you can leave it out: `berth org use acme` ([The command line](cli.md)).
+- See everything at once: `berth tui` ([The dashboard](guides/tui.md)).
+- Let an agent or a script manage orgs: `berth mcp`, `berth serve` ([MCP](guides/mcp.md), [The API](api.md)).
+- The rest, on one page: [What berth does](features.md).
