@@ -339,8 +339,10 @@ go test -tags cloud -count=1 -timeout 30m -v ./test/cloud/
 ```
 
 The `cloud` workflow runs the same test, started by hand (`gh workflow run cloud`). It needs three repository
-secrets: `HCLOUD_TOKEN`, and `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET` of a Tailscale OAuth client that owns
-`tag:ci` and `tag:berth` and may write auth keys and devices. The tailnet's policy must let `tag:ci` reach
-`tag:berth`. The workflow makes a single-use tagged key for each run and removes the test's machine from the
-tailnet afterwards.
+secrets: `HCLOUD_TOKEN`, and `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET` of a Tailscale OAuth client (admin console,
+Trust credentials) with the tag `tag:berth` and write access to auth keys and to devices. The tag must exist in the
+tailnet's policy (`"tagOwners": {"tag:berth": ["autogroup:admin"]}`), and the policy must let `tag:berth` machines
+reach each other: the runner and the new host both join with it. The workflow makes a single-use tagged key for
+each run and removes the test's machine from the tailnet afterwards. Its first step says which secret is wrong, and
+how, without printing any.
 

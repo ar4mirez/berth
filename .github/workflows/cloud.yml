@@ -5,7 +5,7 @@ name: cloud
 #
 # Secrets (docs/hosts.md, "Testing against Hetzner"):
 #   HCLOUD_TOKEN          a read-write API token of a project for this alone
-#   TS_OAUTH_CLIENT_ID    a Tailscale OAuth client that owns tag:ci and tag:berth,
+#   TS_OAUTH_CLIENT_ID    a Tailscale OAuth client with the tag tag:berth,
 #   TS_OAUTH_SECRET       with the auth_keys and devices:core scopes (write)
 on:
   workflow_dispatch:
@@ -61,7 +61,7 @@ jobs:
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
+          tags: tag:berth   # one tag for the runner and the new host: one thing to set up
       - name: a single-use, tagged auth key for the new host
         run: |
           set -euo pipefail

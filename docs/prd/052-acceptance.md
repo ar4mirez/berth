@@ -39,7 +39,7 @@ two things about the tailnet:
 - [x] T3. The `cloud` workflow.
 - [x] T4. Docs: `docs/hosts.md`, "Testing against Hetzner".
 - [ ] T5. The test passes against Hetzner from the maintainer's machine.
-- [ ] T6. The workflow passes (needs the three secrets, and a tailnet policy for `tag:ci` and `tag:berth`).
+- [ ] T6. The workflow passes (needs the three secrets, and a tailnet policy with `tag:berth`).
 
 ## Not in this
 
