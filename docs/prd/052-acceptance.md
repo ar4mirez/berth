@@ -1,6 +1,6 @@
 # PRD: #52's acceptance on Hetzner itself
 
-Status: **in progress** · Issue: [#52](https://github.com/ar4mirez/berth/issues/52) · Restarts orgs: no
+Status: **done** · Issue: [#52](https://github.com/ar4mirez/berth/issues/52) · Restarts orgs: no
 
 ## Where #52 stands
 
@@ -38,8 +38,8 @@ two things about the tailnet:
 - [x] T2. `test/cloud/acceptance_test.go`; linted with the `cloud` tag.
 - [x] T3. The `cloud` workflow.
 - [x] T4. Docs: `docs/hosts.md`, "Testing against Hetzner".
-- [ ] T5. The test passes against Hetzner from the maintainer's machine.
-- [ ] T6. The workflow passes (needs the three secrets, and a tailnet policy with `tag:berth`).
+- [ ] T5. The test passes against Hetzner from the maintainer's machine. **Not run there**: it passed in the workflow (T6), which runs the same test.
+- [x] T6. The workflow passes: run 37843322924 on 2026-10-08 (`TestHostCreateOnHetzner`, 276 s), with a tagged single-use key.
 
 ## Not in this
 

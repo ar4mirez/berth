@@ -344,5 +344,5 @@ Trust credentials) with the tag `tag:berth` and write access to auth keys and to
 tailnet's policy (`"tagOwners": {"tag:berth": ["autogroup:admin"]}`), and the policy must let `tag:berth` machines
 reach each other: the runner and the new host both join with it. The workflow makes a single-use tagged key for
 each run and removes the test's machine from the tailnet afterwards. Its first step says which secret is wrong, and
-how, without printing any.
+how, without printing any. It first passed on 8 October 2026.
 
