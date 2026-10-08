@@ -77,6 +77,9 @@ way, so the rule "behaviour matches ccenv" keeps its meaning and its tests.
 - [x] T4. Guides, README, `install.sh` and the image's instructions use the new spellings. The image's text
       reaches an org at its next restart; until then its old instructions still work or name their replacement.
 
+- [x] T5. The new command line against a real engine: `TestNativeCommandLine` in the integration suite (added
+      later; until then only ccenv's spellings ran there).
+
 ## Acceptance criteria
 
 | Criterion | How it is checked |
