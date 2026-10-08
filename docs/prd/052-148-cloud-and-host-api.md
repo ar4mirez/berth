@@ -43,8 +43,8 @@ Status: **done, with #52 untested against the real provider** · Restarts orgs: 
 - [x] T2. #51: the decision record.
 - [x] T3. #52: `internal/cloud`, `host create|destroy|reconcile`, tests against a stand-in API.
 - [x] T4. Docs: `docs/hosts.md`, `PARITY.md`, the reference.
-- [ ] T5. #52's acceptance test in a sandbox project (create, an org up, destroy; nothing tagged left; no open
-      port on the public address; the pinned key matches). **Not done: it needs the maintainer's token and tailnet.**
+- [x] T5. #52's acceptance test in a sandbox project: `test/cloud`, run by the `cloud` workflow
+      (`docs/prd/052-acceptance.md`).
 
 ## Acceptance criteria
 
