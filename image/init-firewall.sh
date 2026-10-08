@@ -118,10 +118,19 @@ dns_upstreams() {
     | grep -E '^[0-9a-fA-F:.]+$' || true
 }
 # dns_answers: whether a lookup gets an answer from upstream. The name is new each time, so no cache
-# can answer for it, and "no such name" is an answer.
-dns_answers() {
-  dig +time=2 +tries=2 +noall +comments "berth-dns-check-$RANDOM$RANDOM.example.com" 2>/dev/null \
+# can answer for it, and "no such name" is an answer. One lost packet isn't "no DNS": a resolver
+# that drops some UDP queries (seen at a cloud provider, #159) is asked again, then over TCP. With
+# no DNS at all this takes about 15 s.
+dns_asked() {
+  dig +noall +comments "$@" "berth-dns-check-$RANDOM$RANDOM.example.com" 2>/dev/null \
     | grep -qE 'status: (NOERROR|NXDOMAIN)'
+}
+dns_answers() {
+  local i
+  for i in 1 2 3; do
+    ! dns_asked +time=2 +tries=2 || return 0
+  done
+  dns_asked +tcp +time=3 +tries=1
 }
 dns_conf() {  # dns_conf <file> <domain>...: dnsmasq's config, with one ipset line per name
   local f="$1" ns e; shift

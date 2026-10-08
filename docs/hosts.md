@@ -317,8 +317,11 @@ berth host reconcile --prune  # deletes what belongs to no registered host
 
 **Know before you use it:**
 
-- **It has not been run against Hetzner itself.** The provider calls are tested against a stand-in for the API; the
-  cloud-init document and the wait on the tailnet have not met a real VM. Try it in a project you can delete.
+- **It has had one run against Hetzner itself** (October 2026, `cax21` in `fsn1`): `host create` made the server,
+  which joined the tailnet and was registered, and an org on it started and was closed off as intended.
+  `host destroy` and `host reconcile` are still tested against a stand-in for the API only. Try it in a project
+  you can delete.
+- Use an auth key that is **not reusable**: it stays readable in the server's user data.
 - The token can do anything in its project: give berth a project of its own.
 - The server's user data (its host key, and the used auth key) can be read back from the VM's metadata service.
   Org containers can't reach it: the host guard and each org's firewall both block 169.254.0.0/16.

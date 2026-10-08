@@ -72,7 +72,8 @@ Names resolve through a resolver inside the container, which asks the one Docker
 answer for an allowlisted name to the allowlist as it goes. DNS to any other resolver is refused, so a lookup can't
 carry data out.
 
-Each time the list is applied, berth checks that a lookup still gets an answer. If none does, it says so
+Each time the list is applied, berth checks that a lookup still gets an answer: it asks a few times, the last
+one over TCP, since one lost packet isn't an outage. If none is answered, it says so
 (`firewall: WARNING DNS isn't answering …`), the status reads `on 187 (DNS not answering)`, and the command ends with
 exit code 3. While DNS is down, the addresses already allowed stay allowed
 ([Troubleshooting](../troubleshooting.md#nothing-resolves)).

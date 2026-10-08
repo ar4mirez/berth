@@ -162,18 +162,23 @@ func (a *App) Init(ctx context.Context, args []string) error {
 			return err
 		}
 	}
+	// The commands to type next name the org as it was given: acme@box1 on a registered host (#159).
+	at := o
+	if a.HostName != "" {
+		at += "@" + a.HostName
+	}
 	sayf(a.Stdout, `Created %[1]s
 
 Next:
-  1. Start:   %[2]s up %[3]s
+  1. Start:   %[2]s up %[5]s
   2. Git key: add to %[3]s's GitHub:  %[4]s
-  3. Sign in: %[2]s auth %[3]s   (private browser window, %[3]s's Claude account)
-  4. Repos:   %[2]s repo add %[3]s <owner/repo>   (only registered repos are allowed)
-`, d, Tool, o, a.catFile(path.Join(d, "ssh", "id_ed25519.pub")))
+  3. Sign in: %[2]s auth %[5]s   (private browser window, %[3]s's Claude account)
+  4. Repos:   %[2]s repo add %[5]s <owner/repo>   (only registered repos are allowed)
+`, d, Tool, o, a.catFile(path.Join(d, "ssh", "id_ed25519.pub")), at)
 	if prof != nil {
 		sayf(a.Stdout, "\nFrom the profile (model provider: %s):\n", prof.Provider)
 		for _, k := range prof.Secrets {
-			sayf(a.Stdout, "  - Set %s:  %s env %s set %s\n", k, Tool, o, k)
+			sayf(a.Stdout, "  - Set %s:  %s env %s set %s\n", k, Tool, at, k)
 		}
 		if prof.Setup != "" {
 			sayf(a.Stdout, "  - The setup script runs as node at every start (config/setup.sh); its log: %s\n", contract.SetupLog)
