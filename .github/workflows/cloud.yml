@@ -5,7 +5,7 @@ name: cloud
 #
 # Secrets (docs/hosts.md, "Testing against Hetzner"):
 #   HCLOUD_TOKEN          a read-write API token of a project for this alone
-#   TS_OAUTH_CLIENT_ID    a Tailscale OAuth client that owns tag:ci and tag:berth,
+#   TS_OAUTH_CLIENT_ID    a Tailscale OAuth client with the tag tag:berth,
 #   TS_OAUTH_SECRET       with the auth_keys and devices:core scopes (write)
 on:
   workflow_dispatch:
@@ -39,13 +39,29 @@ jobs:
         run: |
           for v in HCLOUD_TOKEN TS_OAUTH_CLIENT_ID TS_OAUTH_SECRET; do
             [ -n "${!v}" ] || { echo "::error::the secret $v is not set (docs/hosts.md, Testing against Hetzner)"; exit 1; }
+            case "${!v}" in *[[:space:]]*) echo "::error::the secret $v has a space or a line break in it"; exit 1 ;; esac
           done
+          # What kind of Tailscale key each one is, by its shape: never the value.
+          case "$TS_OAUTH_SECRET" in
+            tskey-client-*) ;;
+            tskey-auth-*) echo "::error::TS_OAUTH_SECRET is an auth key (tskey-auth-…): it must be an OAuth client's secret (tskey-client-…), from Trust credentials"; exit 1 ;;
+            tskey-api-*) echo "::error::TS_OAUTH_SECRET is an API access token (tskey-api-…): it must be an OAuth client's secret (tskey-client-…), from Trust credentials"; exit 1 ;;
+            *) echo "::error::TS_OAUTH_SECRET doesn't start with tskey-client-: it must be an OAuth client's secret, from Trust credentials"; exit 1 ;;
+          esac
+          case "$TS_OAUTH_CLIENT_ID" in
+            tskey-*) echo "::error::TS_OAUTH_CLIENT_ID is a key (tskey-…): it must be the OAuth client's ID, the short one shown in the list"; exit 1 ;;
+          esac
+          # An OAuth secret is tskey-client-<client ID>-<secret>: the two must be of one client.
+          id=${TS_OAUTH_SECRET#tskey-client-}; id=${id%%-*}
+          [ "$id" = "$TS_OAUTH_CLIENT_ID" ] || { echo "::error::TS_OAUTH_CLIENT_ID is not the ID of the client TS_OAUTH_SECRET belongs to (they are of two clients, or the ID is mistyped)"; exit 1; }
+          echo "ok: the three secrets are set, and the Tailscale pair is of one OAuth client"
       # The runner joins the tailnet: the new host is reached over it only.
       - uses: tailscale/github-action@v4
+        id: tailnet
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
+          tags: tag:berth   # one tag for the runner and the new host: one thing to set up
       - name: a single-use, tagged auth key for the new host
         run: |
           set -euo pipefail
@@ -63,7 +79,7 @@ jobs:
         run: go test -tags cloud -count=1 -timeout 35m -v ./test/cloud/
       # berth has no credential for the tailnet, so the test's machines are removed from it here.
       - name: remove the test's machines from the tailnet
-        if: always()
+        if: always() && steps.tailnet.outcome == 'success'
         run: |
           set -euo pipefail
           token=$(curl -fsS -d "client_id=$TS_OAUTH_CLIENT_ID" -d "client_secret=$TS_OAUTH_SECRET" \
