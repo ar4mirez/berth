@@ -39,7 +39,22 @@ jobs:
         run: |
           for v in HCLOUD_TOKEN TS_OAUTH_CLIENT_ID TS_OAUTH_SECRET; do
             [ -n "${!v}" ] || { echo "::error::the secret $v is not set (docs/hosts.md, Testing against Hetzner)"; exit 1; }
+            case "${!v}" in *[[:space:]]*) echo "::error::the secret $v has a space or a line break in it"; exit 1 ;; esac
           done
+          # What kind of Tailscale key each one is, by its shape: never the value.
+          case "$TS_OAUTH_SECRET" in
+            tskey-client-*) ;;
+            tskey-auth-*) echo "::error::TS_OAUTH_SECRET is an auth key (tskey-auth-…): it must be an OAuth client's secret (tskey-client-…), from Trust credentials"; exit 1 ;;
+            tskey-api-*) echo "::error::TS_OAUTH_SECRET is an API access token (tskey-api-…): it must be an OAuth client's secret (tskey-client-…), from Trust credentials"; exit 1 ;;
+            *) echo "::error::TS_OAUTH_SECRET doesn't start with tskey-client-: it must be an OAuth client's secret, from Trust credentials"; exit 1 ;;
+          esac
+          case "$TS_OAUTH_CLIENT_ID" in
+            tskey-*) echo "::error::TS_OAUTH_CLIENT_ID is a key (tskey-…): it must be the OAuth client's ID, the short one shown in the list"; exit 1 ;;
+          esac
+          # An OAuth secret is tskey-client-<client ID>-<secret>: the two must be of one client.
+          id=${TS_OAUTH_SECRET#tskey-client-}; id=${id%%-*}
+          [ "$id" = "$TS_OAUTH_CLIENT_ID" ] || { echo "::error::TS_OAUTH_CLIENT_ID is not the ID of the client TS_OAUTH_SECRET belongs to (they are of two clients, or the ID is mistyped)"; exit 1; }
+          echo "ok: the three secrets are set, and the Tailscale pair is of one OAuth client"
       # The runner joins the tailnet: the new host is reached over it only.
       - uses: tailscale/github-action@v4
         with:
