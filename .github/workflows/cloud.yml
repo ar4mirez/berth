@@ -57,6 +57,7 @@ jobs:
           echo "ok: the three secrets are set, and the Tailscale pair is of one OAuth client"
       # The runner joins the tailnet: the new host is reached over it only.
       - uses: tailscale/github-action@v4
+        id: tailnet
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
@@ -78,7 +79,7 @@ jobs:
         run: go test -tags cloud -count=1 -timeout 35m -v ./test/cloud/
       # berth has no credential for the tailnet, so the test's machines are removed from it here.
       - name: remove the test's machines from the tailnet
-        if: always()
+        if: always() && steps.tailnet.outcome == 'success'
         run: |
           set -euo pipefail
           token=$(curl -fsS -d "client_id=$TS_OAUTH_CLIENT_ID" -d "client_secret=$TS_OAUTH_SECRET" \
