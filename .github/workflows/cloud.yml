@@ -1,0 +1,75 @@
+name: cloud
+
+# #52's acceptance test: `berth host create` against Hetzner Cloud itself, in a sandbox project.
+# Started by hand only: it makes a real server (deleted at the end, whatever happens).
+#
+# Secrets (docs/hosts.md, "Testing against Hetzner"):
+#   HCLOUD_TOKEN          a read-write API token of a project for this alone
+#   TS_OAUTH_CLIENT_ID    a Tailscale OAuth client that owns tag:ci and tag:berth,
+#   TS_OAUTH_SECRET       with the auth_keys and devices:core scopes (write)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-acceptance
+  cancel-in-progress: false
+
+env:
+  GOPROXY: https://proxy.golang.org
+  GOTOOLCHAIN: local
+  GOFLAGS: -mod=readonly
+
+jobs:
+  hetzner:
+    name: host create on Hetzner
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - name: the secrets are set
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+        run: |
+          for v in HCLOUD_TOKEN TS_OAUTH_CLIENT_ID TS_OAUTH_SECRET; do
+            [ -n "${!v}" ] || { echo "::error::the secret $v is not set (docs/hosts.md, Testing against Hetzner)"; exit 1; }
+          done
+      # The runner joins the tailnet: the new host is reached over it only.
+      - uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+      - name: a single-use, tagged auth key for the new host
+        run: |
+          set -euo pipefail
+          token=$(curl -fsS -d "client_id=$TS_OAUTH_CLIENT_ID" -d "client_secret=$TS_OAUTH_SECRET" \
+            https://api.tailscale.com/api/v2/oauth/token | jq -r .access_token)
+          key=$(curl -fsS -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+            -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":false,"preauthorized":true,"tags":["tag:berth"]}}},"expirySeconds":1800,"description":"berth cloud acceptance"}' \
+            https://api.tailscale.com/api/v2/tailnet/-/keys | jq -r .key)
+          [ -n "$key" ] && [ "$key" != null ] || { echo "::error::Tailscale gave no auth key"; exit 1; }
+          echo "::add-mask::$key"
+          echo "BERTH_TAILSCALE_AUTHKEY=$key" >> "$GITHUB_ENV"
+      - name: create a host, an org on it, destroy; nothing is left
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+        run: go test -tags cloud -count=1 -timeout 35m -v ./test/cloud/
+      # berth has no credential for the tailnet, so the test's machines are removed from it here.
+      - name: remove the test's machines from the tailnet
+        if: always()
+        run: |
+          set -euo pipefail
+          token=$(curl -fsS -d "client_id=$TS_OAUTH_CLIENT_ID" -d "client_secret=$TS_OAUTH_SECRET" \
+            https://api.tailscale.com/api/v2/oauth/token | jq -r .access_token)
+          curl -fsS -H "Authorization: Bearer $token" https://api.tailscale.com/api/v2/tailnet/-/devices \
+            | jq -r '.devices[] | select(.hostname | startswith("berth-t-acc")) | .id' \
+            | while read -r id; do
+                curl -fsS -X DELETE -H "Authorization: Bearer $token" "https://api.tailscale.com/api/v2/device/$id" && echo "removed $id"
+              done
