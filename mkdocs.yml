@@ -59,6 +59,7 @@ nav:
       - Container engines (Docker, Podman, Apple container): engines.md
       - Toolchains and Claude Code: guides/tools.md
       - The dashboard: guides/tui.md
+      - The web dashboard: guides/web.md
       - MCP, for agents: guides/mcp.md
   - Troubleshooting: troubleshooting.md
   - Reference:

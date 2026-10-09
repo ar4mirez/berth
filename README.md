@@ -50,7 +50,7 @@ There is also an install script and apt, rpm and Arch packages. Every channel in
 | **Hosts** | Run orgs on other machines over SSH, move an org between them, and keep each host's containers away from the host itself |
 | **Cloud hosts** | `berth host create` makes a VM at Hetzner Cloud that is closed to the internet and reached over Tailscale |
 | **Engines** | Docker, Podman (rootful and rootless), Apple `container` |
-| **Dashboard** | `berth tui`: hosts, orgs, their firewall, repos, backups and logs in the terminal |
+| **Dashboards** | `berth tui` in the terminal and `berth ui` in the browser, made for a phone first: hosts, orgs, their firewall, repos, backups and logs |
 | **For agents and scripts** | `berth mcp` (an MCP server with typed tools), `berth serve` (an HTTP API, as a service if you like), `--output json` |
 | **Releases** | Signed, verified on install and on `berth system upgrade` |
 
@@ -62,7 +62,7 @@ There is also an install script and apt, rpm and Arch packages. Every channel in
 | [What berth does](https://ar4mirez.github.io/berth/features/) | Every feature on one page, with where to read more |
 | [Concepts](https://ar4mirez.github.io/berth/concepts/) | Orgs, hosts, the state root, the firewall, the repo allowlist, the security model |
 | [The command line](https://ar4mirez.github.io/berth/cli/) | How commands are laid out, and the [reference](https://ar4mirez.github.io/berth/reference/commands/berth/) for each one |
-| Guides | [Repos](https://ar4mirez.github.io/berth/guides/repos/), [the firewall](https://ar4mirez.github.io/berth/guides/firewall/), [secrets](https://ar4mirez.github.io/berth/guides/env/), [backups](https://ar4mirez.github.io/berth/guides/backups/), [hosts](https://ar4mirez.github.io/berth/hosts/), [engines](https://ar4mirez.github.io/berth/engines/), [networking](https://ar4mirez.github.io/berth/networking/), [the dashboard](https://ar4mirez.github.io/berth/guides/tui/), [MCP](https://ar4mirez.github.io/berth/guides/mcp/), [the API](https://ar4mirez.github.io/berth/api/) |
+| Guides | [Repos](https://ar4mirez.github.io/berth/guides/repos/), [the firewall](https://ar4mirez.github.io/berth/guides/firewall/), [secrets](https://ar4mirez.github.io/berth/guides/env/), [backups](https://ar4mirez.github.io/berth/guides/backups/), [hosts](https://ar4mirez.github.io/berth/hosts/), [engines](https://ar4mirez.github.io/berth/engines/), [networking](https://ar4mirez.github.io/berth/networking/), [the dashboard](https://ar4mirez.github.io/berth/guides/tui/), [the web dashboard](https://ar4mirez.github.io/berth/guides/web/), [MCP](https://ar4mirez.github.io/berth/guides/mcp/), [the API](https://ar4mirez.github.io/berth/api/) |
 | [Troubleshooting](https://ar4mirez.github.io/berth/troubleshooting/) | Blocked hosts, DNS, Remote Control states, restore errors |
 
 The sources are in [`docs/`](docs).

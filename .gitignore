@@ -8,3 +8,4 @@
 .env
 org.env
 .envrc
+/test/web/node_modules/

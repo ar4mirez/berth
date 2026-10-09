@@ -35,6 +35,7 @@ import (
 	"github.com/ar4mirez/berth/internal/tui"
 	"github.com/ar4mirez/berth/internal/upgrade"
 	"github.com/ar4mirez/berth/internal/version"
+	"github.com/ar4mirez/berth/internal/web"
 )
 
 // newUpgrader is what `berth upgrade` (and `schedule --host`, which installs this release on a
@@ -102,8 +103,9 @@ func appMaker(st config.State) func(stdout, stderr io.Writer) *app.App {
 // serveCmd is `berth serve [--socket PATH] [--listen ADDR]` (#62): the API.
 func serveCmd() *cobra.Command {
 	var socket, listen, certFile, keyFile string
+	var noUI bool
 	c := reads(&cobra.Command{
-		Use: "serve [--socket PATH] [--listen ADDR [--tls-cert FILE --tls-key FILE]]", Short: "the API server: berth's operations over HTTP", Args: cobra.NoArgs,
+		Use: "serve [--socket PATH] [--listen ADDR [--tls-cert FILE --tls-key FILE]] [--no-ui]", Short: "the API server: berth's operations over HTTP", Args: cobra.NoArgs,
 		Long: "Serves berth's API (docs/api.md) on a Unix socket that only you can open: by default\n" +
 			"$XDG_RUNTIME_DIR/berth.sock, or berth.sock in ~/.config/berth. Access there is the socket's file\n" +
 			"permissions (0600): whoever can open it could run berth anyway.\n\n" +
@@ -112,13 +114,18 @@ func serveCmd() *cobra.Command {
 			"~/.config/berth/api; its fingerprint is printed, for clients to pin.\n\n" +
 			"Each endpoint is one of berth's operations, under the command line's rules: a restart needs the\n" +
 			"org's name again as `confirm`, secret values are never returned, and every change asked for is\n" +
-			"in the state root's audit.log. With --read-only it only reads. It runs until interrupted.",
+			"in the state root's audit.log. With --read-only it only reads. It runs until interrupted.\n\n" +
+			"The web dashboard (docs/guides/web.md) is served beside the API, at /: its files need no token,\n" +
+			"and what they show is the API's, under the same rules. --no-ui leaves it out.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			st := stateFrom(cmd.Context())
 			if socket == "" {
 				socket = api.SocketPath(os.Getenv)
 			}
 			opts := api.Options{Version: version.Version, ReadOnly: st.ReadOnly, NewApp: appMaker(st), Caller: api.Local, RunCLI: runFor(st)}
+			if !noUI {
+				opts.UI = web.Handler()
+			}
 			a := appFor(cmd)
 			var tcp net.Listener
 			var tlsConf *tls.Config
@@ -199,6 +206,7 @@ func serveCmd() *cobra.Command {
 	c.Flags().StringVar(&listen, "listen", "", "also listen on this TCP address (host:port), over TLS, for callers with a token")
 	c.Flags().StringVar(&certFile, "tls-cert", "", "the certificate to serve TCP with (PEM; default: berth's own, self-signed)")
 	c.Flags().StringVar(&keyFile, "tls-key", "", "its private key (PEM)")
+	c.Flags().BoolVar(&noUI, "no-ui", false, "serve the API only, without the web dashboard (docs/guides/web.md)")
 	token := &cobra.Command{Use: "token", Short: "the tokens that callers on TCP present", Example: "  " + strings.Join(examples["serve token"], "\n  ")}
 	sub := func(use, short, name string, access func(*cobra.Command) *cobra.Command) {
 		token.AddCommand(access(&cobra.Command{
@@ -636,6 +644,7 @@ func addCommands(root *cobra.Command) {
 		}),
 		mcpCmd(),
 		tuiCmd(),
+		uiCmd(),
 		serveCmd(),
 		reads(&cobra.Command{
 			Use: "image-tag", Short: "the image tag this berth uses", Hidden: true, Args: cobra.NoArgs,

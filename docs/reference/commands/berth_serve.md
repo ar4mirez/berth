@@ -22,10 +22,13 @@ Each endpoint is one of berth's operations, under the command line's rules: a re
 org's name again as `confirm`, secret values are never returned, and every change asked for is
 in the state root's audit.log. With --read-only it only reads. It runs until interrupted.
 
+The web dashboard (docs/guides/web.md) is served beside the API, at /: its files need no token,
+and what they show is the API's, under the same rules. --no-ui leaves it out.
+
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_serve/
 
 ```
-berth serve [--socket PATH] [--listen ADDR [--tls-cert FILE --tls-key FILE]] [flags]
+berth serve [--socket PATH] [--listen ADDR [--tls-cert FILE --tls-key FILE]] [--no-ui] [flags]
 ```
 
 ### Examples
@@ -43,6 +46,7 @@ berth serve [--socket PATH] [--listen ADDR [--tls-cert FILE --tls-key FILE]] [fl
 ```
   -h, --help              help for serve
       --listen string     also listen on this TCP address (host:port), over TLS, for callers with a token
+      --no-ui             serve the API only, without the web dashboard (docs/guides/web.md)
       --socket string     the Unix socket to listen on (default: $XDG_RUNTIME_DIR/berth.sock, or ~/.config/berth/berth.sock)
       --tls-cert string   the certificate to serve TCP with (PEM; default: berth's own, self-signed)
       --tls-key string    its private key (PEM)

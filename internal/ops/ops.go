@@ -172,6 +172,10 @@ var Catalog = map[string]Op{
 	// The dashboard (#59): it reads; each action in it is one of the operations here, checked as such.
 	"tui": readText("an interactive dashboard: it needs a terminal"),
 
+	// The web UI (#167): it serves the API to a browser on this machine; each action in it is one of the
+	// operations here, checked as such.
+	"ui": readText("a web dashboard: it serves until interrupted"),
+
 	// The API (#62): it serves the operations here, each checked as such for each caller.
 	"serve": {Access: BySub, Subs: map[string]Op{
 		"":          readText("the API server: clients talk to it over its socket"),
