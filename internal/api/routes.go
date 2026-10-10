@@ -49,6 +49,17 @@ var Routes = []Route{
 	{Method: "POST", Path: "/v1/orgs/{org}/up", Tool: "org_up"},
 	{Method: "POST", Path: "/v1/orgs/{org}/restart", Tool: "org_restart"},
 	{Method: "POST", Path: "/v1/orgs/{org}/down", Tool: "org_down"},
+	// More of the catalog (#167): what the dashboards do beyond the first set.
+	{Method: "POST", Path: "/v1/orgs", Tool: "org_create"},
+	{Method: "DELETE", Path: "/v1/orgs/{org}", Tool: "org_destroy"},
+	{Method: "POST", Path: "/v1/orgs/{org}/firewall/on", Tool: "firewall_on"},
+	{Method: "POST", Path: "/v1/orgs/{org}/firewall/off", Tool: "firewall_off"},
+	{Method: "POST", Path: "/v1/orgs/{org}/firewall/reload", Tool: "firewall_reload"},
+	{Method: "POST", Path: "/v1/orgs/{org}/repos/sync", Tool: "repo_sync"},
+	{Method: "GET", Path: "/v1/packages/presets", Tool: "package_presets"},
+	{Method: "POST", Path: "/v1/orgs/{org}/packages", Tool: "packages_add"},
+	{Method: "POST", Path: "/v1/orgs/{org}/packages/remove", Tool: "packages_remove"},
+	{Method: "POST", Path: "/v1/orgs/{org}/remote/restart", Tool: "remote_restart"},
 }
 
 // PathArgs are the arguments a route takes from its path.

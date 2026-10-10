@@ -136,7 +136,7 @@ function app() {
     token: '',
     tokenInput: '',
     signInError: '',
-    server: { version: '', read_only: false, writes: false, restarts: false },
+    server: { version: '', read_only: false, writes: false, restarts: false, admin: false },
     offline: '',
 
     route: parseRoute(''),
@@ -148,7 +148,7 @@ function app() {
     tabError: noError(),
     tabLoading: false,
     probes: [],
-    forms: { allow: '', probe: '', repo: '', branch: '' },
+    forms: { allow: '', probe: '', repo: '', branch: '', packages: '', org: '', gitName: '', gitEmail: '' },
 
     dialog: null,
     typed: '',
@@ -582,6 +582,78 @@ function app() {
     backup() {
       const name = this.route.org
       this.run('berth backup create ' + name, 'POST', '/v1/backups', { orgs: [name] })
+    },
+
+    syncRepos() {
+      const name = this.route.org
+      this.run('berth repo sync ' + name, 'POST', org(name) + '/repos/sync', {})
+    },
+
+    // firewall turns the firewall on or off, or applies the allowlist again. Off asks first: until
+    // it is on again, the org reaches anything.
+    firewall(verb) {
+      const name = this.route.org
+      const go = async () => {
+        const out = await this.run('berth fw ' + verb + ' ' + name, 'POST', org(name) + '/firewall/' + verb, {})
+        if (out) this.detail.firewall = out.firewall
+      }
+      if (verb !== 'off') return go()
+      this.ask('berth fw off ' + name, ['It turns ' + name + '\'s egress firewall off, at once: the org can reach anything until it is turned on again.'], '', go)
+    },
+
+    async addPackages() {
+      const entries = this.forms.packages.split(/[\s,]+/).filter(Boolean)
+      if (entries.length === 0) return
+      const name = this.route.org
+      const out = await this.run('berth pkg add ' + name + ' ' + entries.join(' '), 'POST', org(name) + '/packages', { entries })
+      if (out) {
+        this.forms.packages = ''
+        this.detail.packages = out.packages
+      }
+    },
+
+    removePackage(entry) {
+      const name = this.route.org
+      this.ask('berth pkg rm ' + name + ' ' + entry, ['It takes ' + entry + ' out of the packages ' + name + '\'s image adds. The org keeps it until its next restart.'], '', async () => {
+        const out = await this.run('berth pkg rm ' + name + ' ' + entry, 'POST', org(name) + '/packages/remove', { entries: [entry] })
+        if (out) this.detail.packages = out.packages
+      })
+    },
+
+    restartRemote() {
+      const name = this.route.org
+      this.run('berth account remote restart ' + name, 'POST', org(name) + '/remote/restart', {})
+    },
+
+    async createOrg() {
+      const name = this.forms.org.trim()
+      if (!name) return
+      const body = { org: name }
+      if (this.forms.gitName.trim()) body.name = this.forms.gitName.trim()
+      if (this.forms.gitEmail.trim()) body.email = this.forms.gitEmail.trim()
+      const out = await this.run('berth org create ' + name, 'POST', '/v1/orgs', body)
+      if (out) {
+        this.forms.org = ''
+        this.forms.gitName = ''
+        this.forms.gitEmail = ''
+        this.orgs = await this.read('/v1/orgs').catch(() => this.orgs)
+      }
+    },
+
+    // destroyOrg removes an org for good. The API wants its name again, as for a restart, and a
+    // caller that may do everything.
+    destroyOrg() {
+      const name = this.route.org
+      this.ask('berth org destroy ' + name, [
+        'It permanently removes ' + name + ': its container, its workspace, Claude\'s config and history, its keys and secrets, and its backups on that machine.',
+        'It can\'t be undone.',
+      ], name, async () => {
+        const out = await this.run('berth org destroy ' + name, 'DELETE', org(name), { confirm: name })
+        if (out) {
+          this.orgs = await this.read('/v1/orgs').catch(() => this.orgs)
+          location.hash = '#/'
+        }
+      })
     },
 
     // --- the log, followed ------------------------------------------------------------------

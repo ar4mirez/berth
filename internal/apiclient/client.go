@@ -141,6 +141,7 @@ func (c *Client) Info(ctx context.Context) (out struct {
 	Schema, Version  string
 	ReadOnly         bool `json:"read_only"`
 	Writes, Restarts bool
+	Admin            bool
 }, err error) {
 	return out, c.do(ctx, "GET", "/v1", nil, nil, &out)
 }
