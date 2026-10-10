@@ -32,6 +32,18 @@ type Options struct {
 	// RunCLI runs one of berth's commands for a caller, as the command line would here, and returns
 	// its exit code: what `berth --via-daemon` asks for. Nil when the server doesn't offer it.
 	RunCLI func(ctx context.Context, by mcpsrv.Caller, args []string, output string, stdout, stderr io.Writer) int
+	// UI serves the web UI (#167) for a GET outside the API's paths. It has no caller: its files
+	// hold no data. Nil when the server doesn't offer it.
+	UI http.Handler
+}
+
+// forUI is whether a request no endpoint matches is one for the web UI: a read outside /v1 and /mcp.
+func forUI(req *http.Request) bool {
+	p := req.URL.Path
+	if req.Method != http.MethodGet && req.Method != http.MethodHead {
+		return false
+	}
+	return p != "/"+Version && !strings.HasPrefix(p, "/"+Version+"/") && !strings.HasPrefix(p, "/mcp")
 }
 
 // CLIRequest is the body of POST /v1/cli: a command in ccenv's flat form (its operation's name and
@@ -115,6 +127,10 @@ func Handler(o Options) http.Handler {
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if _, pattern := mux.Handler(req); pattern == "" {
+			if o.UI != nil && forUI(req) {
+				o.UI.ServeHTTP(w, req)
+				return
+			}
 			// Not one of ours: say so as the API says everything, in a document.
 			fail(w, &ops.Error{Kind: ops.KindNotFound, Code: 1, Msg: fmt.Sprintf("no %s %s in this API", req.Method, req.URL.Path), Hint: "GET /v1/openapi.json lists the endpoints"})
 			return

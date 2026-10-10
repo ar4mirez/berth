@@ -37,6 +37,15 @@ jobs:
       - name: golangci-lint
         run: golangci-lint run
 
+  web:
+    name: the web UI's page, in a DOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: test
+        working-directory: test/web
+        run: npm ci && node smoke.mjs
+
   vuln:
     name: govulncheck
     runs-on: ubuntu-latest

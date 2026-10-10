@@ -23,6 +23,7 @@ Every command lives in one group, and each group's `--help` lists its verbs. The
 | `berth host` | `add` `ls` `rm` `guard` `rotate-access` |
 | `berth system` | `install` `upgrade` `pull` `build` `completion` `parity-check` `service install\|uninstall\|status\|logs` |
 | `berth tui` | (the dashboard: [guide](guides/tui.md)) |
+| `berth ui` | (the web dashboard: [guide](guides/web.md)) |
 | `berth mcp` | (the MCP server: [guide](guides/mcp.md)) |
 | `berth serve` | (the API: [reference](api.md)) |
 

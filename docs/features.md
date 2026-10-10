@@ -106,10 +106,13 @@ the internet and is reached over Tailscale; `berth host destroy` removes it
 
 Docker, Podman (rootful and rootless) and Apple's `container` on Apple silicon ([Container engines](engines.md)).
 
-## The dashboard
+## The dashboards
 
 `berth tui` shows hosts and orgs in the terminal, with each org's firewall, repos, variables, backups and logs.
 Anything that restarts a container asks first ([The dashboard](guides/tui.md)).
+
+`berth ui` is the same in a browser, made for a phone first: on this machine with a link of its own, or from
+another device through `berth serve --listen` and a token ([The web dashboard](guides/web.md)).
 
 ## For agents and scripts
 

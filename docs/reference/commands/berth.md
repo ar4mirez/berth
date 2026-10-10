@@ -55,5 +55,6 @@ berth [flags]
 * [berth shell](berth_shell.md)	 - bash inside the container
 * [berth system](berth_system.md)	 - berth itself: install, upgrade, its image, shell completion
 * [berth tui](berth_tui.md)	 - an interactive dashboard for hosts and orgs
+* [berth ui](berth_ui.md)	 - the web dashboard, in your browser
 * [berth up](berth_up.md)	 - build if needed and (re)create the container
 

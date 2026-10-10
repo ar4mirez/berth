@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>berth</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="app.css">
+<script type="module" src="app.js"></script>
+<script defer src="vendor/alpine-csp.min.js"></script>
+</head>
+<body>
+<noscript><p class="notice">berth's dashboard needs JavaScript. The command line does everything it does: <code>berth tui</code>.</p></noscript>
+
+<div x-data="app" x-cloak>
+
+  <!-- Signing in: a token for the API, as any caller on TCP presents. -->
+  <main class="signin" x-show="screen === 'signin'">
+    <h1><img src="icon.svg" alt="" width="28" height="28"> berth</h1>
+    <form @submit.prevent="signIn">
+      <label for="token">API token</label>
+      <input id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="berth_…" x-model="tokenInput">
+      <p class="error" role="alert" x-show="signInError" x-text="signInError"></p>
+      <button class="primary" type="submit" :disabled="connecting">Sign in</button>
+    </form>
+    <p class="hint">Make one on the machine that runs berth: <code>berth serve token add phone --scope restart</code>. It is kept in this tab only, and forgotten when the tab closes.</p>
+  </main>
+
+  <div x-show="screen === 'loading'" class="loading" role="status">Connecting…</div>
+
+  <div x-show="screen === 'main'">
+    <header class="top">
+      <a class="brand" href="#/"><img src="icon.svg" alt="" width="22" height="22"> berth</a>
+      <nav aria-label="Sections">
+        <a href="#/" :aria-current="route.view === 'hosts' ? null : 'page'">Orgs</a>
+        <a href="#/hosts" :aria-current="route.view === 'hosts' ? 'page' : null">Hosts</a>
+      </nav>
+      <span class="pill quiet" x-show="server.read_only" title="The server was started with --read-only">read-only</span>
+      <span class="pill quiet" x-show="!server.read_only &amp;&amp; !server.writes" title="This token's scope is read">read</span>
+      <button class="link" type="button" x-show="token" @click="signOut">Sign out</button>
+    </header>
+
+    <p class="banner error" role="alert" x-show="offline">Can't reach berth: <span x-text="offline"></span></p>
+
+    <!-- Orgs -->
+    <main x-show="route.view === 'orgs'">
+      <h1>Orgs</h1>
+      <p class="muted" x-show="orgs === null">Reading…</p>
+      <p class="muted" x-show="orgs !== null &amp;&amp; orgs.orgs.length === 0">No orgs yet. Create one: <code>berth org create acme --name "Ada Lovelace" --email ada@example.com</code></p>
+      <ul class="cards">
+        <template x-for="o in orgList" :key="o.addr">
+          <li>
+            <a class="card" :href="o.href">
+              <span class="row">
+                <strong x-text="o.name"></strong>
+                <span class="pill" :class="o.stateClass" x-text="o.state"></span>
+              </span>
+              <span class="row meta">
+                <span x-show="multiHost" x-text="o.host"></span>
+                <span>remote: <span x-text="o.remote"></span></span>
+                <span x-text="o.token ? 'token set' : 'no token'"></span>
+              </span>
+            </a>
+          </li>
+        </template>
+      </ul>
+      <template x-for="u in unreachable" :key="u.host">
+        <p class="banner error"><strong x-text="u.host"></strong> is unreachable: <span x-text="u.error"></span></p>
+      </template>
+    </main>
+
+    <!-- Hosts -->
+    <main x-show="route.view === 'hosts'">
+      <h1>Hosts</h1>
+      <p class="muted" x-show="hosts === null &amp;&amp; !hostsError">Reading…</p>
+      <p class="error" role="alert" x-show="hostsError" x-text="hostsError"></p>
+      <ul class="cards">
+        <template x-for="h in hostList" :key="h.name">
+          <li class="card">
+            <span class="row">
+              <strong x-text="h.name"></strong>
+              <span class="pill" :class="h.reachable ? 'ok' : 'bad'" x-text="h.reachable ? 'reachable' : 'unreachable'"></span>
+            </span>
+            <span class="row meta">
+              <span x-text="h.kind"></span>
+              <span x-show="h.engine"><span x-text="h.engine"></span> <span x-text="h.docker"></span></span>
+              <span x-show="h.orgs !== null"><span x-text="h.orgs"></span> orgs</span>
+            </span>
+            <span class="row meta" x-show="h.address"><code x-text="h.address"></code></span>
+            <span class="row error" x-show="h.error" x-text="h.error"></span>
+          </li>
+        </template>
+      </ul>
+    </main>
+
+    <!-- An org -->
+    <main x-show="route.view === 'org'">
+      <p class="crumb"><a href="#/">‹ Orgs</a></p>
+      <div class="row head">
+        <h1 x-text="route.org"></h1>
+        <span class="pill" :class="orgStateClass" x-text="orgState" x-show="orgState"></span>
+      </div>
+      <div class="actions" x-show="server.restarts">
+        <button type="button" @click="lifecycle('up')">Start</button>
+        <button type="button" @click="lifecycle('restart')">Restart</button>
+        <button type="button" class="danger" @click="lifecycle('down')">Stop</button>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="This org">
+        <template x-for="t in tabs" :key="t.id">
+          <a role="tab" :href="tabHref(t.id)" :aria-selected="route.tab === t.id ? 'true' : 'false'" x-text="t.label"></a>
+        </template>
+      </div>
+
+      <p class="error" role="alert" x-show="tabError.message">
+        <span x-text="tabError.message"></span>
+        <span class="hint" x-show="tabError.hint" x-text="tabError.hint"></span>
+      </p>
+      <p class="muted" x-show="tabLoading">Reading…</p>
+
+      <!-- Info -->
+      <section x-show="shows('info')">
+        <dl class="sheet">
+          <dt>Container</dt><dd><code x-text="detail.info ? detail.info.container : ''"></code></dd>
+          <dt>State</dt><dd x-text="detail.info ? detail.info.state : ''"></dd>
+          <dt>Remote Control</dt>
+          <dd>
+            <a x-show="infoRemote" :href="infoRemote" target="_blank" rel="noopener noreferrer">Open in claude.ai/code</a>
+            <span class="muted" x-show="!infoRemote">not set up, or the org is stopped</span>
+          </dd>
+          <dt>Address</dt>
+          <dd>
+            <code x-show="infoAddress" x-text="infoAddress"></code>
+            <span class="muted" x-show="infoLocalOnly"> (this machine only)</span>
+            <span class="muted" x-show="!infoAddress">unknown</span>
+          </dd>
+          <dt>SSH</dt>
+          <dd>
+            <code x-text="infoSSH"></code>
+            <button class="link" type="button" x-show="infoSSH" @click="copy(infoSSH)">Copy</button>
+          </dd>
+          <dt>Browser terminal</dt>
+          <dd>
+            <a x-show="infoTerminal" :href="infoTerminal" target="_blank" rel="noopener noreferrer">Open the terminal</a>
+            <span class="muted" x-show="infoTerminal"> (password: <code>berth org password show</code>)</span>
+            <span class="muted" x-show="!infoTerminal">no address or port</span>
+          </dd>
+          <dt x-show="infoTunnel">Tunnel</dt>
+          <dd x-show="infoTunnel"><code x-text="infoTunnel"></code></dd>
+          <dt>Git key</dt>
+          <dd>
+            <code class="wrap" x-text="infoKey"></code>
+            <button class="link" type="button" x-show="infoKey" @click="copy(infoKey)">Copy</button>
+          </dd>
+        </dl>
+      </section>
+
+      <!-- Firewall -->
+      <section x-show="shows('firewall')">
+        <p class="muted">Live: <strong x-text="fwLive"></strong></p>
+        <ul class="list">
+          <template x-for="e in fwEntries" :key="e">
+            <li>
+              <code x-text="e"></code>
+              <button class="link danger" type="button" x-show="server.writes" @click="deny(e)">Deny</button>
+            </li>
+          </template>
+        </ul>
+        <form class="inline" x-show="server.writes" @submit.prevent="allow">
+          <label for="fw-allow">Allow</label>
+          <input id="fw-allow" type="text" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="pypi.org @python 10.0.0.0/8" x-model="forms.allow">
+          <button class="primary" type="submit">Allow</button>
+        </form>
+        <form class="inline" @submit.prevent="probe">
+          <label for="fw-test">Test</label>
+          <input id="fw-test" type="text" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="example.com" x-model="forms.probe">
+          <button type="submit">Test</button>
+        </form>
+        <ul class="list" x-show="probes.length">
+          <template x-for="p in probes" :key="p.url">
+            <li><code x-text="p.url"></code><span class="pill" :class="p.allowed ? 'ok' : 'bad'" x-text="p.allowed ? 'allowed' : 'blocked'"></span></li>
+          </template>
+        </ul>
+      </section>
+
+      <!-- Repos -->
+      <section x-show="shows('repos')">
+        <p class="muted" x-show="repoList.length === 0">No repos registered.</p>
+        <ul class="list tall">
+          <template x-for="r in repoList" :key="r.dir">
+            <li>
+              <span class="stack">
+                <strong x-text="r.dir"></strong>
+                <span class="meta"><span x-text="r.repo || r.url || 'local'"></span></span>
+                <span class="meta"><span x-text="r.branch || 'default branch'"></span> · <span x-text="r.state"></span><span x-show="r.changed"> · <span x-text="r.changed"></span> changed</span></span>
+              </span>
+              <button class="link danger" type="button" x-show="server.writes" @click="removeRepo(r.dir)">Remove</button>
+            </li>
+          </template>
+        </ul>
+        <p class="banner" x-show="unregistered.length">Not registered in /workspace: <code x-text="unregistered.join(', ')"></code></p>
+        <form class="stacked" x-show="server.writes" @submit.prevent="addRepo">
+          <label for="repo-add">Add a repo</label>
+          <input id="repo-add" type="text" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="acme/widgets, or a git URL" x-model="forms.repo">
+          <input type="text" aria-label="Branch" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="branch (the default when empty)" x-model="forms.branch">
+          <button class="primary" type="submit">Add</button>
+        </form>
+      </section>
+
+      <!-- Env -->
+      <section x-show="shows('env')">
+        <p class="muted">Names only: berth never shows a value.</p>
+        <p class="muted" x-show="envVars.length === 0">No custom variables.</p>
+        <ul class="list">
+          <template x-for="v in envVars" :key="v.name">
+            <li><code x-text="v.name"></code><span class="pill quiet" x-show="!v.present">missing from org.env</span></li>
+          </template>
+        </ul>
+      </section>
+
+      <!-- Packages -->
+      <section x-show="shows('packages')">
+        <p class="muted" x-show="pkgEntries.length === 0">This org's image adds no packages.</p>
+        <ul class="list">
+          <template x-for="p in pkgEntries" :key="p">
+            <li><code x-text="p"></code></li>
+          </template>
+        </ul>
+        <dl class="sheet">
+          <dt>Image</dt><dd><code class="wrap" x-text="detail.packages ? detail.packages.image : ''"></code></dd>
+          <dt>Built</dt><dd x-text="detail.packages &amp;&amp; detail.packages.built ? 'yes' : 'no: at the next restart'"></dd>
+        </dl>
+      </section>
+
+      <!-- Backups -->
+      <section x-show="route.tab === 'backups'">
+        <p class="muted" x-show="!orgIsLocal">Backups are files on the machine an org runs on: this page lists this machine's.</p>
+        <div class="actions" x-show="server.writes &amp;&amp; orgIsLocal">
+          <button type="button" class="primary" @click="backup">Back up now</button>
+        </div>
+        <p class="muted" x-show="noBackups">No backups of this org here.</p>
+        <ul class="list tall">
+          <template x-for="b in backupList" :key="b.file">
+            <li>
+              <span class="stack">
+                <code class="wrap" x-text="b.file"></code>
+                <span class="meta"><span x-text="b.when"></span> · <span x-text="b.sizeText"></span> · <span x-text="b.encryption"></span></span>
+              </span>
+            </li>
+          </template>
+        </ul>
+      </section>
+
+      <!-- Logs -->
+      <section x-show="route.tab === 'logs'">
+        <div class="actions">
+          <button type="button" @click="toggleFollow" x-text="following ? 'Stop following' : 'Follow'"></button>
+        </div>
+        <pre class="log" x-ref="log" x-text="logText"></pre>
+      </section>
+    </main>
+  </div>
+
+  <!-- What an operation is about to do, before it does it. -->
+  <div class="overlay" x-show="dialogOpen" @keydown.escape.window="closeDialog">
+    <form class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" @submit.prevent="confirmDialog">
+      <h2 id="dialog-title"><code x-text="dialog ? dialog.title : ''"></code></h2>
+      <template x-for="line in dialogLines" :key="line">
+        <p x-text="line"></p>
+      </template>
+      <div x-show="dialogNeeds">
+        <label for="dialog-typed">Type <strong x-text="dialogNeeds"></strong> to run it</label>
+        <input id="dialog-typed" type="text" autocapitalize="off" autocomplete="off" spellcheck="false" x-model="typed" x-ref="typed">
+      </div>
+      <div class="actions end">
+        <button type="button" @click="closeDialog">Cancel</button>
+        <button type="submit" class="danger" :disabled="!dialogReady">Run it</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- An operation running, and what it printed. -->
+  <div class="overlay" x-show="jobOpen">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="job-title">
+      <h2 id="job-title"><code x-text="job ? job.label : ''"></code></h2>
+      <p class="muted" role="status" x-show="jobRunning">Running…</p>
+      <pre class="log short" x-show="jobText" x-text="jobText"></pre>
+      <p class="error" role="alert" x-show="jobError.message">
+        <span x-text="jobError.message"></span>
+        <span class="hint" x-text="jobError.hint"></span>
+      </p>
+      <p class="ok-text" x-show="jobDone">Done.</p>
+      <div class="actions end">
+        <button type="button" class="primary" :disabled="jobRunning" @click="closeJob">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="toast" role="status" x-show="toast" x-text="toast"></p>
+</div>
+</body>
+</html>

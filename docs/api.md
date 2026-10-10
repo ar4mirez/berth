@@ -76,6 +76,13 @@ curl --cacert ~/.config/berth/api/cert.pem -H "Authorization: Bearer $TOKEN" htt
 Bind `--listen` to the address you mean: `127.0.0.1` for this machine, a VPN address for your tailnet. `0.0.0.0`
 offers the API, behind its tokens, to every network the machine is on.
 
+## The web dashboard
+
+The same server has berth's [web dashboard](guides/web.md) at `/`: a page that is a client of this API and nothing
+more. Its files are served without a token, because they hold no data; everything it shows it asks `/v1` for,
+with the token you paste into it. `berth serve --no-ui` leaves it out, and `berth ui` serves it on this machine
+alone, with a token of its own.
+
 ## The rules
 
 Each endpoint is one operation from berth's catalog, and the catalog decides what a caller needs:

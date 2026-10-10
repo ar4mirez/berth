@@ -32,7 +32,7 @@ berth attach acme                # or: berth info acme, for every other way in
 | [Getting started](getting-started.md) | Install berth, create your first org, connect to it |
 | [What berth does](features.md) | Every feature on one page, with where to read more |
 | [Concepts](concepts.md) | Orgs, hosts, the state root, the firewall, the repo allowlist, the security model |
-| Guides | [Repos](guides/repos.md), [the firewall](guides/firewall.md), [secrets and env vars](guides/env.md), [backups](guides/backups.md), [hosts](hosts.md), [engines](engines.md), [networking](networking.md), [the dashboard](guides/tui.md) |
+| Guides | [Repos](guides/repos.md), [the firewall](guides/firewall.md), [secrets and env vars](guides/env.md), [backups](guides/backups.md), [hosts](hosts.md), [engines](engines.md), [networking](networking.md), [the dashboard](guides/tui.md), [the web dashboard](guides/web.md) |
 | For agents and scripts | [MCP](guides/mcp.md), [the API](api.md), [JSON output](json.md) |
 | [The command line](cli.md) | How commands are laid out, and the [reference](reference/commands/berth.md) for each one |
 | [Troubleshooting](troubleshooting.md) | Blocked hosts, DNS, Remote Control states, restore errors |

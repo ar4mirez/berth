@@ -1,0 +1,226 @@
+/* berth's web UI (#167). One column first: a phone is the smallest screen it is for. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f8;
+  --surface: #ffffff;
+  --text: #16202a;
+  --muted: #5b6875;
+  --line: #d9dee3;
+  --accent: #0f5c6e;
+  --accent-text: #ffffff;
+  --ok: #17663a;
+  --ok-bg: #dff3e6;
+  --bad: #a3271c;
+  --bad-bg: #fbe4e1;
+  --off-bg: #e7eaed;
+  --code-bg: #eef1f3;
+  --shade: rgba(10, 20, 30, 0.45);
+  --radius: 10px;
+  --tap: 44px;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #10161b;
+    --surface: #18212a;
+    --text: #e6ebef;
+    --muted: #98a5b1;
+    --line: #2b3742;
+    --accent: #4fb3c8;
+    --accent-text: #06222a;
+    --ok: #7fd6a0;
+    --ok-bg: #173a26;
+    --bad: #ff9d92;
+    --bad-bg: #47201c;
+    --off-bg: #26313b;
+    --code-bg: #212c36;
+    --shade: rgba(0, 0, 0, 0.6);
+  }
+}
+
+* { box-sizing: border-box; }
+
+[x-cloak] { display: none !important; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overflow-wrap: anywhere;
+}
+
+main {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0.75rem max(1rem, env(safe-area-inset-right)) calc(2rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+}
+
+h1 { font-size: 1.35rem; margin: 0.5rem 0 0.75rem; }
+h2 { font-size: 1rem; margin: 0 0 0.75rem; }
+p { margin: 0.5rem 0; }
+a { color: var(--accent); }
+code, pre { font-family: var(--mono); font-size: 0.875em; }
+code { background: var(--code-bg); border-radius: 4px; padding: 0.1em 0.3em; }
+code.wrap { word-break: break-all; }
+
+.muted, .meta, .hint { color: var(--muted); }
+.meta, .hint { font-size: 0.875rem; }
+.hint { display: block; }
+.error { color: var(--bad); }
+.ok-text { color: var(--ok); }
+.notice { padding: 1rem; }
+.loading { padding: 3rem 1rem; text-align: center; color: var(--muted); }
+
+/* The bar at the top. */
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3.25rem;
+  padding: 0 max(1rem, env(safe-area-inset-right)) 0 max(1rem, env(safe-area-inset-left));
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 650; color: var(--text); text-decoration: none; }
+.top nav { display: flex; flex: 1; gap: 0.25rem; margin-left: 0.5rem; }
+.top nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 0.6rem;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.top nav a[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); }
+
+.banner { margin: 0.75rem auto; max-width: 44rem; padding: 0.6rem 0.8rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.banner.error { border-color: var(--bad); background: var(--bad-bg); }
+
+/* Buttons and fields: each at least a finger wide. */
+button, input {
+  font: inherit;
+  color: inherit;
+  min-height: var(--tap);
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+button { padding: 0 0.9rem; cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+button.danger { color: var(--bad); border-color: var(--bad); }
+button.link { border: 0; background: none; color: var(--accent); padding: 0 0.5rem; text-decoration: underline; }
+button.link.danger { color: var(--bad); }
+input { width: 100%; padding: 0 0.7rem; }
+label { display: block; font-size: 0.875rem; color: var(--muted); margin-bottom: 0.25rem; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0; }
+.actions.end { justify-content: flex-end; margin-bottom: 0; }
+
+form.inline { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; align-items: end; margin: 1rem 0; }
+form.inline label { grid-column: 1 / -1; margin: 0; }
+form.stacked { display: grid; gap: 0.5rem; margin: 1rem 0; }
+form.stacked label { margin: 0; }
+
+/* Lists of things: orgs and hosts as cards, an org's entries as rows. */
+.cards, .list { list-style: none; margin: 0; padding: 0; }
+.cards { display: grid; gap: 0.6rem; }
+.card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.8rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: inherit;
+  text-decoration: none;
+}
+a.card:active { border-color: var(--accent); }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; }
+.row > strong { flex: 1; font-size: 1.05rem; }
+.row.head > h1 { flex: 1; margin: 0; }
+.stack { display: grid; gap: 0.1rem; flex: 1; min-width: 0; }
+
+.list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.list:empty { display: none; }
+.list > li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: var(--tap); padding: 0.3rem 0.5rem 0.3rem 0.9rem; }
+.list > li + li { border-top: 1px solid var(--line); }
+.list.tall > li { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+.list code { background: none; padding: 0; }
+
+.pill { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; background: var(--off-bg); color: var(--muted); }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.bad { background: var(--bad-bg); color: var(--bad); }
+
+.crumb { margin: 0; }
+.crumb a { display: inline-flex; align-items: center; min-height: var(--tap); text-decoration: none; }
+
+/* An org's tabs: a bar that scrolls sideways when it doesn't fit, so the page never does. */
+.tabs { display: flex; gap: 0.25rem; overflow-x: auto; margin: 0.5rem -1rem 0.75rem; padding: 0 1rem; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a { flex: none; display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 0.7rem; color: var(--muted); text-decoration: none; border-bottom: 2px solid transparent; }
+.tabs a[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+
+.sheet { display: grid; grid-template-columns: 1fr; gap: 0.1rem 1rem; margin: 0.75rem 0; }
+.sheet dt { color: var(--muted); font-size: 0.875rem; margin-top: 0.6rem; }
+.sheet dd { margin: 0; }
+
+.log {
+  margin: 0;
+  padding: 0.7rem;
+  max-height: 65vh;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.8rem;
+}
+.log.short { max-height: 40vh; margin-bottom: 0.75rem; }
+
+/* What an operation is about to do, and what it did: a sheet from the bottom on a phone. */
+.overlay { position: fixed; inset: 0; z-index: 2; display: flex; align-items: flex-end; justify-content: center; background: var(--shade); }
+.dialog {
+  width: 100%;
+  max-width: 32rem;
+  max-height: 90vh;
+  overflow: auto;
+  padding: 1rem max(1rem, env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: var(--surface);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.dialog h2 code { background: none; padding: 0; font-size: 1rem; }
+
+.toast { position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom)); transform: translateX(-50%); margin: 0; padding: 0.5rem 0.9rem; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 0.9rem; z-index: 3; }
+
+.signin { max-width: 24rem; padding-top: 12vh; }
+.signin h1 { display: flex; align-items: center; gap: 0.5rem; }
+.signin form { display: grid; gap: 0.5rem; margin: 1rem 0; }
+.signin label { margin: 0; }
+
+/* Wider than a phone. */
+@media (min-width: 40rem) {
+  .cards { grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); }
+  .sheet { grid-template-columns: 10rem 1fr; }
+  .sheet dt { margin-top: 0; padding: 0.35rem 0; }
+  .sheet dd { padding: 0.35rem 0; }
+  .overlay { align-items: center; }
+  .dialog { border-radius: var(--radius); }
+  form.stacked { grid-template-columns: 2fr 1fr auto; align-items: end; }
+  form.stacked label { grid-column: 1 / -1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  button, .card { transition: border-color 0.12s, background-color 0.12s; }
+}
