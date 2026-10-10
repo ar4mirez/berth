@@ -60,7 +60,7 @@ func uiCmd() *cobra.Command {
 				if !strings.HasPrefix(h, "Bearer ") || subtle.ConstantTimeCompare(got[:], want[:]) != 1 {
 					return mcpsrv.Caller{}, api.ErrUnauthorized
 				}
-				return mcpsrv.Caller{Writes: true, Restarts: true}, nil
+				return mcpsrv.Caller{Writes: true, Restarts: true, Admin: true}, nil
 			}
 			// 127.0.0.1 and nothing else: without TLS, this is for the machine it runs on.
 			l, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))

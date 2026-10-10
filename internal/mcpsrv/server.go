@@ -46,6 +46,9 @@ type Caller struct {
 	Via string
 	// Writes lets tools change things; Restarts lets them recreate or stop containers too.
 	Writes, Restarts bool
+	// Admin lets them do what can't be undone, and what handles a secret (ops.Op.Admin): the
+	// socket's owner, or a token with the admin scope. No MCP server has it.
+	Admin bool
 	// Events, when set, gets the operation's progress as it runs (ops.Event).
 	Events func(ops.Event)
 }
@@ -57,6 +60,9 @@ type Spec struct {
 	// Cmd and Sub are the operation in ops.Catalog that decides what the tool may do.
 	Cmd, Sub string
 	Op       ops.Op
+	// NoMCP is true for a tool the API serves and no MCP server offers (#167): what an agent
+	// shouldn't be handed, whatever the server was started with. Every admin operation is one.
+	NoMCP bool
 	// Description is the tool's, with what it needs to run.
 	Description string
 	// In and Out are its arguments and its result.
@@ -83,6 +89,7 @@ func New(opts Options) (*mcp.Server, []Spec) {
 		Instructions: instructions(opts),
 	})
 	s.tools()
+	s.moreTools()
 	s.resources()
 	return s.mcp, s.specs
 }
@@ -170,6 +177,8 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 		OpenWorldHint:   boolp(false),
 	}}
 	switch {
+	case op.Admin:
+		tool.Description += " It can't be undone, or it handles a secret: needs a caller with the admin scope, and no MCP server offers it."
 	case op.Restart != ops.Never:
 		tool.Description += " Restarts or stops the org's container, which stops the work running in it: needs the server started with --allow-restarts, and `confirm` set to the org's name."
 	case op.Access == ops.Write:
@@ -225,6 +234,7 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 		record("ok", nil)
 		return out, nil
 	}
+	spec.NoMCP = noMCP[name] || op.Admin
 	spec.Description, spec.In, spec.Out = tool.Description, reflect.TypeFor[In](), reflect.TypeFor[Out]()
 	spec.Invoke = func(ctx context.Context, by Caller, args json.RawMessage) (any, error) {
 		var in In
@@ -238,6 +248,9 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 		return core(ctx, by, in)
 	}
 	s.specs = append(s.specs, spec)
+	if spec.NoMCP {
+		return
+	}
 	mcp.AddTool(s.mcp, tool, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
 		via := s.opts.Via
 		if via == "" {
@@ -251,6 +264,9 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 	})
 }
 
+// noMCP are the tools the API serves and no MCP server offers, beyond the admin ones (#167).
+var noMCP = map[string]bool{}
+
 // destructive are the writing tools that remove something, beyond the ones that restart.
 var destructive = map[string]bool{"repo_remove": true, "firewall_deny": true}
 
@@ -258,6 +274,9 @@ var destructive = map[string]bool{"repo_remove": true, "firewall_deny": true}
 func allowed(name string, op ops.Op, in any, by Caller) error {
 	if op.Access == ops.Read {
 		return nil
+	}
+	if op.Admin && !by.Admin {
+		return refused("%s can't be undone, or handles a secret, and this caller may not: it needs the admin scope: refused", name)
 	}
 	if op.Restart != ops.Never {
 		if !by.Restarts {

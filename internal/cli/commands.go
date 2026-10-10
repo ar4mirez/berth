@@ -174,7 +174,8 @@ func serveCmd() *cobra.Command {
 					if !ok || !strings.HasPrefix(req.Header.Get("Authorization"), "Bearer ") {
 						return mcpsrv.Caller{}, api.ErrUnauthorized
 					}
-					return mcpsrv.Caller{Writes: scope != app.ScopeRead, Restarts: scope == app.ScopeRestart}, nil
+					admin := scope == app.ScopeAdmin
+					return mcpsrv.Caller{Writes: scope != app.ScopeRead, Restarts: scope == app.ScopeRestart || admin, Admin: admin}, nil
 				}
 				srv := &http.Server{Handler: api.Handler(remote), TLSConfig: tlsConf, ReadHeaderTimeout: 10 * time.Second}
 				servers = append(servers, srv)
@@ -217,7 +218,7 @@ func serveCmd() *cobra.Command {
 			},
 		}))
 	}
-	sub("add <name> [--scope read|write|restart]", "make a token and print it once (only its hash is kept)", "add", writes)
+	sub("add <name> [--scope read|write|restart|admin]", "make a token and print it once (only its hash is kept)", "add", writes)
 	sub("ls", "the tokens: their names, scopes and dates, never the tokens", "ls", reads)
 	sub("rm <name>", "remove a token: a running server refuses it at once", "rm", writes)
 	c.AddCommand(token)

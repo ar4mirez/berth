@@ -24,9 +24,11 @@ func argSchema(a Arg) map[string]any {
 	return s
 }
 
-// access is what a caller needs for an operation: "read", "write" or "restart".
+// access is what a caller needs for an operation: "read", "write", "restart" or "admin".
 func access(op ops.Op) string {
 	switch {
+	case op.Admin:
+		return "admin"
 	case op.Restart != ops.Never:
 		return "restart"
 	case op.Access == ops.Write:

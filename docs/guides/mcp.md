@@ -68,12 +68,20 @@ uses to refuse writes under `--read-only`.
 | `firewall_show`, `firewall_presets`, `firewall_test` | the allowlist and live status; the presets; whether the org can reach a host now | |
 | `repos_list` | registered repos, their state, and what isn't registered | |
 | `env_list` | the names of an org's variables | |
-| `packages_list` | the system packages an org's image adds | |
+| `packages_list`, `package_presets` | the system packages an org's image adds; the @presets and what each stands for | |
 | `backups_list`, `schedule_status` | the backup files here; the nightly schedule | |
 | `firewall_allow`, `firewall_deny` | add or remove allowlist entries, applied live | `--allow-writes` |
 | `repo_add`, `repo_remove` | register and clone a repo; unregister one (its folder goes to quarantine, not deleted) | `--allow-writes` |
 | `backup_create` | an encrypted backup of orgs on this machine | `--allow-writes`, and a backup key (`berth backup keygen`) |
+| `firewall_on`, `firewall_off`, `firewall_reload` | turn the egress firewall on or off; apply the allowlist again, resolving its names anew | `--allow-writes` |
+| `repo_sync` | clone the registered repos that aren't in /workspace yet | `--allow-writes` |
+| `packages_add`, `packages_remove` | change the system packages an org's image adds (there after its next restart) | `--allow-writes` |
+| `remote_restart` | restart Remote Control inside a running org: the service, not the container | `--allow-writes` |
+| `org_create` | create an org: its directory, keys and settings. It isn't started, and signing it in needs a terminal | `--allow-writes` |
 | `org_up`, `org_restart`, `org_down` | start, recreate or stop an org's container | `--allow-restarts`, and `confirm` |
+
+**What no MCP server offers.** Destroying an org can't be undone, so it isn't a tool here, whatever the server was
+started with: the [API](../api.md) has it, for a caller with the `admin` scope.
 
 An org is named as on the command line: `acme`, or `acme@box1` for one on a registered host.
 

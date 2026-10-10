@@ -35,6 +35,9 @@ const (
 	ScopeRead    = "read"
 	ScopeWrite   = "write"   // and read
 	ScopeRestart = "restart" // and write
+	// ScopeAdmin is everything (#167): also what can't be undone (destroying an org) and what
+	// handles a secret.
+	ScopeAdmin = "admin" // and restart
 )
 
 // APIToken is one token, as stored: its hash, never the token.
@@ -106,7 +109,7 @@ func (a *App) APITokenScope(token string) (scope string, ok bool) {
 
 // APIToken is `berth serve token add|ls|rm`.
 func (a *App) APIToken(args []string) error {
-	usage := &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: fmt.Sprintf("usage: %s serve token add <name> [--scope read|write|restart] | ls | rm <name>", Tool)}
+	usage := &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: fmt.Sprintf("usage: %s serve token add <name> [--scope read|write|restart|admin] | ls | rm <name>", Tool)}
 	if len(args) == 0 {
 		return usage
 	}
@@ -147,8 +150,8 @@ func (a *App) APIToken(args []string) error {
 		switch {
 		case !tokenName.MatchString(name):
 			return &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: "a token's name is lowercase letters, digits and dashes (as in: ci, laptop-2)"}
-		case scope != ScopeRead && scope != ScopeWrite && scope != ScopeRestart:
-			return &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: "--scope is read, write or restart"}
+		case scope != ScopeRead && scope != ScopeWrite && scope != ScopeRestart && scope != ScopeAdmin:
+			return &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: "--scope is read, write, restart or admin"}
 		case slices.ContainsFunc(ts, func(t APIToken) bool { return t.Name == name }):
 			return fmt.Errorf("there is already a token named %s (%s serve token rm %s)", name, Tool, name)
 		}

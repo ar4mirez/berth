@@ -61,6 +61,8 @@ type Info struct {
 	// Writes and Restarts are what this caller may do.
 	Writes   bool `json:"writes"`
 	Restarts bool `json:"restarts"`
+	// Admin is whether it may also do what can't be undone, or handles a secret (#167).
+	Admin bool `json:"admin"`
 }
 
 // maxBody is the largest request body: arguments are names and short lists.
@@ -97,7 +99,7 @@ func Handler(o Options) http.Handler {
 			fail(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, Info{Schema: "berth.api/v1", Version: o.Version, ReadOnly: o.ReadOnly, Writes: by.Writes, Restarts: by.Restarts})
+		writeJSON(w, http.StatusOK, Info{Schema: "berth.api/v1", Version: o.Version, ReadOnly: o.ReadOnly, Writes: by.Writes, Restarts: by.Restarts, Admin: by.Admin})
 	})
 	mux.HandleFunc("GET /"+Version+"/openapi.json", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -147,7 +149,7 @@ func (o Options) caller(req *http.Request) (mcpsrv.Caller, error) {
 	}
 	by.Via = "api"
 	if o.ReadOnly {
-		by.Writes, by.Restarts = false, false
+		by.Writes, by.Restarts, by.Admin = false, false, false
 	}
 	return by, nil
 }
@@ -383,5 +385,5 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 // Local is the caller on the Unix socket: whoever can open it is its owner, who could run berth
 // anyway.
 func Local(*http.Request) (mcpsrv.Caller, error) {
-	return mcpsrv.Caller{Writes: true, Restarts: true}, nil
+	return mcpsrv.Caller{Writes: true, Restarts: true, Admin: true}, nil
 }

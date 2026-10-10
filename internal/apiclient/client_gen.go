@@ -138,3 +138,53 @@ func (c *Client) OrgRestart(ctx context.Context, org string, confirm string) (ou
 func (c *Client) OrgDown(ctx context.Context, org string, confirm string) (out mcpsrv.Changed, err error) {
 	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/down", nil, map[string]any{"confirm": confirm}, &out)
 }
+
+// OrgCreate is POST /v1/orgs: Create an org: its directory, keys and settings.
+func (c *Client) OrgCreate(ctx context.Context, org string, name string, email string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs", nil, map[string]any{"org": org, "name": name, "email": email}, &out)
+}
+
+// OrgDestroy is DELETE /v1/orgs/{org}: Remove an org for good: its container, its workspace, Claude's config and history, its keys and secrets, and its backups here unless keep_backups.
+func (c *Client) OrgDestroy(ctx context.Context, org string, confirm string, keepBackups bool) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "DELETE", "/v1/orgs/"+url.PathEscape(org), nil, map[string]any{"confirm": confirm, "keep_backups": keepBackups}, &out)
+}
+
+// FirewallOn is POST /v1/orgs/{org}/firewall/on: Turn an org's egress firewall on: only what its allowlist names can be reached.
+func (c *Client) FirewallOn(ctx context.Context, org string) (out mcpsrv.FirewallChanged, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/firewall/on", nil, nil, &out)
+}
+
+// FirewallOff is POST /v1/orgs/{org}/firewall/off: Turn an org's egress firewall off: the org can reach anything until it is turned on again.
+func (c *Client) FirewallOff(ctx context.Context, org string) (out mcpsrv.FirewallChanged, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/firewall/off", nil, nil, &out)
+}
+
+// FirewallReload is POST /v1/orgs/{org}/firewall/reload: Apply an org's allowlist again in its running container, resolving its names anew: for a host whose addresses changed.
+func (c *Client) FirewallReload(ctx context.Context, org string) (out mcpsrv.FirewallChanged, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/firewall/reload", nil, nil, &out)
+}
+
+// RepoSync is POST /v1/orgs/{org}/repos/sync: Clone an org's registered repos that aren't in its /workspace yet.
+func (c *Client) RepoSync(ctx context.Context, org string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/repos/sync", nil, nil, &out)
+}
+
+// PackagePresets is GET /v1/packages/presets: The @presets for system packages and the packages each one stands for.
+func (c *Client) PackagePresets(ctx context.Context) (out ops.PackagePresetsDoc, err error) {
+	return out, c.do(ctx, "GET", "/v1/packages/presets", nil, nil, &out)
+}
+
+// PackagesAdd is POST /v1/orgs/{org}/packages: Add system packages to an org's image, and build it.
+func (c *Client) PackagesAdd(ctx context.Context, org string, entries []string, noBuild bool) (out mcpsrv.PackagesChanged, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/packages", nil, map[string]any{"entries": entries, "no_build": noBuild}, &out)
+}
+
+// PackagesRemove is POST /v1/orgs/{org}/packages/remove: Remove entries from the system packages an org's image adds, exactly as written there.
+func (c *Client) PackagesRemove(ctx context.Context, org string, entries []string, noBuild bool) (out mcpsrv.PackagesChanged, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/packages/remove", nil, map[string]any{"entries": entries, "no_build": noBuild}, &out)
+}
+
+// RemoteRestart is POST /v1/orgs/{org}/remote/restart: Restart Remote Control inside a running org: the service, not the container.
+func (c *Client) RemoteRestart(ctx context.Context, org string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/remote/restart", nil, nil, &out)
+}

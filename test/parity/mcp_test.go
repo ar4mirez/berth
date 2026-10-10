@@ -104,8 +104,14 @@ func TestBerthMCPConformance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list.Tools) != len(specs) || len(specs) < 20 {
-		t.Fatalf("%d tools listed, %d registered", len(list.Tools), len(specs))
+	offered := 0
+	for _, s := range specs {
+		if !s.NoMCP {
+			offered++
+		}
+	}
+	if len(list.Tools) != offered || offered < 20 || offered == len(specs) {
+		t.Fatalf("%d tools listed, %d of the %d registered are for MCP", len(list.Tools), offered, len(specs))
 	}
 	for _, tool := range list.Tools {
 		spec, ok := byName[tool.Name]
@@ -157,6 +163,7 @@ func TestBerthMCPConformance(t *testing.T) {
 		"packages_list":    {map[string]any{"org": "acme"}, []string{`"schema":"berth.packages/v1"`, `"packages":[]`}},
 		"schedule_status":  {nil, []string{`"schema":"berth.schedule/v1"`, `"kind":"none"`}},
 		"backups_list":     {map[string]any{"org": "acme"}, []string{`"file":"acme-20261006-023000.tar.zst.age"`, `"encryption":"age"`, `"stamp":"20261006-023000"`}},
+		"package_presets":  {nil, []string{`"schema":"berth.package-presets/v1"`, `"name":"@playwright-chromium"`}},
 	}
 	for _, s := range specs {
 		if s.Op.Access != ops.Read {
@@ -288,11 +295,19 @@ func hasCall(r Result, sub string) bool {
 // asked for is in the audit log, refused ones too (#61).
 func TestBerthMCPSafety(t *testing.T) {
 	writes := map[string]map[string]any{
-		"firewall_allow": {"org": "acme", "entries": []string{"files.example.com"}},
-		"firewall_deny":  {"org": "acme", "entries": []string{"pypi.org"}},
-		"repo_add":       {"org": "acme", "repo": "acme/widget"},
-		"repo_remove":    {"org": "acme", "dir": "app"},
-		"backup_create":  {"orgs": []string{"acme"}},
+		"firewall_allow":  {"org": "acme", "entries": []string{"files.example.com"}},
+		"firewall_deny":   {"org": "acme", "entries": []string{"pypi.org"}},
+		"repo_add":        {"org": "acme", "repo": "acme/widget"},
+		"repo_remove":     {"org": "acme", "dir": "app"},
+		"backup_create":   {"orgs": []string{"acme"}},
+		"repo_sync":       {"org": "acme"},
+		"firewall_on":     {"org": "acme"},
+		"firewall_off":    {"org": "acme"},
+		"firewall_reload": {"org": "acme"},
+		"packages_add":    {"org": "acme", "entries": []string{"jq"}, "no_build": true},
+		"packages_remove": {"org": "acme", "entries": []string{"jq"}, "no_build": true},
+		"remote_restart":  {"org": "acme"},
+		"org_create":      {"org": "t-new", "name": "Ada Lovelace", "email": "ada@example.com"},
 	}
 	restarts := map[string]map[string]any{
 		"org_up":      {"org": "acme", "confirm": "acme"},
@@ -302,6 +317,9 @@ func TestBerthMCPSafety(t *testing.T) {
 	// Every tool that isn't a read is in one of the two maps: a new one can't skip this test.
 	_, specs := mcpsrv.New(mcpsrv.Options{})
 	for _, s := range specs {
+		if s.NoMCP {
+			continue // no MCP server offers it: the API's scopes are its test (TestBerthAPIOverTCP)
+		}
 		_, w := writes[s.Name]
 		_, r := restarts[s.Name]
 		switch {
