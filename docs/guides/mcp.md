@@ -78,6 +78,12 @@ uses to refuse writes under `--read-only`.
 | `packages_add`, `packages_remove` | change the system packages an org's image adds (there after its next restart) | `--allow-writes` |
 | `remote_restart` | restart Remote Control inside a running org: the service, not the container | `--allow-writes` |
 | `org_create` | create an org: its directory, keys and settings. It isn't started, and signing it in needs a terminal | `--allow-writes` |
+| `repo_audit`, `remote_logs` | the workspace against the registered repos; the last lines of Remote Control's log | |
+| `repo_adopt`, `repo_new` | register folders already in /workspace; create a new repository, on GitHub or local | `--allow-writes` |
+| `packages_build` | build an org's image with its packages now | `--allow-writes` |
+| `schedule_on`, `schedule_off`, `schedule_run` | the nightly backup on this machine: set it, stop it, run it now | `--allow-writes` |
+| `image_pull` | get berth's released image now, so the next restarts don't wait | `--allow-writes` |
+| `repo_policy_set`, `env_unset`, `org_logout` | the repo policy; remove a variable; sign an org out. Each can restart a running org | `--allow-restarts`, and `confirm` |
 | `org_up`, `org_restart`, `org_down` | start, recreate or stop an org's container | `--allow-restarts`, and `confirm` |
 
 **What no MCP server offers.** Destroying an org can't be undone, so it isn't a tool here, whatever the server was

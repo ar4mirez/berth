@@ -63,7 +63,8 @@ type Spec struct {
 	// NoMCP is true for a tool the API serves and no MCP server offers (#167): what an agent
 	// shouldn't be handed, whatever the server was started with. Every admin operation is one.
 	NoMCP bool
-	// Description is the tool's, with what it needs to run.
+	// About is what the tool does, and Description that with what it needs to run.
+	About       string
 	Description string
 	// In and Out are its arguments and its result.
 	In, Out reflect.Type
@@ -90,6 +91,7 @@ func New(opts Options) (*mcp.Server, []Spec) {
 	})
 	s.tools()
 	s.moreTools()
+	s.settingsTools()
 	s.resources()
 	return s.mcp, s.specs
 }
@@ -235,6 +237,7 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 		return out, nil
 	}
 	spec.NoMCP = noMCP[name] || op.Admin
+	spec.About = ops.Respell(description)
 	spec.Description, spec.In, spec.Out = tool.Description, reflect.TypeFor[In](), reflect.TypeFor[Out]()
 	spec.Invoke = func(ctx context.Context, by Caller, args json.RawMessage) (any, error) {
 		var in In

@@ -1,6 +1,6 @@
 # PRD: a web UI in `berth serve`, and every action in both dashboards (#167)
 
-Status: **phase 1 done (v0.10.0), phase 2a done** · Issue: [#167](https://github.com/ar4mirez/berth/issues/167) · Restarts orgs: no
+Status: **phase 1 done (v0.10.0), phases 2a and 2b done but for the operations listed there** · Issue: [#167](https://github.com/ar4mirez/berth/issues/167) · Restarts orgs: no
 
 ## Problem
 
@@ -125,8 +125,13 @@ Each is a PR that ships on its own.
      catalog to an endpoint or a reason; and ten operations, in the API and the web UI: org create and destroy,
      firewall on, off and reload, repo sync, packages add and remove and their presets, Remote Control restart.
      `berth --via-daemon` takes them too, since it takes what the API serves.
-   - **2b:** the operations that test lists as `later` (the repo policy, the schedule, hosts, restore, migrate,
-     pull, upgrade and the rest), and the by-name sheet.
+   - **2b, done:** twelve more operations in the API (the repo policy and audit, repo adopt and new, a variable
+     removed, the backup schedule, Remote Control's log, logout, building an org's image, pulling berth's), and
+     the by-name sheet in the web UI, made from the OpenAPI document (`x-berth-about` is each operation's plain
+     description), which is where those twelve are until they have screens.
+   - **2b, left:** what the coverage test still lists as `later`: hosts (add, rm, guard, rotate-access,
+     reconcile), restore, rehydrate, migrate, build, upgrade, repo publish, secrets migrate, and run. Each needs a
+     scenario with more than the shared fixtures have (an sshd, a release, a backup to restore).
    - **2c:** the terminal dashboard on the same tools, with forms, and its own parity test.
 3. **Secrets.**
 4. **Sign-in**: `account gh` as events, then the terminal.

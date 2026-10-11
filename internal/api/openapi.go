@@ -76,7 +76,7 @@ func openAPI() map[string]any {
 		summary, _, _ := strings.Cut(spec.Description, ". ")
 		op := map[string]any{
 			"operationId": r.Tool, "summary": strings.TrimSuffix(summary, "."), "description": spec.Description,
-			"x-berth-operation": strings.TrimSpace(spec.Cmd + " " + spec.Sub), "x-berth-access": access(spec.Op),
+			"x-berth-operation": strings.TrimSpace(spec.Cmd + " " + spec.Sub), "x-berth-access": access(spec.Op), "x-berth-about": spec.About,
 		}
 		var params []any
 		body, required := map[string]any{}, []any{}

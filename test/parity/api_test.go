@@ -141,6 +141,7 @@ func TestBerthAPI(t *testing.T) {
 	})
 	c, sock, snap := apiSession(t, files, append([]Rule{
 		{Bin: "docker", Match: `^exec claude-acme test -e /workspace/widget$`, Exit: 1},
+		{Bin: "docker", Match: `^exec claude-acme test -e /workspace/gadget$`, Exit: 1},
 		{Bin: "docker", Match: `^image inspect`, Exit: 0},
 		// Remote Control's supervisor tries again when asked: one more start in its log.
 		{Bin: "docker", Match: `grep -ac "starting remote-control"`, Stdout: "3\n", Once: true},
@@ -193,6 +194,18 @@ func TestBerthAPI(t *testing.T) {
 		"packages_add":     func() (any, error) { return c.PackagesAdd(ctx, "acme", []string{"jq"}, true) },
 		"packages_remove":  func() (any, error) { return c.PackagesRemove(ctx, "acme", []string{"jq"}, true) },
 		"remote_restart":   func() (any, error) { return c.RemoteRestart(ctx, "acme") },
+		"repo_audit":       func() (any, error) { return c.RepoAudit(ctx, "acme") },
+		"repo_adopt":       func() (any, error) { return c.RepoAdopt(ctx, "acme", []string{"stray"}, false) },
+		"repo_new":         func() (any, error) { return c.RepoNew(ctx, "acme", "gadget", true, "", "", false, "") },
+		"repo_policy_set":  func() (any, error) { return c.RepoPolicySet(ctx, "acme", "warn", "acme") },
+		"env_unset":        func() (any, error) { return c.EnvUnset(ctx, "acme", "NOPE_KEY", true, "acme") },
+		"remote_logs":      func() (any, error) { return c.RemoteLogs(ctx, "acme") },
+		"org_logout":       func() (any, error) { return c.OrgLogout(ctx, "acme", false, "acme") },
+		"packages_build":   func() (any, error) { return c.PackagesBuild(ctx, "acme") },
+		"schedule_on":      func() (any, error) { return c.ScheduleOn(ctx, "02:30", 7) },
+		"schedule_off":     func() (any, error) { return c.ScheduleOff(ctx) },
+		"schedule_run":     func() (any, error) { return c.ScheduleRun(ctx) },
+		"image_pull":       func() (any, error) { return c.ImagePull(ctx) },
 	}
 	want := map[string][]string{
 		"hosts_list": {`"schema":"berth.hosts/v1"`}, "orgs_list": {`"schema":"berth.orgs/v1"`, `"name":"acme"`, `"name":"globex"`},
@@ -209,6 +222,17 @@ func TestBerthAPI(t *testing.T) {
 		"repo_sync": {`Cloned widget`}, "package_presets": {`"name":"@playwright-chromium"`, `"libnss3"`},
 		"packages_add": {`added: jq`, `"entries":["jq"]`}, "packages_remove": {`removed: jq`, `"entries":[]`},
 		"remote_restart": {`Restarting; back in ~5s.`},
+		"repo_audit":     {`"schema":"berth.repo-audit/v1"`, `"stray"`}, "repo_adopt": {`skip stray: not a git repo`},
+		"repo_new": {`Created local repo`}, "repo_policy_set": {`REPO_POLICY=warn`, `Restarted claude-acme to apply it.`},
+		"remote_logs": {`"lines":[`}, "org_logout": {`Logged out acme`}, "packages_build": {`has no extra packages`},
+		"schedule_on": {`daily at 02:30, keeping the newest 7 backups per org`}, "schedule_off": {`Backup schedule removed.`},
+	}
+	// What these fixtures have nothing for: no such variable, no systemd, no released image. The
+	// command's own refusal is the answer, as a document.
+	refuses := map[string]string{
+		"env_unset":    "NOPE_KEY is not set for acme",
+		"schedule_run": "no systemd schedule to run",
+		"image_pull":   "has no released image",
 	}
 	for _, r := range api.Routes {
 		call, ok := calls[r.Tool]
@@ -217,8 +241,15 @@ func TestBerthAPI(t *testing.T) {
 			continue
 		}
 		out, err := call()
+		if why, ok := refuses[r.Tool]; ok {
+			// The endpoint reached its command, which said why it won't here.
+			if err == nil || !strings.Contains(err.Error(), why) {
+				t.Errorf("%s %s: %v, want the command's own %q", r.Method, r.Path, err, why)
+			}
+			continue
+		}
 		if err != nil {
-			t.Errorf("%s %s: %v", r.Method, r.Path, err)
+			t.Errorf("%s %s: %q", r.Method, r.Path, err.Error())
 			continue
 		}
 		got := asJSON(out)

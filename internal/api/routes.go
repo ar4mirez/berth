@@ -60,6 +60,18 @@ var Routes = []Route{
 	{Method: "POST", Path: "/v1/orgs/{org}/packages", Tool: "packages_add"},
 	{Method: "POST", Path: "/v1/orgs/{org}/packages/remove", Tool: "packages_remove"},
 	{Method: "POST", Path: "/v1/orgs/{org}/remote/restart", Tool: "remote_restart"},
+	{Method: "GET", Path: "/v1/orgs/{org}/repos/audit", Tool: "repo_audit"},
+	{Method: "POST", Path: "/v1/orgs/{org}/repos/adopt", Tool: "repo_adopt"},
+	{Method: "POST", Path: "/v1/orgs/{org}/repos/new", Tool: "repo_new"},
+	{Method: "POST", Path: "/v1/orgs/{org}/repos/policy", Tool: "repo_policy_set"},
+	{Method: "DELETE", Path: "/v1/orgs/{org}/env/{name}", Tool: "env_unset"},
+	{Method: "GET", Path: "/v1/orgs/{org}/remote/logs", Tool: "remote_logs"},
+	{Method: "POST", Path: "/v1/orgs/{org}/logout", Tool: "org_logout"},
+	{Method: "POST", Path: "/v1/orgs/{org}/packages/build", Tool: "packages_build"},
+	{Method: "POST", Path: "/v1/schedule", Tool: "schedule_on"},
+	{Method: "DELETE", Path: "/v1/schedule", Tool: "schedule_off"},
+	{Method: "POST", Path: "/v1/schedule/run", Tool: "schedule_run"},
+	{Method: "POST", Path: "/v1/image/pull", Tool: "image_pull"},
 }
 
 // PathArgs are the arguments a route takes from its path.

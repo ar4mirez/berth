@@ -106,12 +106,13 @@ const MAX_LOG_LINES = 1000
 
 function parseRoute(hash) {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent)
-  if (parts[0] === 'hosts') return { view: 'hosts', org: '', tab: 'info' }
+  if (parts[0] === 'hosts') return { view: 'hosts', org: '', tab: 'info', op: '' }
+  if (parts[0] === 'operations') return { view: 'operations', org: '', tab: 'info', op: parts[1] || '' }
   if (parts[0] === 'orgs' && parts[1]) {
     const tab = TABS.some((t) => t.id === parts[2]) ? parts[2] : 'info'
-    return { view: 'org', org: parts[1], tab }
+    return { view: 'org', org: parts[1], tab, op: '' }
   }
-  return { view: 'orgs', org: '', tab: 'info' }
+  return { view: 'orgs', org: '', tab: 'info', op: '' }
 }
 
 function size(n) {
@@ -124,6 +125,41 @@ function size(n) {
 function when(rfc3339, stamp) {
   const d = new Date(rfc3339)
   return rfc3339 && !isNaN(d) ? d.toLocaleString() : stamp
+}
+
+// operations are the API's endpoints as its OpenAPI document has them: for each, where it is, what
+// a caller needs for it, and its arguments.
+function operations(doc) {
+  const out = []
+  for (const [path, methods] of Object.entries(doc.paths || {})) {
+    for (const [method, o] of Object.entries(methods)) {
+      if (!o['x-berth-about']) continue // the API's own: its description of itself, and the streams
+      const fields = []
+      for (const p of o.parameters || []) {
+        fields.push({ name: p.name, where: p.in, type: (p.schema && p.schema.type) || 'string', required: !!p.required, help: p.description || '' })
+      }
+      const content = o.requestBody && o.requestBody.content && o.requestBody.content['application/json']
+      const schema = (content && content.schema) || {}
+      for (const [name, s] of Object.entries(schema.properties || {})) {
+        fields.push({ name, where: 'body', type: s.type || 'string', required: (schema.required || []).includes(name), help: s.description || '' })
+      }
+      out.push({
+        id: o.operationId, method: method.toUpperCase(), path, access: o['x-berth-access'] || 'read',
+        command: o['x-berth-operation'] || '', about: o['x-berth-about'], fields,
+      })
+    }
+  }
+  return out.sort((a, b) => a.id.localeCompare(b.id))
+}
+
+// fieldValue is what a form field holds, as the API wants it: undefined when it holds nothing.
+function fieldValue(f, raw) {
+  if (f.type === 'boolean') return raw ? true : undefined
+  const text = String(raw === undefined || raw === null ? '' : raw).trim()
+  if (text === '') return undefined
+  if (f.type === 'array') return text.split(/[\s,]+/).filter(Boolean)
+  if (f.type === 'integer') return Number.isFinite(Number(text)) ? Number(text) : undefined
+  return text
 }
 
 const emptyDetail = () => ({ info: null, firewall: null, repos: null, env: null, packages: null, backups: null, logs: null })
@@ -143,6 +179,11 @@ function app() {
     tabs: TABS,
     orgs: null,
     hosts: null,
+    operations: [],
+    opFilter: '',
+    opValues: {},
+    opResult: '',
+    opError: noError(),
     hostsError: '',
     detail: emptyDetail(),
     tabError: noError(),
@@ -231,6 +272,11 @@ function app() {
         this.probes = []
         this.logLines = []
       }
+      if (next.op !== this.route.op) {
+        this.opValues = {}
+        this.opResult = ''
+        this.opError = noError()
+      }
       this.tabError = noError()
       this.route = next
       this.refresh()
@@ -263,6 +309,7 @@ function app() {
       if (this.screen !== 'main') return
       const route = this.route
       try {
+        if (route.view === 'operations') return this.loadOperations()
         if (route.view === 'hosts') {
           try {
             this.hosts = await this.read('/v1/hosts')
@@ -693,6 +740,106 @@ function app() {
       if (this.followAbort) this.followAbort.abort()
       this.followAbort = null
       this.following = false
+    },
+
+    // --- every operation, by name -----------------------------------------------------------
+    //
+    // The API describes itself (/v1/openapi.json): each operation's arguments, and what a caller
+    // needs for it. This sheet is made from that, so an operation is here the day it has an
+    // endpoint, with or without a screen of its own.
+
+    async loadOperations() {
+      if (this.operations.length) return
+      try {
+        this.operations = operations(await this.read('/v1/openapi.json'))
+        this.opError = noError()
+      } catch (e) {
+        this.opError = { message: e.message, hint: e.hint || '' }
+      }
+    },
+
+    get opList() {
+      const q = this.opFilter.trim().toLowerCase()
+      return this.operations.filter((o) => !q || o.id.includes(q) || o.command.includes(q) || o.about.toLowerCase().includes(q))
+    },
+
+    get op() {
+      return this.operations.find((o) => o.id === this.route.op) || null
+    },
+
+    get opFields() {
+      return this.op ? this.op.fields.filter((f) => f.name !== 'confirm') : []
+    },
+
+    get opTitle() {
+      return this.op ? this.op.command || this.op.id : ''
+    },
+
+    get opAbout() {
+      return this.op ? this.op.about : ''
+    },
+
+    get opNeeds() {
+      return this.op ? this.op.access : ''
+    },
+
+    get opAllowed() {
+      return this.op !== null && this.may(this.op.access)
+    },
+
+    may(access) {
+      if (access === 'read') return true
+      if (access === 'write') return this.server.writes
+      if (access === 'restart') return this.server.restarts
+      return access === 'admin' && this.server.admin
+    },
+
+    opHref(id) {
+      return '#/operations/' + id
+    },
+
+    // runOperation sends what the form holds: each argument where the API takes it from. One that
+    // restarts or removes an org asks for its name first, which is the `confirm` the API wants.
+    runOperation() {
+      const op = this.op
+      if (!op || !this.opAllowed) return
+      let path = op.path
+      const query = []
+      const body = {}
+      for (const f of op.fields) {
+        if (f.name === 'confirm') continue
+        const v = fieldValue(f, this.opValues[f.name])
+        if (v === undefined) {
+          if (f.required) {
+            this.opError = { message: f.name + ' is required', hint: f.help }
+            return
+          }
+          continue
+        }
+        if (f.where === 'path') path = path.replace('{' + f.name + '}', encodeURIComponent(v))
+        else if (f.where === 'query') query.push(encodeURIComponent(f.name) + '=' + encodeURIComponent(Array.isArray(v) ? v.join(',') : v))
+        else body[f.name] = v
+      }
+      this.opError = noError()
+      if (query.length) path += '?' + query.join('&')
+      const label = 'berth ' + (op.command || op.id)
+      const go = async () => {
+        this.opResult = ''
+        if (op.method === 'GET') {
+          try {
+            this.opResult = JSON.stringify(await this.read(path), null, 2)
+          } catch (e) {
+            this.opError = { message: e.message, hint: e.hint || '' }
+          }
+          return
+        }
+        const out = await this.run(label, op.method, path, body)
+        if (out) this.opResult = JSON.stringify(out, null, 2)
+      }
+      if (!op.fields.some((f) => f.name === 'confirm')) return go()
+      const name = String(this.opValues.org || '')
+      body.confirm = name
+      this.ask(label + ' ' + name, [op.about, 'It stops the work running in ' + name + ', or removes it.'], name, go)
     },
 
     // --- small things -----------------------------------------------------------------------

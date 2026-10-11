@@ -164,6 +164,8 @@ func TestBerthMCPConformance(t *testing.T) {
 		"schedule_status":  {nil, []string{`"schema":"berth.schedule/v1"`, `"kind":"none"`}},
 		"backups_list":     {map[string]any{"org": "acme"}, []string{`"file":"acme-20261006-023000.tar.zst.age"`, `"encryption":"age"`, `"stamp":"20261006-023000"`}},
 		"package_presets":  {nil, []string{`"schema":"berth.package-presets/v1"`, `"name":"@playwright-chromium"`}},
+		"repo_audit":       {map[string]any{"org": "acme"}, []string{`"schema":"berth.repo-audit/v1"`, `"policy":"enforce"`}},
+		"remote_logs":      {map[string]any{"org": "acme"}, []string{`"org":"acme"`, `"lines":[`}},
 	}
 	for _, s := range specs {
 		if s.Op.Access != ops.Read {
@@ -308,11 +310,21 @@ func TestBerthMCPSafety(t *testing.T) {
 		"packages_remove": {"org": "acme", "entries": []string{"jq"}, "no_build": true},
 		"remote_restart":  {"org": "acme"},
 		"org_create":      {"org": "t-new", "name": "Ada Lovelace", "email": "ada@example.com"},
+		"repo_adopt":      {"org": "acme", "dirs": []string{"stray"}},
+		"repo_new":        {"org": "acme", "repo": "gadget", "local": true},
+		"packages_build":  {"org": "acme"},
+		"schedule_on":     {"at": "02:30"},
+		"schedule_off":    {},
+		"schedule_run":    {},
+		"image_pull":      {},
 	}
 	restarts := map[string]map[string]any{
-		"org_up":      {"org": "acme", "confirm": "acme"},
-		"org_restart": {"org": "acme", "confirm": "acme"},
-		"org_down":    {"org": "acme", "confirm": "acme"},
+		"org_up":          {"org": "acme", "confirm": "acme"},
+		"org_restart":     {"org": "acme", "confirm": "acme"},
+		"org_down":        {"org": "acme", "confirm": "acme"},
+		"repo_policy_set": {"org": "acme", "mode": "warn", "confirm": "acme"},
+		"env_unset":       {"org": "acme", "name": "NOPE_KEY", "confirm": "acme"},
+		"org_logout":      {"org": "acme", "confirm": "acme"},
 	}
 	// Every tool that isn't a read is in one of the two maps: a new one can't skip this test.
 	_, specs := mcpsrv.New(mcpsrv.Options{})

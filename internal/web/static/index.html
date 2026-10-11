@@ -34,8 +34,9 @@
     <header class="top">
       <a class="brand" href="#/"><img src="icon.svg" alt="" width="22" height="22"> berth</a>
       <nav aria-label="Sections">
-        <a href="#/" :aria-current="route.view === 'hosts' ? null : 'page'">Orgs</a>
+        <a href="#/" :aria-current="route.view === 'orgs' || route.view === 'org' ? 'page' : null">Orgs</a>
         <a href="#/hosts" :aria-current="route.view === 'hosts' ? 'page' : null">Hosts</a>
+        <a href="#/operations" :aria-current="route.view === 'operations' ? 'page' : null">All</a>
       </nav>
       <span class="pill quiet" x-show="server.read_only" title="The server was started with --read-only">read-only</span>
       <span class="pill quiet" x-show="!server.read_only &amp;&amp; !server.writes" title="This token's scope is read">read</span>
@@ -101,6 +102,52 @@
           </li>
         </template>
       </ul>
+    </main>
+
+    <!-- Every operation, by name: made from the API's own description of itself. -->
+    <main x-show="route.view === 'operations'">
+      <div x-show="route.op === ''">
+        <h1>Every operation</h1>
+        <p class="muted">Everything the API does, by name: what has no screen of its own yet is here too.</p>
+        <label for="op-filter">Find</label>
+        <input id="op-filter" type="search" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="firewall, repo, schedule…" x-model="opFilter">
+        <ul class="list tall ops">
+          <template x-for="o in opList" :key="o.id">
+            <li>
+              <a class="stack" :href="opHref(o.id)">
+                <strong x-text="o.command || o.id"></strong>
+                <span class="meta" x-text="o.about"></span>
+              </a>
+              <span class="pill" :class="may(o.access) ? 'ok' : 'quiet'" x-text="o.access"></span>
+            </li>
+          </template>
+        </ul>
+      </div>
+      <div x-show="route.op !== ''">
+        <p class="crumb"><a href="#/operations">‹ Every operation</a></p>
+        <div class="row head">
+          <h1><code x-text="opTitle"></code></h1>
+          <span class="pill" :class="opAllowed ? 'ok' : 'quiet'" x-text="opNeeds"></span>
+        </div>
+        <p x-text="opAbout"></p>
+        <p class="banner" x-show="op !== null &amp;&amp; !opAllowed">This needs a caller that may <strong x-text="opNeeds"></strong>, and this one may not.</p>
+        <form class="fields" @submit.prevent="runOperation">
+          <template x-for="f in opFields" :key="f.name">
+            <div class="field">
+              <label :for="'op-' + f.name"><span x-text="f.name"></span><span x-show="f.required"> (required)</span></label>
+              <input x-show="f.type !== 'boolean'" :id="'op-' + f.name" :type="f.type === 'integer' ? 'number' : 'text'" autocapitalize="off" autocomplete="off" spellcheck="false" x-model="opValues[f.name]">
+              <input x-show="f.type === 'boolean'" class="check" :id="'op-check-' + f.name" type="checkbox" :aria-label="f.name" x-model="opValues[f.name]">
+              <span class="hint" x-text="f.type === 'array' ? f.help + ' (separated by spaces)' : f.help"></span>
+            </div>
+          </template>
+          <button class="primary" type="submit" :disabled="!opAllowed">Run</button>
+        </form>
+        <p class="error" role="alert" x-show="opError.message">
+          <span x-text="opError.message"></span>
+          <span class="hint" x-show="opError.hint" x-text="opError.hint"></span>
+        </p>
+        <pre class="log" x-show="opResult" x-text="opResult"></pre>
+      </div>
     </main>
 
     <!-- An org -->
