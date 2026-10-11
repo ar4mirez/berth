@@ -15,7 +15,7 @@ make a token and print it once (only its hash is kept)
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_serve_token_add/
 
 ```
-berth serve token add <name> [--scope read|write|restart] [flags]
+berth serve token add <name> [--scope read|write|restart|admin] [flags]
 ```
 
 ### Examples

@@ -28,6 +28,7 @@ async function boot({ url, caller, token }) {
   const dom = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: vc })
   const w = dom.window
   const calls = []
+  let pkgs = ['jq']
   let firewall = { schema: 'berth.firewall/v1', org: 'acme', file: 'f', entries: ['mode on', '@python', 'pypi.org'], live: 'on 159' }
   w.TextDecoder = TextDecoder
   settle = async () => { let last = Date.now(); const mo = new w.MutationObserver(() => { last = Date.now() }); mo.observe(w.document, { subtree: true, childList: true, attributes: true, characterData: true }); await raw(700); while (Date.now() - last < 700) await raw(50); mo.disconnect() }
@@ -47,6 +48,19 @@ async function boot({ url, caller, token }) {
       case 'POST /v1/orgs/acme/firewall/allow':
         firewall = { ...firewall, entries: [...firewall.entries, ...JSON.parse(init.body).entries] }
         return sse([['result', { output: 'Allowed files.example.com', firewall }]])
+      case 'POST /v1/orgs/acme/firewall/off':
+        firewall = { ...firewall, entries: firewall.entries.map((e) => (e === 'mode on' ? 'mode off' : e)) }
+        return sse([['result', { output: '', firewall }]])
+      case 'GET /v1/orgs/acme/repos': return json({ schema: 'berth.repos/v1', org: 'acme', repos: [{ dir: 'app', repo: 'github.com/acme/app', url: '', branch: 'main', state: 'cloned', changed: null }], unregistered: [] })
+      case 'POST /v1/orgs/acme/repos/sync': return sse([['result', { org: 'acme', output: 'Cloned widget' }]])
+      case 'GET /v1/orgs/acme/packages': return json({ schema: 'berth.packages/v1', org: 'acme', entries: pkgs, packages: pkgs, image: 'berth/claude-env-acme:x', built: true })
+      case 'POST /v1/orgs/acme/packages':
+        pkgs = [...pkgs, ...JSON.parse(init.body).entries]
+        return sse([['result', { output: 'added', packages: { entries: pkgs, packages: pkgs, image: 'i', built: true } }]])
+      case 'POST /v1/orgs': return sse([['result', { org: JSON.parse(init.body).org, output: 'Created' }]])
+      case 'DELETE /v1/orgs/acme':
+        if (JSON.parse(init.body).confirm !== 'acme') return sse([['failed', { schema: 'berth.error/v1', kind: 'refused', message: 'destroy needs confirm', hint: '' }]])
+        return sse([['result', { org: 'acme', output: 'Destroyed acme.' }]])
       case 'POST /v1/orgs/acme/restart':
         if (JSON.parse(init.body).confirm !== 'acme') return sse([['failed', { schema: 'berth.error/v1', kind: 'refused', message: 'restart needs confirm', hint: '' }]])
         return sse([['start', { type: 'start' }], ['step', { type: 'step', step: 'container', message: 'recreating the container' }], ['output', { type: 'output', message: 'Container claude-acme Started' }], ['done', { type: 'done' }], ['result', { org: 'acme', output: 'x' }]])
@@ -72,7 +86,7 @@ async function boot({ url, caller, token }) {
 
 // 1. `berth ui`: the token in the fragment, a caller that may do everything.
 {
-  const t = await boot({ url: 'http://127.0.0.1:1234/#token=berth_abc', token: 'berth_abc', caller: { writes: true, restarts: true } })
+  const t = await boot({ url: 'http://127.0.0.1:1234/#token=berth_abc', token: 'berth_abc', caller: { writes: true, restarts: true, admin: true } })
   assert.equal(t.w.location.hash, '#/', 'the token is taken out of the address')
   assert.equal(t.w.sessionStorage.getItem('berth.token'), 'berth_abc')
   assert.ok(t.calls.every((c) => c.auth === 'Bearer berth_abc'), 'every request carries the token')
@@ -130,6 +144,47 @@ async function boot({ url, caller, token }) {
   assert.match(t.w.document.body.textContent, /box1 is unreachable/)
   await t.click(t.button('Close'))
 
+  // Turning the firewall off asks first; syncing repos and adding packages just run.
+  await t.go('#/orgs/acme/firewall')
+  await t.click(t.button('Turn off'))
+  assert.ok(!t.calls.some((c) => c.path.endsWith('/firewall/off')), 'off asked before running')
+  assert.match(t.$('#dialog-title').textContent, /berth fw off acme/)
+  await t.submit(t.button('Run it').closest('form'))
+  assert.ok(t.calls.some((c) => c.path === '/v1/orgs/acme/firewall/off' && c.method === 'POST'))
+  await t.click(t.button('Close'))
+  assert.ok(rows().includes('mode off'))
+  await t.go('#/orgs/acme/repos')
+  await t.click(t.button('Sync'))
+  assert.match(t.$('.log.short').textContent, /Cloned widget/)
+  await t.click(t.button('Close'))
+  await t.go('#/orgs/acme/packages')
+  t.type(t.$('#pkg-add'), 'postgresql-client @playwright-chromium')
+  await t.submit(t.$('#pkg-add').closest('form'))
+  assert.deepEqual(t.calls.find((c) => c.path === '/v1/orgs/acme/packages' && c.method === 'POST').body, { entries: ['postgresql-client', '@playwright-chromium'] })
+  await t.click(t.button('Close'))
+  assert.deepEqual(rows(), ['jq', 'postgresql-client', '@playwright-chromium'])
+
+  // Creating an org sends what was typed, and no more.
+  await t.go('#/')
+  t.type(t.$('#org-new'), ' t-new ')
+  await t.submit(t.$('#org-new').closest('form'))
+  assert.deepEqual(t.calls.find((c) => c.path === '/v1/orgs' && c.method === 'POST').body, { org: 't-new' })
+  await t.click(t.button('Close'))
+
+  // Destroying one needs its name typed, like a restart, and goes back to the list.
+  await t.go('#/orgs/acme')
+  await t.click(t.button('Destroy…'))
+  assert.match(t.$('#dialog-title').textContent, /berth org destroy acme/)
+  assert.ok(t.button('Run it').disabled)
+  await t.submit(t.button('Run it').closest('form'))
+  assert.ok(!t.calls.some((c) => c.method === 'DELETE'), 'nothing was destroyed without the name')
+  t.type(t.$('#dialog-typed'), 'acme')
+  await sleep()
+  await t.submit(t.button('Run it').closest('form'))
+  assert.deepEqual(t.calls.find((c) => c.method === 'DELETE' && c.path === '/v1/orgs/acme').body, { confirm: 'acme' })
+  await t.click(t.button('Close'))
+  assert.equal(t.w.location.hash, '#/')
+
   await t.go('#/hosts')
   assert.match(t.$$('li.card').filter(t.shown)[0].textContent, /local[\s\S]*reachable[\s\S]*docker 29\.0\.0/)
   assert.deepEqual(t.problems, [], 'nothing was logged')
@@ -144,7 +199,12 @@ async function boot({ url, caller, token }) {
   await t.submit(t.$('main.signin form'))
   assert.ok(t.shown(t.$('header.top')))
   await t.go('#/orgs/acme/firewall')
-  for (const text of ['Start', 'Restart', 'Stop', 'Deny', 'Allow']) assert.equal(t.button(text), undefined, text + ' is hidden')
+  for (const text of ['Start', 'Restart', 'Stop', 'Deny', 'Allow', 'Turn on', 'Turn off', 'Reload']) assert.equal(t.button(text), undefined, text + ' is hidden')
+  await t.go('#/orgs/acme')
+  for (const text of ['Destroy…', 'Restart Remote Control']) assert.equal(t.button(text), undefined, text + ' is hidden')
+  await t.go('#/')
+  assert.ok(!t.shown(t.$('#org-new')), 'creating an org is hidden')
+  await t.go('#/orgs/acme/firewall')
   assert.ok(t.button('Test'), 'testing reads')
   await t.click(t.button('Sign out'))
   assert.ok(t.shown(t.$('main.signin')))

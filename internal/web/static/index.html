@@ -69,6 +69,14 @@
       <template x-for="u in unreachable" :key="u.host">
         <p class="banner error"><strong x-text="u.host"></strong> is unreachable: <span x-text="u.error"></span></p>
       </template>
+      <form class="stacked create" x-show="server.writes" @submit.prevent="createOrg">
+        <label for="org-new">Create an org</label>
+        <input id="org-new" type="text" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="acme, or acme@box1 on a host" x-model="forms.org">
+        <input type="text" aria-label="Name for its git commits" autocomplete="off" placeholder="Ada Lovelace" x-model="forms.gitName">
+        <input type="email" aria-label="Email for its git commits" autocapitalize="off" autocomplete="off" placeholder="ada@example.com" x-model="forms.gitEmail">
+        <button class="primary" type="submit">Create</button>
+      </form>
+      <p class="hint" x-show="server.writes">A new org isn't started, and has no Claude account yet: start it from its page, then sign it in with <code>berth account signin</code>.</p>
     </main>
 
     <!-- Hosts -->
@@ -155,11 +163,24 @@
             <button class="link" type="button" x-show="infoKey" @click="copy(infoKey)">Copy</button>
           </dd>
         </dl>
+        <div class="actions" x-show="server.writes">
+          <button type="button" @click="restartRemote">Restart Remote Control</button>
+        </div>
+        <div class="danger-zone" x-show="server.admin">
+          <h2>Destroy this org</h2>
+          <p class="muted">It removes the container, the workspace, Claude's config and history, the keys and secrets, and its backups on that machine. It can't be undone.</p>
+          <button type="button" class="danger" @click="destroyOrg">Destroy…</button>
+        </div>
       </section>
 
       <!-- Firewall -->
       <section x-show="shows('firewall')">
         <p class="muted">Live: <strong x-text="fwLive"></strong></p>
+        <div class="actions" x-show="server.writes">
+          <button type="button" @click="firewall('on')">Turn on</button>
+          <button type="button" class="danger" @click="firewall('off')">Turn off</button>
+          <button type="button" @click="firewall('reload')">Reload</button>
+        </div>
         <ul class="list">
           <template x-for="e in fwEntries" :key="e">
             <li>
@@ -201,6 +222,9 @@
           </template>
         </ul>
         <p class="banner" x-show="unregistered.length">Not registered in /workspace: <code x-text="unregistered.join(', ')"></code></p>
+        <div class="actions" x-show="server.writes">
+          <button type="button" @click="syncRepos">Sync</button>
+        </div>
         <form class="stacked" x-show="server.writes" @submit.prevent="addRepo">
           <label for="repo-add">Add a repo</label>
           <input id="repo-add" type="text" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="acme/widgets, or a git URL" x-model="forms.repo">
@@ -225,9 +249,18 @@
         <p class="muted" x-show="pkgEntries.length === 0">This org's image adds no packages.</p>
         <ul class="list">
           <template x-for="p in pkgEntries" :key="p">
-            <li><code x-text="p"></code></li>
+            <li>
+              <code x-text="p"></code>
+              <button class="link danger" type="button" x-show="server.writes" @click="removePackage(p)">Remove</button>
+            </li>
           </template>
         </ul>
+        <form class="inline" x-show="server.writes" @submit.prevent="addPackages">
+          <label for="pkg-add">Add packages (Debian names, or @presets)</label>
+          <input id="pkg-add" type="text" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="postgresql-client @playwright-chromium" x-model="forms.packages">
+          <button class="primary" type="submit">Add</button>
+        </form>
+        <p class="hint" x-show="server.writes">Adding builds the org's image, which can take minutes. The org keeps running on its current one: a change is there after its next restart.</p>
         <dl class="sheet">
           <dt>Image</dt><dd><code class="wrap" x-text="detail.packages ? detail.packages.image : ''"></code></dd>
           <dt>Built</dt><dd x-text="detail.packages &amp;&amp; detail.packages.built ? 'yes' : 'no: at the next restart'"></dd>

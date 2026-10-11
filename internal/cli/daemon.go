@@ -94,6 +94,9 @@ func runFor(st config.State) func(ctx context.Context, by mcpsrv.Caller, args []
 			}
 		}
 		switch {
+		case op.Admin && !by.Admin:
+			audit("refused")
+			return refuse(strings.TrimSpace(name+" "+sub) + " can't be undone, or handles a secret, and this caller may not: refused")
 		case op.Restart != ops.Never && !by.Restarts:
 			audit("refused")
 			return refuse(name + " restarts or stops a container, and this caller may not: refused")

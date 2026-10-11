@@ -142,6 +142,9 @@ func TestBerthAPI(t *testing.T) {
 	c, sock, snap := apiSession(t, files, append([]Rule{
 		{Bin: "docker", Match: `^exec claude-acme test -e /workspace/widget$`, Exit: 1},
 		{Bin: "docker", Match: `^image inspect`, Exit: 0},
+		// Remote Control's supervisor tries again when asked: one more start in its log.
+		{Bin: "docker", Match: `grep -ac "starting remote-control"`, Stdout: "3\n", Once: true},
+		{Bin: "docker", Match: `grep -ac "starting remote-control"`, Stdout: "4\n"},
 	}, mcpRules...))
 	ctx := context.Background()
 
@@ -180,6 +183,16 @@ func TestBerthAPI(t *testing.T) {
 		"org_restart":      func() (any, error) { return c.OrgRestart(ctx, "acme", "acme") },
 		"org_up":           func() (any, error) { return c.OrgUp(ctx, "acme", "acme") },
 		"org_down":         func() (any, error) { return c.OrgDown(ctx, "acme", "acme") },
+		"org_create":       func() (any, error) { return c.OrgCreate(ctx, "t-new", "Ada Lovelace", "ada@example.com") },
+		"org_destroy":      func() (any, error) { return c.OrgDestroy(ctx, "t-new", "t-new", false) },
+		"firewall_on":      func() (any, error) { return c.FirewallOn(ctx, "acme") },
+		"firewall_off":     func() (any, error) { return c.FirewallOff(ctx, "acme") },
+		"firewall_reload":  func() (any, error) { return c.FirewallReload(ctx, "acme") },
+		"repo_sync":        func() (any, error) { return c.RepoSync(ctx, "acme") },
+		"package_presets":  func() (any, error) { return c.PackagePresets(ctx) },
+		"packages_add":     func() (any, error) { return c.PackagesAdd(ctx, "acme", []string{"jq"}, true) },
+		"packages_remove":  func() (any, error) { return c.PackagesRemove(ctx, "acme", []string{"jq"}, true) },
+		"remote_restart":   func() (any, error) { return c.RemoteRestart(ctx, "acme") },
 	}
 	want := map[string][]string{
 		"hosts_list": {`"schema":"berth.hosts/v1"`}, "orgs_list": {`"schema":"berth.orgs/v1"`, `"name":"acme"`, `"name":"globex"`},
@@ -191,6 +204,11 @@ func TestBerthAPI(t *testing.T) {
 		"firewall_allow": {`allowed: files.example.com`, `"files.example.com"`}, "firewall_deny": {`removed: pypi.org`},
 		"repo_add": {`Registered github.com/acme/widget as /workspace/widget`}, "repo_remove": {`Unregistered /workspace/app`},
 		"backup_create": {`Wrote `}, "org_restart": {`"org":"acme"`}, "org_up": {`"org":"acme"`}, "org_down": {`"org":"acme"`},
+		"org_create": {`Created `, `berth up t-new`}, "org_destroy": {`This permanently removes t-new`, `Destroyed t-new.`},
+		"firewall_on": {`"mode on"`}, "firewall_off": {`"mode off"`}, "firewall_reload": {`"schema":"berth.firewall/v1"`},
+		"repo_sync": {`Cloned widget`}, "package_presets": {`"name":"@playwright-chromium"`, `"libnss3"`},
+		"packages_add": {`added: jq`, `"entries":["jq"]`}, "packages_remove": {`removed: jq`, `"entries":[]`},
+		"remote_restart": {`Restarting; back in ~5s.`},
 	}
 	for _, r := range api.Routes {
 		call, ok := calls[r.Tool]
@@ -218,7 +236,9 @@ func TestBerthAPI(t *testing.T) {
 		t.Errorf("the lifecycle endpoints ran no compose:\n%s", strings.Join(res.Calls, "\n"))
 	}
 	audit := strings.Join(auditLines(t, res), "\n")
-	for _, w := range []string{`firewall_allow|ok|{"entries":["files.example.com"],"org":"acme"}`, `repo_remove|ok|{"dir":"app","org":"acme"}`, `org_restart|ok|{"org":"acme"}`, `backup_create|ok|`} {
+	for _, w := range []string{`firewall_allow|ok|{"entries":["files.example.com"],"org":"acme"}`, `repo_remove|ok|{"dir":"app","org":"acme"}`, `org_restart|ok|{"org":"acme"}`, `backup_create|ok|`,
+		`org_create|ok|{"email":"ada@example.com","name":"Ada Lovelace","org":"t-new"}`, `org_destroy|ok|{"keep_backups":false,"org":"t-new"}`, `firewall_off|ok|{"org":"acme"}`,
+		`packages_add|ok|{"entries":["jq"],"no_build":true,"org":"acme"}`, `remote_restart|ok|{"org":"acme"}`, `repo_sync|ok|{"org":"acme"}`} {
 		if !strings.Contains(audit, w) {
 			t.Errorf("the audit log lacks %s:\n%s", w, audit)
 		}
@@ -342,7 +362,10 @@ func TestBerthAPISafety(t *testing.T) {
 // tokenFile is three tokens as `serve token add` stores them: their hashes.
 func tokenFile(tokens map[string]string) string {
 	var list []map[string]string
-	for _, scope := range []string{"read", "write", "restart"} {
+	for _, scope := range []string{"read", "write", "restart", "admin"} {
+		if tokens[scope] == "" {
+			continue
+		}
 		sum := sha256.Sum256([]byte(tokens[scope]))
 		list = append(list, map[string]string{"name": "t-" + scope, "scope": scope, "sha256": hex.EncodeToString(sum[:]), "created": "2026-10-07T00:00:00Z"})
 	}
@@ -354,7 +377,7 @@ func tokenFile(tokens map[string]string) string {
 // refused; a token does what its scope allows and no more.
 func TestBerthAPIOverTCP(t *testing.T) {
 	ctx := context.Background()
-	tokens := map[string]string{"read": "berth_READ-fixture-token", "write": "berth_WRITE-fixture-token", "restart": "berth_RESTART-fixture-token"}
+	tokens := map[string]string{"read": "berth_READ-fixture-token", "write": "berth_WRITE-fixture-token", "restart": "berth_RESTART-fixture-token", "admin": "berth_ADMIN-fixture-token"}
 	files := merge(twoOrgs, map[string]File{"home/.config/berth/api/tokens.json": {Content: tokenFile(tokens), Mode: 0o600}})
 	c, _, snap := apiSessionArgs(t, files, mcpRules, []string{"--listen", "127.0.0.1:0"})
 	var addr, print string
@@ -393,13 +416,13 @@ func TestBerthAPIOverTCP(t *testing.T) {
 	}
 
 	// Scopes.
-	for scope, may := range map[string][3]bool{"read": {true, false, false}, "write": {true, true, false}, "restart": {true, true, true}} {
+	for scope, may := range map[string][4]bool{"read": {true, false, false, false}, "write": {true, true, false, false}, "restart": {true, true, true, false}, "admin": {true, true, true, true}} {
 		cl := as(tokens[scope])
 		info, err := cl.Info(ctx)
-		if err != nil || info.Writes != may[1] || info.Restarts != may[2] {
+		if err != nil || info.Writes != may[1] || info.Restarts != may[2] || info.Admin != may[3] {
 			t.Errorf("%s: GET /v1: %+v %v", scope, info, err)
 		}
-		if o, err := cl.OrgsList(ctx); err != nil || len(o.Orgs) != 2 {
+		if o, err := cl.OrgsList(ctx); err != nil || len(o.Orgs) < 1 || o.Orgs[0].Name != "acme" {
 			t.Errorf("%s: orgs: %v", scope, err)
 		}
 		_, err = cl.FirewallAllow(ctx, "acme", []string{scope + ".example"})
@@ -410,6 +433,15 @@ func TestBerthAPIOverTCP(t *testing.T) {
 		if (err == nil) != may[2] || (err != nil && kindOf(err) != ops.KindRefused) {
 			t.Errorf("%s: restart: %v", scope, err)
 		}
+		// What can't be undone needs the admin scope, and then the confirmation as well.
+		if _, err := cl.OrgDestroy(ctx, "globex", "", false); kindOf(err) != ops.KindRefused || strings.Contains(err.Error(), "admin scope") == may[3] {
+			t.Errorf("%s: destroy without confirm: %v", scope, err)
+		}
+		if _, err := cl.OrgDestroy(ctx, "globex", "globex", false); !may[3] && (kindOf(err) != ops.KindRefused || !strings.Contains(err.Error(), "admin scope")) {
+			t.Errorf("%s: destroy: %v", scope, err)
+		} else if may[3] && (err != nil) {
+			t.Errorf("%s: destroy: %v", scope, err)
+		}
 		// Even the restart scope needs the confirmation.
 		if _, err := cl.OrgRestart(ctx, "acme", ""); kindOf(err) != ops.KindRefused {
 			t.Errorf("%s: restart without confirm: %v", scope, err)
@@ -417,8 +449,8 @@ func TestBerthAPIOverTCP(t *testing.T) {
 	}
 	res := snap()
 	fw := treeLine(res, "state/orgs/acme/config/firewall.txt")
-	if strings.Contains(fw, "read.example") || !strings.Contains(fw, "write.example") || !strings.Contains(fw, "restart.example") {
-		t.Errorf("the firewall after the three scopes: %s", fw)
+	if strings.Contains(fw, "read.example") || !strings.Contains(fw, "write.example") || !strings.Contains(fw, "restart.example") || !strings.Contains(fw, "admin.example") {
+		t.Errorf("the firewall after the four scopes: %s", fw)
 	}
 	n := 0
 	for _, call := range res.Calls {
@@ -426,8 +458,11 @@ func TestBerthAPIOverTCP(t *testing.T) {
 			n++
 		}
 	}
-	if n != 1 {
-		t.Errorf("%d restarts ran, want the restart scope's one", n)
+	if n != 2 {
+		t.Errorf("%d restarts ran, want the restart scope's and the admin scope's", n)
+	}
+	if strings.Contains(asJSON(res.Tree), "orgs/globex/org.env") || !strings.Contains(asJSON(res.Tree), "orgs/acme/org.env") {
+		t.Errorf("after the admin scope's destroy, globex is still there, or acme isn't")
 	}
 	// The socket still needs no token.
 	if _, err := c.OrgsList(ctx); err != nil {
@@ -452,7 +487,7 @@ func TestBerthAPIOverTCP(t *testing.T) {
 	if stored := treeLine(out, "home/.config/berth/api/tokens.json"); out.Exit != 0 || strings.Contains(stored, "t-write") || !strings.Contains(stored, "t-read") {
 		t.Errorf("token rm: %d %q %s", out.Exit, out.Stderr, stored)
 	}
-	for _, args := range [][]string{{"serve", "token", "add", "Bad Name"}, {"serve", "token", "add", "x", "--scope", "admin"}, {"serve", "token", "add", "t-read"}, {"serve", "token", "rm", "nope"}, {"--read-only", "serve", "token", "add", "x"}} {
+	for _, args := range [][]string{{"serve", "token", "add", "Bad Name"}, {"serve", "token", "add", "x", "--scope", "root"}, {"serve", "token", "add", "t-read"}, {"serve", "token", "rm", "nope"}, {"--read-only", "serve", "token", "add", "x"}} {
 		if out := run(t, Berth(berthBin), Scenario{Args: args, Files: withTokens}); out.Exit == 0 || strings.Contains(treeLine(out, "home/.config/berth/api/tokens.json"), `"x"`) {
 			t.Errorf("%v was accepted: %q", args, out.Stdout)
 		}
@@ -497,7 +532,7 @@ func TestBerthViaDaemon(t *testing.T) {
 		t.Errorf("the audit log: %s", audit)
 	}
 	// What needs a terminal, or has no endpoint, doesn't go; and without a server it says so.
-	for _, args := range [][]string{{"shell", "acme"}, {"claude", "acme"}, {"init", "t-new"}, {"env", "acme", "set", "KEY"}, {"destroy", "acme", "--yes"}, {"serve"}, {"tui"}} {
+	for _, args := range [][]string{{"shell", "acme"}, {"claude", "acme"}, {"env", "acme", "set", "KEY"}, {"host", "add", "t-box", "ops@t-box.example"}, {"serve"}, {"tui"}} {
 		if out := via(args...); out.Exit != 1 || !strings.Contains(out.Stderr, "can't go through the daemon") {
 			t.Errorf("--via-daemon %v: %d %q", args, out.Exit, out.Stderr)
 		}
@@ -506,13 +541,13 @@ func TestBerthViaDaemon(t *testing.T) {
 	if out.Exit != 1 || !strings.Contains(out.Stderr, "isn't answering") || out.Stdout != "" {
 		t.Errorf("no server: %d %q %q", out.Exit, out.Stdout, out.Stderr)
 	}
-	if res := snap(); strings.Contains(asJSON(res.Tree), "t-new") {
-		t.Error("init ran on the server")
+	if res := snap(); strings.Contains(asJSON(res.Tree), "t-box") {
+		t.Error("host add ran on the server")
 	}
 	// The endpoint itself refuses a command the API doesn't serve, whoever asks.
 	c := apiclient.Unix(sock)
 	var errb strings.Builder
-	for _, args := range [][]string{{"init", "t-new"}, {"shell", "acme"}, {"--home", "/tmp/x", "ls"}, {"nope"}, {"env", "acme", "set", "KEY"}} {
+	for _, args := range [][]string{{"host", "add", "t-box", "ops@t-box.example"}, {"shell", "acme"}, {"--home", "/tmp/x", "ls"}, {"nope"}, {"env", "acme", "set", "KEY"}} {
 		errb.Reset()
 		if code, err := c.CLI(context.Background(), args, "", io.Discard, &errb); err != nil || code != 1 || !strings.Contains(errb.String(), "berth: ") {
 			t.Errorf("POST /v1/cli %v: exit %d, %v, %q", args, code, err, errb.String())
@@ -546,7 +581,7 @@ func (b bearer) RoundTrip(req *http.Request) (*http.Response, error) {
 func TestBerthMCPOverHTTP(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	tokens := map[string]string{"read": "berth_READ-fixture-token", "write": "berth_WRITE-fixture-token", "restart": "berth_RESTART-fixture-token"}
+	tokens := map[string]string{"read": "berth_READ-fixture-token", "write": "berth_WRITE-fixture-token", "restart": "berth_RESTART-fixture-token", "admin": "berth_ADMIN-fixture-token"}
 	files := merge(twoOrgs, map[string]File{"home/.config/berth/api/tokens.json": {Content: tokenFile(tokens), Mode: 0o600}})
 	sockClient, _, snap := apiSessionArgs(t, files, mcpRules, []string{"--listen", "127.0.0.1:0"})
 	var addr, print string

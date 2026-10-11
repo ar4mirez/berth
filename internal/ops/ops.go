@@ -37,6 +37,10 @@ const (
 type Op struct {
 	Access  Access
 	Restart Restart
+	// Admin is true for an operation that can't be undone, or that takes or shows a secret (#167):
+	// through the API it needs a caller that may do everything, beyond one that may write or restart.
+	// On the command line it changes nothing: whoever types the command is that caller.
+	Admin bool
 	// Note says when a Maybe restart happens, or anything else a caller must know.
 	Note string
 	// JSON is true when the operation returns data (`--output json`).
@@ -59,6 +63,8 @@ var (
 	events    = func(op Op) Op { op.Events = true; return op }
 	writeMay  = func(note string) Op { return Op{Access: Write, Restart: Maybe, Note: note} }
 	writeHard = func(note string) Op { return Op{Access: Write, Restart: Always, Note: note} }
+	// admin marks an operation that can't be undone, or that handles a secret.
+	admin = func(op Op) Op { op.Admin = true; return op }
 )
 
 // Catalog is every top-level command, by name.
@@ -77,7 +83,7 @@ var Catalog = map[string]Op{
 	"up":        events(writeHard("builds if needed, then recreates the container")),
 	"restart":   events(writeHard("recreates the container")),
 	"down":      writeHard("stops and removes the container"),
-	"destroy":   writeHard("removes the container, the org's directory and (unless --keep-backups) its backups; irreversible, and needs a typed confirmation or --yes"),
+	"destroy":   admin(writeHard("removes the container, the org's directory and (unless --keep-backups) its backups; irreversible, and needs a typed confirmation or --yes")),
 	"build":     events(write), // builds berth's image; containers keep running on theirs until their next restart
 	"pull":      events(write), // pulls the released image (#41); containers keep running on theirs
 	"upgrade":   write,         // installs a verified release next to the current one and moves the link (#42); restarts nothing
@@ -89,7 +95,7 @@ var Catalog = map[string]Op{
 	"exec":      write,
 
 	// Sign-in.
-	"token":    writeMay("restarts a running org to apply the token, unless --no-restart"),
+	"token":    admin(writeMay("restarts a running org to apply the token, unless --no-restart")),
 	"auth":     writeMay("the token step restarts a running org"),
 	"login":    write, // restarts the Remote Control service inside the container, not the container
 	"logout":   writeMay("--all on a running org restarts it to drop the token"),
@@ -98,11 +104,11 @@ var Catalog = map[string]Op{
 	// Settings, per subcommand.
 	"password": {Access: BySub, Subs: map[string]Op{
 		"": readText("a secret: secrets never appear in JSON"), "show": readText("a secret: secrets never appear in JSON"),
-		"rotate": writeMay("restarts a running org so the browser terminal uses the new password"),
+		"rotate": admin(writeMay("restarts a running org so the browser terminal uses the new password")),
 	}},
 	"env": {Access: BySub, Subs: map[string]Op{
 		"": readJSON, "ls": readJSON, "list": readJSON,
-		"set":   writeMay("restarts a running org unless --no-restart"),
+		"set":   admin(writeMay("restarts a running org unless --no-restart")),
 		"unset": writeMay("restarts a running org unless --no-restart"),
 		"rm":    writeMay("restarts a running org unless --no-restart"),
 		// Takes secrets dropped inside the org (berth-secret-drop, #10), then as set.
@@ -135,7 +141,7 @@ var Catalog = map[string]Op{
 
 	// Backups.
 	"backup":    events(write), // writes backup files; the org and its container are untouched
-	"keygen":    write,
+	"keygen":    admin(write),
 	"restore":   events(writeMay("starts the restored org unless --no-start; --force stops the org it replaces")),
 	"rehydrate": write,
 	"migrate":   write, // streams the org; nothing restarts here
@@ -154,7 +160,7 @@ var Catalog = map[string]Op{
 	"host": {Access: BySub, Subs: map[string]Op{
 		"ls": readJSON, "add": write, "rm": write, "rotate-access": write,
 		// Cloud hosts (#52): a VM at the provider, and berth's registry. No org is touched.
-		"create": write, "destroy": write,
+		"create": admin(write), "destroy": admin(write),
 		"reconcile": {Access: BySub, Subs: map[string]Op{"": readText("a report for a person"), "--prune": write}},
 		// The host guard's rules apply live to running containers; nothing restarts.
 		"guard": {Access: BySub, Subs: map[string]Op{"": readJSON, "status": readJSON, "on": write, "off": write}},
@@ -180,8 +186,8 @@ var Catalog = map[string]Op{
 	"serve": {Access: BySub, Subs: map[string]Op{
 		"":          readText("the API server: clients talk to it over its socket"),
 		"token ls":  readJSON,
-		"token add": write, // the token store in the operator's ~/.config/berth; no org is touched
-		"token rm":  write,
+		"token add": admin(write), // the token store in the operator's ~/.config/berth; no org is touched
+		"token rm":  admin(write),
 	}},
 
 	// The MCP server (#61): read-only unless started with a flag that lets its tools write or restart.

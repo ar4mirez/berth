@@ -34,14 +34,15 @@ berth ui --port 7780 --no-open
 signs in with an [API token](../api.md#over-the-network-tls-and-tokens):
 
 ```bash
-berth serve token add phone --scope restart      # prints the token once
+berth serve token add phone --scope restart      # prints the token once (admin: also destroy an org)
 berth serve --listen 100.64.0.7:8443             # or: berth system service install --listen …
 ```
 
 Open `https://100.64.0.7:8443/` and paste the token.
 
 - **The token's scope is what the dashboard can do.** With `read` it shows everything and offers no action;
-  `write` adds the firewall, repos and backups; `restart` adds start, restart and stop. The server decides, not
+  `write` adds the firewall, repos, packages, backups and creating an org; `restart` adds start, restart and stop;
+  `admin` adds destroying an org. The server decides, not
   the page: what the page hides, the API would refuse.
 - **The token is kept in that browser tab only** (its session storage), and is forgotten when the tab closes or
   you sign out. There is no cookie, so no other site can act with it.
@@ -64,15 +65,16 @@ An org's page:
 
 | Tab | What it shows | What you can do there |
 |---|---|---|
-| Info | the connection sheet: state, the claude.ai/code link, address, SSH, the browser terminal, the git key | open the link or the terminal, copy the SSH command or the key |
-| Firewall | the allowlist, and whether the firewall is live | allow entries, deny one, test what the org can reach |
-| Repos | registered repos, their branch and state, and what isn't registered | add, remove |
+| Info | the connection sheet: state, the claude.ai/code link, address, SSH, the browser terminal, the git key | open the link or the terminal, copy the SSH command or the key, restart Remote Control, destroy the org |
+| Firewall | the allowlist, and whether the firewall is live | turn it on or off, reload it, allow entries, deny one, test what the org can reach |
+| Repos | registered repos, their branch and state, and what isn't registered | add, remove, sync |
 | Env | the names of the org's variables, never their values | |
-| Packages | the system packages the org's image adds, and that image | |
+| Packages | the system packages the org's image adds, and that image | add, remove (there after the org's next restart) |
 | Backups | this org's backups on this machine | back up now |
 | Logs | the container's log | follow it |
 
-Start, Restart and Stop are at the top of the page. Everything refreshes by itself every few seconds while the
+Start, Restart and Stop are at the top of the page, and creating an org is under the list of orgs. Everything
+refreshes by itself every few seconds while the
 page is in front.
 
 ## What it asks before acting
@@ -81,7 +83,10 @@ As in the terminal dashboard, each action is an operation from berth's catalog, 
 
 - **An operation that restarts a container** (start, restart, stop) says what it does and what stops, and runs
   only after **the org's name is typed**. That is the `confirm` the API wants: the page can't send it for you.
-- **One that removes something** (denying a firewall entry, removing a repo) asks first.
+- **Destroying an org** asks the same way, and needs a caller that may do everything: `berth ui`, or a token with
+  the `admin` scope. Nobody else is shown the button.
+- **One that removes something** (denying a firewall entry, removing a repo or a package), and turning the firewall
+  off, ask first.
 - **With `--read-only`**, or a token that may only read, no control that changes anything is shown.
 
 While an operation runs the page shows its steps and output as they happen, and its error and hint if it fails:
@@ -90,6 +95,6 @@ any caller of the API.
 
 ## What isn't in it yet
 
-Creating and destroying orgs, sign-ins, setting a variable, changing packages, syncing repos, restores, and
+Sign-ins, setting a variable, the repo policy, the backup schedule, restores, moving an org, and
 managing hosts: use the commands. Both dashboards are getting them
 ([#167](https://github.com/ar4mirez/berth/issues/167)).

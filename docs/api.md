@@ -64,6 +64,7 @@ berth serve --listen 127.0.0.1:8443            # the socket, and TCP
   | `read` (the default) | read |
   | `write` | also change things (firewall, repos, backups) |
   | `restart` | also start, restart and stop orgs, each still with `confirm` |
+  | `admin` | also what can't be undone: destroying an org, still with `confirm` |
 
 - **berth keeps only a token's hash** (`~/.config/berth/api/tokens.json`, 0600). `berth serve token ls` lists names,
   scopes and dates; `berth serve token rm <name>` removes one, and a running server refuses it at once.
@@ -92,6 +93,7 @@ Each endpoint is one operation from berth's catalog, and the catalog decides wha
 | reads | always answers |
 | writes | refused with `--read-only` (403) |
 | restarts a container | also needs the org's name again as `confirm` in the body, or it is refused (403) and says what would stop |
+| can't be undone (destroying an org) | also needs a caller that may do everything: the socket's owner, or a token with the `admin` scope |
 
 - **Secret values are never returned.** Variables are listed by name; there is no endpoint that sets one.
 - **Every change asked for is in the audit log** (`audit.log` in the state root) with `"via":"api"`: the endpoint's
@@ -127,6 +129,16 @@ others take a JSON body.
 | `POST /v1/orgs/{org}/up` | Start an org: gets its image if needed, then recreates its container | restart | `berth up` |
 | `POST /v1/orgs/{org}/restart` | Restart an org: recreates its container, applying pending changes (a new image, packages, variables) | restart | `berth restart` |
 | `POST /v1/orgs/{org}/down` | Stop an org: stops and removes its container | restart | `berth down` |
+| `POST /v1/orgs` | Create an org: its directory, keys and settings. It isn't started, and has no Claude account yet | write | `berth org create` |
+| `DELETE /v1/orgs/{org}` | Remove an org for good: its container, workspace, history, keys, secrets, and its backups here | admin | `berth org destroy` |
+| `POST /v1/orgs/{org}/firewall/on` | Turn an org's egress firewall on | write | `berth fw on` |
+| `POST /v1/orgs/{org}/firewall/off` | Turn an org's egress firewall off: it can reach anything until it is on again | write | `berth fw off` |
+| `POST /v1/orgs/{org}/firewall/reload` | Apply an org's allowlist again in its running container, resolving its names anew | write | `berth fw reload` |
+| `POST /v1/orgs/{org}/repos/sync` | Clone an org's registered repos that aren't in its /workspace yet | write | `berth repo sync` |
+| `GET /v1/packages/presets` | The @presets for system packages and the packages each one stands for | read | `berth pkg presets` |
+| `POST /v1/orgs/{org}/packages` | Add system packages to an org's image, and build it; they are there after its next restart | write | `berth pkg add` |
+| `POST /v1/orgs/{org}/packages/remove` | Remove entries from the system packages an org's image adds | write | `berth pkg rm` |
+| `POST /v1/orgs/{org}/remote/restart` | Restart Remote Control inside a running org: the service, not the container | write | `berth account remote restart` |
 | `GET /v1/orgs/{org}/logs/follow` | Follow an org's container log (an event stream) | read | `berth logs` |
 | `GET /v1` | What is serving, and what this caller may do | read | |
 | `GET /v1/openapi.json` | The OpenAPI document | read | |
@@ -190,9 +202,9 @@ berth --via-daemon --output json info acme
 its exit code: the same text, JSON, messages and hints as running it directly. `BERTH_SOCKET` names the socket when
 the server was started with `--socket`.
 
-- **What can go** is what the API has endpoints for: the reads, firewall allow and deny, repo add, remove and sync,
-  backups, and up, restart and down. What needs a terminal (`shell`, `attach`, `claude`, sign-ins, `tui`), or has
-  no endpoint (`org create`, `org destroy`, `env set`), says so and doesn't run.
+- **What can go** is what the API has endpoints for: the reads; the firewall, repos and packages; backups; creating
+  and destroying an org; and up, restart and down. What needs a terminal (`shell`, `attach`, `claude`, sign-ins, `tui`), or has
+  no endpoint (`env set`, `host add`), says so and doesn't run.
 - The server's rules apply: a read-only server refuses a write. Typing the command is the confirmation, so a
   restart needs no `confirm` here.
 - A write through it is in the audit log, as `cli <operation>` with its arguments.
@@ -208,7 +220,8 @@ The [MCP server](guides/mcp.md) is also at `/mcp`, for a client that speaks MCP'
 claude mcp add --transport http berth https://127.0.0.1:8443/mcp --header "Authorization: Bearer $TOKEN"
 ```
 
-It has the same tools as `berth mcp`. What they may do is the caller's: on TCP the token's scope (`read`, `write`,
+It has the same tools as `berth mcp`: the API's, without what can't be undone (`org_destroy`), which no MCP server
+offers, whatever the token. What they may do is the caller's: on TCP the token's scope (`read`, `write`,
 `restart`), checked at every request; on the socket, everything `--read-only` allows. `--allow-writes` and
 `--allow-restarts` are `berth mcp`'s flags, for stdio, and don't apply here.
 
@@ -217,7 +230,7 @@ It has the same tools as `berth mcp`. What they may do is the caller's: on TCP t
 [`api/openapi.json`](api/openapi.json) (OpenAPI 3.1) describes every endpoint, its arguments and its documents; a
 running server has it at `/v1/openapi.json`. It is generated from the same table the server's routes are, and a
 test keeps the committed copy current, so the document and the handlers can't disagree. Each operation carries
-`x-berth-access` (`read`, `write` or `restart`) and `x-berth-operation` (the catalog's name for it).
+`x-berth-access` (`read`, `write`, `restart` or `admin`) and `x-berth-operation` (the catalog's name for it).
 
 berth's own Go client (`internal/apiclient`) is generated from that table too. It is internal to this repository
 for now: the documents' Go types are. From another program, generate a client from the OpenAPI document.

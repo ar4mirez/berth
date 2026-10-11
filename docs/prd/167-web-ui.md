@@ -1,6 +1,6 @@
 # PRD: a web UI in `berth serve`, and every action in both dashboards (#167)
 
-Status: **phase 1 in progress** · Issue: [#167](https://github.com/ar4mirez/berth/issues/167) · Restarts orgs: no
+Status: **phase 1 done (v0.10.0), phase 2a done** · Issue: [#167](https://github.com/ar4mirez/berth/issues/167) · Restarts orgs: no
 
 ## Problem
 
@@ -119,7 +119,15 @@ Each is a PR that ships on its own.
    no endpoint: it comes with phase 2's tools. The web UI has two things the terminal one lacks until then: a
    packages tab and a firewall test, both endpoints that were there.
 2. **Plain-argument operations**, in the API, the web UI and the terminal dashboard; the `admin` scope; the
-   parity tests; the by-name sheet.
+   parity tests; the by-name sheet. In parts:
+   - **2a, done:** the `admin` scope (`ops.Op.Admin`, tokens, the gate, `GET /v1`); tools that no MCP server
+     offers; `internal/api`'s `TestEveryOperationIsServedOrSaysWhyNot`, which holds every operation of the
+     catalog to an endpoint or a reason; and ten operations, in the API and the web UI: org create and destroy,
+     firewall on, off and reload, repo sync, packages add and remove and their presets, Remote Control restart.
+     `berth --via-daemon` takes them too, since it takes what the API serves.
+   - **2b:** the operations that test lists as `later` (the repo policy, the schedule, hosts, restore, migrate,
+     pull, upgrade and the rest), and the by-name sheet.
+   - **2c:** the terminal dashboard on the same tools, with forms, and its own parity test.
 3. **Secrets.**
 4. **Sign-in**: `account gh` as events, then the terminal.
 
