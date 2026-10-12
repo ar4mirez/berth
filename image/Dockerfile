@@ -6,8 +6,8 @@
 FROM node:26-bookworm-slim@sha256:662933cf47f013bc8e4beb31a6116448427a82057ba7c42c97e4c5ba766504c2
 
 # pin: datasource=npm depName=@anthropic-ai/claude-code
-ARG CLAUDE_CODE_PINNED=2.1.285
-ARG CLAUDE_CODE_INTEGRITY=sha512-frr0DLmVHSDNjw+hC6ZmXMVQ8yH4nNmVcI4lVFzWt0bdPNZP7clOKsuLcqSdwQabIpe6A3NEc3TJfiBVD8B2Bg==
+ARG CLAUDE_CODE_PINNED=2.1.287
+ARG CLAUDE_CODE_INTEGRITY=sha512-V5WRpA+p41siSlf/Ujxjm//RtYvySxH/p9/rh6zRxNoHeBzqTgSDw3nP8PgtACM/KcVx/g5TFUNdVkq51dfg0g==
 # pin: datasource=github-releases depName=tsl0922/ttyd
 ARG TTYD_VERSION=1.7.7
 ARG TTYD_SHA256_AMD64=8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55
