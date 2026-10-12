@@ -206,6 +206,20 @@ func TestBerthAPI(t *testing.T) {
 		"schedule_off":     func() (any, error) { return c.ScheduleOff(ctx) },
 		"schedule_run":     func() (any, error) { return c.ScheduleRun(ctx) },
 		"image_pull":       func() (any, error) { return c.ImagePull(ctx) },
+		"host_add": func() (any, error) {
+			return c.HostAdd(ctx, "Bad Name", "ops@t-box.example", "", nil, "", false, "", "", false)
+		},
+		"host_remove":        func() (any, error) { return c.HostRemove(ctx, "t-box", false) },
+		"host_rotate_access": func() (any, error) { return c.HostRotateAccess(ctx, "t-box") },
+		"host_guard_status":  func() (any, error) { return c.HostGuardStatus(ctx, "t-box") },
+		"host_guard_on":      func() (any, error) { return c.HostGuardOn(ctx, "t-box") },
+		"host_guard_off":     func() (any, error) { return c.HostGuardOff(ctx, "t-box") },
+		"org_rehydrate":      func() (any, error) { return c.OrgRehydrate(ctx, "acme") },
+		"org_run":            func() (any, error) { return c.OrgRun(ctx, "acme", "say hello") },
+		"repo_publish":       func() (any, error) { return c.RepoPublish(ctx, "acme", "gadget", "acme/gadget", "public") },
+		"env_migrate":        func() (any, error) { return c.EnvMigrate(ctx, "acme", true) },
+		"image_build":        func() (any, error) { return c.ImageBuild(ctx) },
+		"berth_upgrade":      func() (any, error) { return c.BerthUpgrade(ctx, "", true) },
 	}
 	want := map[string][]string{
 		"hosts_list": {`"schema":"berth.hosts/v1"`}, "orgs_list": {`"schema":"berth.orgs/v1"`, `"name":"acme"`, `"name":"globex"`},
@@ -226,6 +240,8 @@ func TestBerthAPI(t *testing.T) {
 		"repo_new": {`Created local repo`}, "repo_policy_set": {`REPO_POLICY=warn`, `Restarted claude-acme to apply it.`},
 		"remote_logs": {`"lines":[`}, "org_logout": {`Logged out acme`}, "packages_build": {`has no extra packages`},
 		"schedule_on": {`daily at 02:30, keeping the newest 7 backups per org`}, "schedule_off": {`Backup schedule removed.`},
+		"org_rehydrate": {`== Rehydrating acme`}, "org_run": {`"org":"acme"`}, "image_build": {`"output"`},
+		"env_migrate": {`Moved CLAUDE_CODE_OAUTH_TOKEN to `, `Nothing was restarted`},
 	}
 	// What these fixtures have nothing for: no such variable, no systemd, no released image. The
 	// command's own refusal is the answer, as a document.
@@ -233,6 +249,15 @@ func TestBerthAPI(t *testing.T) {
 		"env_unset":    "NOPE_KEY is not set for acme",
 		"schedule_run": "no systemd schedule to run",
 		"image_pull":   "has no released image",
+		// No registered host here, and no upgrade to go back from: test/integration has the hosts.
+		"host_add":           "invalid host name",
+		"repo_publish":       "has no commits yet",
+		"host_remove":        "unknown host 't-box'",
+		"host_rotate_access": "unknown host 't-box'",
+		"host_guard_status":  "unknown host 't-box'",
+		"host_guard_on":      "unknown host 't-box'",
+		"host_guard_off":     "unknown host 't-box'",
+		"berth_upgrade":      "no previous version recorded",
 	}
 	for _, r := range api.Routes {
 		call, ok := calls[r.Tool]
@@ -263,13 +288,20 @@ func TestBerthAPI(t *testing.T) {
 		}
 	}
 	res := snap()
+	if !hasCall(res, `"claude" "-p" "say hello"`) {
+		t.Errorf("org_run ran no claude -p with the prompt:\n%s", strings.Join(res.Calls, "\n"))
+	}
+	if strings.Contains(strings.Join(auditLines(t, res), "\n"), "say hello") {
+		t.Error("the audit log has a prompt: it is the user's words, and may hold anything")
+	}
 	if !hasCall(res, `"up" "-d" "--force-recreate"`) || !hasCall(res, `"down"`) {
 		t.Errorf("the lifecycle endpoints ran no compose:\n%s", strings.Join(res.Calls, "\n"))
 	}
 	audit := strings.Join(auditLines(t, res), "\n")
 	for _, w := range []string{`firewall_allow|ok|{"entries":["files.example.com"],"org":"acme"}`, `repo_remove|ok|{"dir":"app","org":"acme"}`, `org_restart|ok|{"org":"acme"}`, `backup_create|ok|`,
 		`org_create|ok|{"email":"ada@example.com","name":"Ada Lovelace","org":"t-new"}`, `org_destroy|ok|{"keep_backups":false,"org":"t-new"}`, `firewall_off|ok|{"org":"acme"}`,
-		`packages_add|ok|{"entries":["jq"],"no_build":true,"org":"acme"}`, `remote_restart|ok|{"org":"acme"}`, `repo_sync|ok|{"org":"acme"}`} {
+		`packages_add|ok|{"entries":["jq"],"no_build":true,"org":"acme"}`, `remote_restart|ok|{"org":"acme"}`, `repo_sync|ok|{"org":"acme"}`,
+		`org_run|ok|{"org":"acme"}`, `host_remove|failed|{"force":false,"host":"t-box"}`, `env_migrate|ok|{"no_backup":true,"org":"acme"}`} {
 		if !strings.Contains(audit, w) {
 			t.Errorf("the audit log lacks %s:\n%s", w, audit)
 		}
@@ -563,7 +595,7 @@ func TestBerthViaDaemon(t *testing.T) {
 		t.Errorf("the audit log: %s", audit)
 	}
 	// What needs a terminal, or has no endpoint, doesn't go; and without a server it says so.
-	for _, args := range [][]string{{"shell", "acme"}, {"claude", "acme"}, {"env", "acme", "set", "KEY"}, {"host", "add", "t-box", "ops@t-box.example"}, {"serve"}, {"tui"}} {
+	for _, args := range [][]string{{"shell", "acme"}, {"claude", "acme"}, {"env", "acme", "set", "KEY"}, {"restore", "t-none.tar.zst"}, {"serve"}, {"tui"}} {
 		if out := via(args...); out.Exit != 1 || !strings.Contains(out.Stderr, "can't go through the daemon") {
 			t.Errorf("--via-daemon %v: %d %q", args, out.Exit, out.Stderr)
 		}
@@ -572,13 +604,10 @@ func TestBerthViaDaemon(t *testing.T) {
 	if out.Exit != 1 || !strings.Contains(out.Stderr, "isn't answering") || out.Stdout != "" {
 		t.Errorf("no server: %d %q %q", out.Exit, out.Stdout, out.Stderr)
 	}
-	if res := snap(); strings.Contains(asJSON(res.Tree), "t-box") {
-		t.Error("host add ran on the server")
-	}
 	// The endpoint itself refuses a command the API doesn't serve, whoever asks.
 	c := apiclient.Unix(sock)
 	var errb strings.Builder
-	for _, args := range [][]string{{"host", "add", "t-box", "ops@t-box.example"}, {"shell", "acme"}, {"--home", "/tmp/x", "ls"}, {"nope"}, {"env", "acme", "set", "KEY"}} {
+	for _, args := range [][]string{{"restore", "t-none.tar.zst"}, {"shell", "acme"}, {"--home", "/tmp/x", "ls"}, {"nope"}, {"env", "acme", "set", "KEY"}} {
 		errb.Reset()
 		if code, err := c.CLI(context.Background(), args, "", io.Discard, &errb); err != nil || code != 1 || !strings.Contains(errb.String(), "berth: ") {
 			t.Errorf("POST /v1/cli %v: exit %d, %v, %q", args, code, err, errb.String())

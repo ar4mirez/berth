@@ -555,7 +555,8 @@ func describe(rel string, b []byte, random map[string]string, n func(string) str
 		}
 		return fmt.Sprintf("<random, does NOT match %s: %q>", pat, b)
 	}
-	if len(b) <= 8192 && utf8.Valid(b) {
+	// The audit log is read line by line by the tests, however long it grows: it is shown whole.
+	if (len(b) <= 8192 || strings.HasSuffix(rel, "/audit.log")) && utf8.Valid(b) {
 		return fmt.Sprintf("%q", n(string(b)))
 	}
 	return fmt.Sprintf("<%d bytes sha256:%x>", len(b), sha256.Sum256(b))

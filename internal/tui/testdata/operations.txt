@@ -1,6 +1,6 @@
 berth
 
-Every operation (44)
+Every operation (56)
 
   OPERATION               NEEDS    WHAT IT DOES
 ▸ account logout          restart  Sign an org out of Remote Control
@@ -13,6 +13,7 @@ Every operation (44)
   backups_list            read     The backup files on this machine, newest first: org, when, size a
   down                    restart  Stop an org: stops and removes its container
   env ls                  read     The names of an org's custom environment variables
+  env migrate             write    Move an org's secrets and custom variables out of org.env into fi
   env unset               restart  Remove one of an org's custom variables
   fw allow                write    Add entries to an org's egress allowlist
   fw deny                 write    Remove entries from an org's egress allowlist, exactly as written
@@ -20,5 +21,4 @@ Every operation (44)
   fw on                   write    Turn an org's egress firewall on: only what its allowlist names c
   fw presets              read     The firewall's @presets and the hosts each one allows
   fw reload               write    Apply an org's allowlist again in its running container, resolvin
-  fw show                 read     An org's egress allowlist as written, and the live firewall statu
 ↑↓ select · enter open · esc back · ? help · q quit

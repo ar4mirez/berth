@@ -248,3 +248,63 @@ func (c *Client) ScheduleRun(ctx context.Context) (out mcpsrv.ScheduleChanged, e
 func (c *Client) ImagePull(ctx context.Context) (out mcpsrv.Done, err error) {
 	return out, c.do(ctx, "POST", "/v1/image/pull", nil, nil, &out)
 }
+
+// HostAdd is POST /v1/hosts: Register another machine to run orgs on, over SSH: berth checks it, installs a key of its own there, and by default the host guard.
+func (c *Client) HostAdd(ctx context.Context, host string, address string, home string, identities []string, fingerprint string, acceptNewHostKey bool, engine string, bind string, noGuard bool) (out mcpsrv.Done, err error) {
+	return out, c.do(ctx, "POST", "/v1/hosts", nil, map[string]any{"host": host, "address": address, "home": home, "identities": identities, "fingerprint": fingerprint, "accept_new_host_key": acceptNewHostKey, "engine": engine, "bind": bind, "no_guard": noGuard}, &out)
+}
+
+// HostRemove is DELETE /v1/hosts/{host}: Forget a registered host.
+func (c *Client) HostRemove(ctx context.Context, host string, force bool) (out mcpsrv.Done, err error) {
+	return out, c.do(ctx, "DELETE", "/v1/hosts/"+url.PathEscape(host), nil, map[string]any{"force": force}, &out)
+}
+
+// HostRotateAccess is POST /v1/hosts/{host}/rotate-access: Replace berth's key on a registered host.
+func (c *Client) HostRotateAccess(ctx context.Context, host string) (out mcpsrv.Done, err error) {
+	return out, c.do(ctx, "POST", "/v1/hosts/"+url.PathEscape(host)+"/rotate-access", nil, nil, &out)
+}
+
+// HostGuardStatus is GET /v1/hosts/{host}/guard: The host guard on a registered host: whether it is installed, its container's state, and its rules.
+func (c *Client) HostGuardStatus(ctx context.Context, host string) (out ops.HostGuard, err error) {
+	return out, c.do(ctx, "GET", "/v1/hosts/"+url.PathEscape(host)+"/guard", nil, nil, &out)
+}
+
+// HostGuardOn is POST /v1/hosts/{host}/guard/on: Install the host guard on a registered host: its org containers can no longer reach the host itself.
+func (c *Client) HostGuardOn(ctx context.Context, host string) (out mcpsrv.Done, err error) {
+	return out, c.do(ctx, "POST", "/v1/hosts/"+url.PathEscape(host)+"/guard/on", nil, nil, &out)
+}
+
+// HostGuardOff is POST /v1/hosts/{host}/guard/off: Remove the host guard from a registered host: its org containers can reach the host itself again.
+func (c *Client) HostGuardOff(ctx context.Context, host string) (out mcpsrv.Done, err error) {
+	return out, c.do(ctx, "POST", "/v1/hosts/"+url.PathEscape(host)+"/guard/off", nil, nil, &out)
+}
+
+// OrgRehydrate is POST /v1/orgs/{org}/rehydrate: Reinstall in a running org what backups leave out: its repos, toolchains and project dependencies.
+func (c *Client) OrgRehydrate(ctx context.Context, org string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/rehydrate", nil, nil, &out)
+}
+
+// OrgRun is POST /v1/orgs/{org}/run: Ask Claude something in a running org's /workspace, without a session: it answers and ends.
+func (c *Client) OrgRun(ctx context.Context, org string, prompt string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/run", nil, map[string]any{"prompt": prompt}, &out)
+}
+
+// RepoPublish is POST /v1/orgs/{org}/repos/publish: Create a GitHub repository for one of an org's local repos, and push it there.
+func (c *Client) RepoPublish(ctx context.Context, org string, dir string, repo string, visibility string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/repos/publish", nil, map[string]any{"dir": dir, "repo": repo, "visibility": visibility}, &out)
+}
+
+// EnvMigrate is POST /v1/orgs/{org}/env/migrate: Move an org's secrets and custom variables out of org.env into files of their own, after a backup.
+func (c *Client) EnvMigrate(ctx context.Context, org string, noBackup bool) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/env/migrate", nil, map[string]any{"no_backup": noBackup}, &out)
+}
+
+// ImageBuild is POST /v1/image/build: Build berth's image on this machine from its own files.
+func (c *Client) ImageBuild(ctx context.Context) (out mcpsrv.Done, err error) {
+	return out, c.do(ctx, "POST", "/v1/image/build", nil, nil, &out)
+}
+
+// BerthUpgrade is POST /v1/upgrade: Install a verified release of berth on this machine and move to it, or go back to the one before.
+func (c *Client) BerthUpgrade(ctx context.Context, version string, rollback bool) (out mcpsrv.Done, err error) {
+	return out, c.do(ctx, "POST", "/v1/upgrade", nil, map[string]any{"version": version, "rollback": rollback}, &out)
+}

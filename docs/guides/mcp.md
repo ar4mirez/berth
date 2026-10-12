@@ -84,10 +84,15 @@ uses to refuse writes under `--read-only`.
 | `schedule_on`, `schedule_off`, `schedule_run` | the nightly backup on this machine: set it, stop it, run it now | `--allow-writes` |
 | `image_pull` | get berth's released image now, so the next restarts don't wait | `--allow-writes` |
 | `repo_policy_set`, `env_unset`, `org_logout` | the repo policy; remove a variable; sign an org out. Each can restart a running org | `--allow-restarts`, and `confirm` |
+| `org_rehydrate`, `repo_publish`, `env_migrate`, `image_build` | reinstall what backups leave out; publish a local repo to GitHub; move secrets into files; build berth's image | `--allow-writes` |
 | `org_up`, `org_restart`, `org_down` | start, recreate or stop an org's container | `--allow-restarts`, and `confirm` |
 
-**What no MCP server offers.** Destroying an org can't be undone, so it isn't a tool here, whatever the server was
-started with: the [API](../api.md) has it, for a caller with the `admin` scope.
+**What no MCP server offers**, whatever it was started with. The [API](../api.md) has each of these, for a person:
+
+- destroying an org, which can't be undone (the `admin` scope);
+- hosts: adding, removing and guarding them, and rotating berth's key on one. They are the operator's;
+- running a prompt in an org: one agent driving another;
+- upgrading berth: it replaces what is serving.
 
 An org is named as on the command line: `acme`, or `acme@box1` for one on a registered host.
 

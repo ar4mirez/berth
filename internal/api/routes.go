@@ -72,6 +72,18 @@ var Routes = []Route{
 	{Method: "DELETE", Path: "/v1/schedule", Tool: "schedule_off"},
 	{Method: "POST", Path: "/v1/schedule/run", Tool: "schedule_run"},
 	{Method: "POST", Path: "/v1/image/pull", Tool: "image_pull"},
+	{Method: "POST", Path: "/v1/hosts", Tool: "host_add"},
+	{Method: "DELETE", Path: "/v1/hosts/{host}", Tool: "host_remove"},
+	{Method: "POST", Path: "/v1/hosts/{host}/rotate-access", Tool: "host_rotate_access"},
+	{Method: "GET", Path: "/v1/hosts/{host}/guard", Tool: "host_guard_status"},
+	{Method: "POST", Path: "/v1/hosts/{host}/guard/on", Tool: "host_guard_on"},
+	{Method: "POST", Path: "/v1/hosts/{host}/guard/off", Tool: "host_guard_off"},
+	{Method: "POST", Path: "/v1/orgs/{org}/rehydrate", Tool: "org_rehydrate"},
+	{Method: "POST", Path: "/v1/orgs/{org}/run", Tool: "org_run"},
+	{Method: "POST", Path: "/v1/orgs/{org}/repos/publish", Tool: "repo_publish"},
+	{Method: "POST", Path: "/v1/orgs/{org}/env/migrate", Tool: "env_migrate"},
+	{Method: "POST", Path: "/v1/image/build", Tool: "image_build"},
+	{Method: "POST", Path: "/v1/upgrade", Tool: "berth_upgrade"},
 }
 
 // PathArgs are the arguments a route takes from its path.
