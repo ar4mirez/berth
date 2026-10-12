@@ -26,6 +26,7 @@ type fake struct {
 	readOnly bool
 	ran      []string // every action Run was asked for
 	handoffs []string
+	invoked  []string // every operation Invoke was asked for, with its arguments
 	fail     error
 }
 

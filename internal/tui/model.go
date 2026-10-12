@@ -25,6 +25,14 @@ const (
 
 var tabs = []string{tabInfo, tabFirewall, tabRepos, tabEnv, tabBackups, tabLogs}
 
+// page is what the dashboard is on: the orgs and their pages, or every operation by name.
+type page int
+
+const (
+	pageMain page = iota
+	pageOps
+)
+
 type overlay int
 
 const (
@@ -90,6 +98,18 @@ type Model struct {
 	// submit turns what was typed into the action to request.
 	submit func(string) Action
 	busy   string // the action running now
+	// Every operation, by name (operations.go): the page, the list and its cursor, the open
+	// operation with its form's cursor and values.
+	page     page
+	opsList  []Operation
+	opsCur   int
+	op       *Operation
+	opCur    int
+	opValues map[string]string
+	// submitText, when set, takes what was typed instead of submit; confirmRun, when set, is what a
+	// confirmed confirmation runs instead of pending.
+	submitText func(string) tea.Cmd
+	confirmRun func() tea.Cmd
 	// exec runs something with the terminal released (tea.Exec; the tests run it in place).
 	exec   func(tea.ExecCommand, tea.ExecCallback) tea.Cmd
 	text   string // the result overlay's text
@@ -216,7 +236,7 @@ func (m *Model) show(text string, failed bool) {
 }
 
 func (m *Model) prompt(ask string, submit func(string) Action) {
-	m.over, m.ask, m.typed, m.submit = input, ask, "", submit
+	m.over, m.ask, m.typed, m.submit, m.submitText = input, ask, "", submit, nil
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -251,6 +271,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.show(msg.out, false)
 		}
 		return m, m.reload()
+	case opDoneMsg:
+		m.busy = ""
+		switch {
+		case msg.err != nil:
+			m.show(ops.AsError(msg.err).Error(), true)
+		case msg.out != "":
+			m.show(msg.out, false)
+		default:
+			m.show(msg.label+": done", false)
+		}
+		return m, m.reload()
 	case handoffMsg:
 		if msg.err != nil {
 			m.show(msg.err.Error(), true)
@@ -277,7 +308,12 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.over {
 	case confirm:
 		// Only y confirms: Enter and everything else leave it undone.
+		run := m.confirmRun
+		m.confirmRun = nil
 		if s == "y" || s == "Y" {
+			if run != nil {
+				return m, run()
+			}
 			return m, m.run(m.pending)
 		}
 		m.over = none
@@ -286,11 +322,15 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch k.Type {
 		case tea.KeyEnter:
 			m.over = none
+			if take := m.submitText; take != nil {
+				m.submitText = nil
+				return m, take(strings.TrimSpace(m.typed))
+			}
 			if v := strings.TrimSpace(m.typed); v != "" {
 				return m, m.request(m.submit(v))
 			}
 		case tea.KeyEsc:
-			m.over = none
+			m.over, m.submitText = none, nil
 		case tea.KeyBackspace:
 			if r := []rune(m.typed); len(r) > 0 {
 				m.typed = string(r[:len(r)-1])
@@ -306,7 +346,13 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.busy != "" {
 		return m, nil // one action at a time
 	}
+	if m.page == pageOps {
+		return m.opsKey(k)
+	}
 	switch s {
+	case "o":
+		m.openOperations()
+		return m, nil
 	case "q":
 		return m, tea.Quit
 	case "?":

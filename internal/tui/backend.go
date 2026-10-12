@@ -6,14 +6,16 @@
 package tui
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"github.com/ar4mirez/berth/internal/app"
 	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/mcpsrv"
 	"github.com/ar4mirez/berth/internal/ops"
 )
 
@@ -58,6 +60,10 @@ type Backend interface {
 	// Handoff takes the terminal over for an org ("attach" or "shell") and returns when the
 	// person leaves it.
 	Handoff(ctx context.Context, org, kind string) error
+	// Operations are every operation the dashboard can run by name: the tools the API serves.
+	Operations() []Operation
+	// Invoke runs one of them, with its arguments, and returns what it answered as text.
+	Invoke(ctx context.Context, name string, args map[string]any) (string, error)
 }
 
 // appBackend is the Backend on berth's own operations.
@@ -69,6 +75,9 @@ type appBackend struct {
 	// self and args start berth again for a handoff: this binary and its global flags.
 	self string
 	args []string
+	// tools are the operations run by name (operations.go), made once.
+	once  sync.Once
+	tools []mcpsrv.Spec
 }
 
 // NewBackend is the dashboard's backend: newApp as the CLI builds an App, self and global the
@@ -121,38 +130,45 @@ func (b *appBackend) Logs(ctx context.Context, org string, lines int) (ops.Logs,
 	return ops.TailLogs(ctx, a, o, lines)
 }
 
+// toolOf is the tool an action with a key is, and its arguments: the same operation the page of
+// every operation runs by name, and the API serves.
+func toolOf(act Action) (name string, args map[string]any, err error) {
+	args = map[string]any{"org": act.Org}
+	switch act.Cmd + " " + act.Sub {
+	case "up ", "down ", "restart ":
+		// Confirmed on screen before it gets here (Model.request): the tool wants it said again.
+		args["confirm"] = act.Org
+		return "org_" + act.Cmd, args, nil
+	case "fw allow", "fw deny":
+		args["entries"] = act.Args
+		return "firewall_" + act.Sub, args, nil
+	case "repo add":
+		if len(act.Args) == 0 {
+			return "", nil, errors.New("repo add needs a repo")
+		}
+		args["repo"] = act.Args[0]
+		return "repo_add", args, nil
+	case "repo rm":
+		if len(act.Args) == 0 {
+			return "", nil, errors.New("repo rm needs a folder")
+		}
+		args["dir"] = act.Args[0]
+		return "repo_remove", args, nil
+	case "repo sync":
+		return "repo_sync", args, nil
+	case "backup ":
+		return "backup_create", map[string]any{"orgs": []string{act.Org}}, nil
+	}
+	return "", nil, fmt.Errorf("the dashboard has no action %q", act.Label())
+}
+
+// Run does an action with a key, as the tool it is.
 func (b *appBackend) Run(ctx context.Context, act Action) (string, error) {
-	var out, errb bytes.Buffer
-	root := b.newApp(&out, &errb)
-	a, o, done, err := root.At(ctx, act.Org)
+	name, args, err := toolOf(act)
 	if err != nil {
 		return "", err
 	}
-	defer done()
-	switch act.Cmd + " " + act.Sub {
-	case "up ":
-		err = a.Up(ctx, o)
-	case "down ":
-		err = a.Down(ctx, o)
-	case "restart ":
-		err = a.Restart(ctx, o)
-	case "fw allow", "fw deny":
-		err = a.Fw(ctx, o, append([]string{act.Sub}, act.Args...))
-	case "repo add", "repo rm", "repo sync":
-		err = a.Repo(ctx, act.Sub, o, act.Args)
-	case "backup ":
-		if root.BackupNeedsPrompt() {
-			return "", &ops.Error{Kind: ops.KindState, Code: 1, Msg: "there is no backup key, so a backup would ask for a passphrase", Hint: "run: berth keygen"}
-		}
-		err = root.Backup(ctx, []string{o})
-	default:
-		err = fmt.Errorf("the dashboard has no action %q", act.Label())
-	}
-	text := strings.TrimRight(out.String(), "\n")
-	if e := strings.TrimRight(errb.String(), "\n"); e != "" {
-		text = strings.TrimLeft(text+"\n"+e, "\n")
-	}
-	return text, err
+	return b.Invoke(ctx, name, args)
 }
 
 // Handoff runs berth itself with the terminal, so attach and shell behave as the commands do.

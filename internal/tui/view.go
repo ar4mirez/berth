@@ -47,8 +47,10 @@ func (m *Model) View() string {
 	switch {
 	case m.over != none:
 		body, keys = m.overlayView()
+	case m.page == pageOps:
+		body, keys = m.opsView()
 	case m.open == "":
-		body, keys = m.listView(), "↑↓ select · enter open · u/d/r up/down/restart · A attach · S shell · ? help · q quit"
+		body, keys = m.listView(), "↑↓ select · enter open · u/d/r up/down/restart · A attach · S shell · o operations · ? help · q quit"
 	default:
 		body, keys = m.detailView()
 	}
@@ -282,6 +284,7 @@ const helpText = `Everywhere
   R            read again now            (every page refreshes by itself)
   u / d / r    start, stop, restart the org: each says what stops and asks first
   A / S        attach to its tmux session / open a shell: the terminal is theirs until you leave
+  o            every operation, by name: what has no key of its own is run from there
 
 The list
   ↑ ↓ (k j)    select an org            enter       open it
@@ -290,10 +293,12 @@ An org's page
   tab, 1-6     switch tab               esc         back to the list
   Firewall     a allow entries          x deny the selected entry
   Repos        a add a repo             x remove the selected one     y sync
-  Backups      b back up now
-  Logs         follows the container's log
+  Backups      b back up now            Logs        follows the container's log
 
-Nothing that restarts a container, or removes something, runs without a "y".
+Every operation (o)
+  ↑ ↓ (k j)    select · enter opens one, or sets the selected argument · r runs it · esc back
+
+A restart or a removal runs only after a "y"; destroying an org only after its name is typed.
 With --read-only the dashboard only reads.`
 
 func (m *Model) overlayView() (body, keys string) {

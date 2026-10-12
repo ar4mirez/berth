@@ -21,4 +21,4 @@ Hosts
 
 
 
-↑↓ select · enter open · u/d/r up/down/restart · A attach · S shell · ? help · q quit
+↑↓ select · enter open · u/d/r up/down/restart · A attach · S shell · o operations · ? help · q quit

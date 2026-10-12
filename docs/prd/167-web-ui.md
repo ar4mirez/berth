@@ -1,6 +1,6 @@
 # PRD: a web UI in `berth serve`, and every action in both dashboards (#167)
 
-Status: **phase 1 done (v0.10.0), phases 2a and 2b done but for the operations listed there** · Issue: [#167](https://github.com/ar4mirez/berth/issues/167) · Restarts orgs: no
+Status: **phases 1 and 2 done, but for the operations 2b lists as left** · Issue: [#167](https://github.com/ar4mirez/berth/issues/167) · Restarts orgs: no
 
 ## Problem
 
@@ -132,7 +132,11 @@ Each is a PR that ships on its own.
    - **2b, left:** what the coverage test still lists as `later`: hosts (add, rm, guard, rotate-access,
      reconcile), restore, rehydrate, migrate, build, upgrade, repo publish, secrets migrate, and run. Each needs a
      scenario with more than the shared fixtures have (an sshd, a release, a backup to restore).
-   - **2c:** the terminal dashboard on the same tools, with forms, and its own parity test.
+   - **2c, done:** the terminal dashboard on the same tools. `o` is every operation by name, with a form per
+     operation made from the tool's input type (`mcpsrv.Spec.Fields`); the actions with keys run as the tools
+     they are (`toolOf`), so there is one way an operation runs and one audit trail (`via: tui`).
+     `TestBothDashboardsDoTheSame` holds the dashboard's list to the API's tools, which are what the web UI
+     lists. A restart asks for a `y`; destroying an org for its name, typed.
 3. **Secrets.**
 4. **Sign-in**: `account gh` as events, then the terminal.
 
