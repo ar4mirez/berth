@@ -308,3 +308,13 @@ func (c *Client) ImageBuild(ctx context.Context) (out mcpsrv.Done, err error) {
 func (c *Client) BerthUpgrade(ctx context.Context, version string, rollback bool) (out mcpsrv.Done, err error) {
 	return out, c.do(ctx, "POST", "/v1/upgrade", nil, map[string]any{"version": version, "rollback": rollback}, &out)
 }
+
+// BackupRestore is POST /v1/backups/restore: Restore an org from a backup in this machine's backups directory, and start it.
+func (c *Client) BackupRestore(ctx context.Context, file string, as string, force bool, noStart bool, noRehydrate bool, confirm string) (out mcpsrv.Done, err error) {
+	return out, c.do(ctx, "POST", "/v1/backups/restore", nil, map[string]any{"file": file, "as": as, "force": force, "no_start": noStart, "no_rehydrate": noRehydrate, "confirm": confirm}, &out)
+}
+
+// OrgMigrate is POST /v1/orgs/{org}/migrate: Move an org to a registered host: it is copied there and checked while it keeps running, then stopped where it is and started there.
+func (c *Client) OrgMigrate(ctx context.Context, org string, host string, as string, noSwitch bool, confirm string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/migrate", nil, map[string]any{"host": host, "as": as, "no_switch": noSwitch, "confirm": confirm}, &out)
+}

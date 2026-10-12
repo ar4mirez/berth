@@ -14,8 +14,6 @@ import (
 const (
 	// alias: another spelling of an operation that is served, or that is listed under its own name.
 	alias = "another spelling of "
-	// later: plain arguments, and no endpoint yet.
-	later = "no endpoint yet: it replaces or moves an org, and gets a scenario of its own (#167, phase 2)"
 	// secret: it takes or shows a secret, or needs one this server would have to hold (a cloud
 	// provider's key).
 	secret = "it takes or shows a secret: #167's phase 3"
@@ -36,10 +34,6 @@ var notServed = map[string]string{
 	"repo policy/": alias + "repo ls, which has the policy", "remote ": alias + "remote status", "password ": alias + "password show",
 	"schedule --off": alias + "schedule off", "schedule now": alias + "schedule run", "host guard/": alias + "host guard/status",
 	"host reconcile/": secret,
-
-	// Plain arguments, not yet.
-
-	"restore ": later, "migrate ": later,
 
 	// Secrets.
 	"env set": secret, "env accept": secret, "token ": secret, "password show": secret, "password rotate": secret,

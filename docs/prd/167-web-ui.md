@@ -1,6 +1,6 @@
 # PRD: a web UI in `berth serve`, and every action in both dashboards (#167)
 
-Status: **phases 1 and 2 done, but for the operations 2b lists as left** · Issue: [#167](https://github.com/ar4mirez/berth/issues/167) · Restarts orgs: no
+Status: **phases 1 and 2 done; 3 (secrets) and 4 (sign-in) open** · Issue: [#167](https://github.com/ar4mirez/berth/issues/167) · Restarts orgs: no
 
 ## Problem
 
@@ -134,8 +134,12 @@ Each is a PR that ships on its own.
      Hosts, the prompt and the upgrade are tools no MCP server offers. A prompt isn't kept in the audit log. The
      shared fixtures have no registered host and no release to go back from, so `TestBerthAPI` holds those
      endpoints to the command's own refusal; `test/integration` has the hosts themselves.
-   - **Left:** `restore` and `migrate`, which replace or move an org and get a scenario of their own. `host
-     reconcile` goes with the cloud hosts, in phase 3: it needs the provider's key.
+   - **2e, done:** `restore` and `migrate`, which ends phase 2: the API's coverage test lists nothing as
+     "later". A backup is named as `backups_list` shows it, never a path on the server; an org is moved to a
+     registered host, never an address for the server to ssh to. Each is confirmed, and no MCP server offers
+     either. The catalog now says a migration to a registered host stops the org where it is, which it didn't.
+     The dashboards say again whatever a confirmed operation is about: the org, or the backup's name.
+     `host reconcile` goes with the cloud hosts, in phase 3: it needs the provider's key.
    - **2c, done:** the terminal dashboard on the same tools. `o` is every operation by name, with a form per
      operation made from the tool's input type (`mcpsrv.Spec.Fields`); the actions with keys run as the tools
      they are (`toolOf`), so there is one way an operation runs and one audit trail (`via: tui`).

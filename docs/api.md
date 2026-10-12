@@ -162,6 +162,8 @@ others take a JSON body.
 | `POST /v1/orgs/{org}/run` | Ask Claude something in a running org's /workspace, without a session; the prompt isn't kept in the audit log | write | `berth org run` |
 | `POST /v1/orgs/{org}/repos/publish` | Create a GitHub repository for one of an org's local repos, and push it there | write | `berth repo publish` |
 | `POST /v1/orgs/{org}/env/migrate` | Move an org's secrets and variables out of org.env into files, after a backup | write | `berth env migrate` |
+| `POST /v1/backups/restore` | Restore an org from a backup in this machine's backups directory, named as `GET /v1/backups` shows it (never a path); `force` replaces an org of that name | restart, and `confirm` (the file's name) | `berth backup restore` |
+| `POST /v1/orgs/{org}/migrate` | Move an org to a registered host: copied and checked while it runs, then stopped where it is and started there; `no_switch` only copies | restart, and `confirm` | `berth org migrate` |
 | `GET /v1/orgs/{org}/logs/follow` | Follow an org's container log (an event stream) | read | `berth logs` |
 | `GET /v1` | What is serving, and what this caller may do | read | |
 | `GET /v1/openapi.json` | The OpenAPI document | read | |
@@ -227,7 +229,7 @@ the server was started with `--socket`.
 
 - **What can go** is what the API has endpoints for: the reads; the firewall, repos and packages; backups; creating
   and destroying an org; and up, restart and down. What needs a terminal (`shell`, `attach`, `claude`, sign-ins, `tui`), or has
-  no endpoint (`env set`, `backup restore`), says so and doesn't run.
+  no endpoint (`env set`, `account token`), says so and doesn't run.
 - The server's rules apply: a read-only server refuses a write. Typing the command is the confirmation, so a
   restart needs no `confirm` here.
 - A write through it is in the audit log, as `cli <operation>` with its arguments.

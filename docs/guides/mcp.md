@@ -92,7 +92,8 @@ uses to refuse writes under `--read-only`.
 - destroying an org, which can't be undone (the `admin` scope);
 - hosts: adding, removing and guarding them, and rotating berth's key on one. They are the operator's;
 - running a prompt in an org: one agent driving another;
-- upgrading berth: it replaces what is serving.
+- upgrading berth: it replaces what is serving;
+- restoring a backup, and moving an org to another host: each replaces or stops an org.
 
 An org is named as on the command line: `acme`, or `acme@box1` for one on a registered host.
 

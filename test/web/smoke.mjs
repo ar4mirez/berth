@@ -44,6 +44,7 @@ async function boot({ url, caller, token }) {
         { name: 'acme', state: 'up', remote: 'on', token: true, host: 'local', ssh_port: 2201, ttyd_port: 7701 },
         { name: 'initech', state: 'down', remote: '-', token: false, host: 'box1' }], unreachable: [{ host: 'box2', error: 'ssh: connection refused' }], destroyed: [] })
       case 'GET /v1/openapi.json': return json(openapi)
+      case 'POST /v1/backups/restore': return sse([['result', { output: 'Restored' }]])
       case 'POST /v1/schedule': return sse([['result', { output: 'Scheduled', schedule: { kind: 'cron' } }]])
       case 'GET /v1/orgs/acme/logs?lines=5': return json({ org: 'acme', lines: ['ready'] })
       case 'POST /v1/orgs/acme/repos/policy': return sse([['result', { org: 'acme', output: 'REPO_POLICY=warn' }]])
@@ -224,6 +225,18 @@ async function boot({ url, caller, token }) {
   await sleep()
   await t.submit(t.button('Run it').closest('form'))
   assert.deepEqual(t.calls.find((c) => c.path === '/v1/orgs/acme/repos/policy').body, { mode: 'warn', confirm: 'acme' })
+  await t.click(t.button('Close'))
+
+  // One with no org says its first required argument again: the backup to restore.
+  await t.go('#/operations/backup_restore')
+  t.type(t.$('#op-file'), 'acme-20261006-023000.tar.zst.age')
+  await t.submit(t.$('form.fields'))
+  assert.ok(!t.calls.some((c) => c.path === '/v1/backups/restore'), 'it asked first')
+  assert.match(t.$('#dialog-title').textContent, /berth restore acme-20261006-023000\.tar\.zst\.age/)
+  t.type(t.$('#dialog-typed'), 'acme-20261006-023000.tar.zst.age')
+  await sleep()
+  await t.submit(t.button('Run it').closest('form'))
+  assert.deepEqual(t.calls.find((c) => c.path === '/v1/backups/restore').body, { file: 'acme-20261006-023000.tar.zst.age', confirm: 'acme-20261006-023000.tar.zst.age' })
   await t.click(t.button('Close'))
 
   await t.go('#/hosts')

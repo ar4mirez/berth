@@ -144,7 +144,7 @@ var Catalog = map[string]Op{
 	"keygen":    admin(write),
 	"restore":   events(writeMay("starts the restored org unless --no-start; --force stops the org it replaces")),
 	"rehydrate": write,
-	"migrate":   write, // streams the org; nothing restarts here
+	"migrate":   writeMay("to a registered host, the org is stopped where it is and started there, unless --no-switch"),
 	"schedule": {Access: BySub, Subs: map[string]Op{
 		"status": readJSON,
 		"":       write, "run": write, "now": write, "off": write, "--off": write,
