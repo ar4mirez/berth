@@ -1,0 +1,24 @@
+berth
+
+berth repo add  needs: write
+Register a repository for an org and clone it into /workspace. Only registered repos can be used
+in an org.
+
+  ARGUMENT  VALUE
+  org       acme          required
+  repo      acme/widgets  required
+  dir       -
+  branch    -
+▸ no_clone  [x]
+
+register only; it is cloned by the next repo sync
+
+
+
+
+
+
+
+
+
+↑↓ select · enter set · r run · esc back · ? help

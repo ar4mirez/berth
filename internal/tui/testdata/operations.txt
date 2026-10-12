@@ -1,0 +1,24 @@
+berth
+
+Every operation (44)
+
+  OPERATION               NEEDS    WHAT IT DOES
+▸ account logout          restart  Sign an org out of Remote Control
+  account whoami          read     Which Claude account and GitHub account each org is signed in to
+  backup                  write    Take an encrypted backup of orgs on this machine, into the backup
+  backup schedule off     write    Stop the nightly backups on this machine
+  backup schedule on      write    Back up every org on this machine each night: a systemd user time
+  backup schedule run     write    Run the nightly backup now, as the schedule would
+  backup schedule status  read     The nightly backup schedule on this machine: a systemd timer and
+  backups_list            read     The backup files on this machine, newest first: org, when, size a
+  down                    restart  Stop an org: stops and removes its container
+  env ls                  read     The names of an org's custom environment variables
+  env unset               restart  Remove one of an org's custom variables
+  fw allow                write    Add entries to an org's egress allowlist
+  fw deny                 write    Remove entries from an org's egress allowlist, exactly as written
+  fw off                  write    Turn an org's egress firewall off: the org can reach anything unt
+  fw on                   write    Turn an org's egress firewall on: only what its allowlist names c
+  fw presets              read     The firewall's @presets and the hosts each one allows
+  fw reload               write    Apply an org's allowlist again in its running container, resolvin
+  fw show                 read     An org's egress allowlist as written, and the live firewall statu
+↑↓ select · enter open · esc back · ? help · q quit
