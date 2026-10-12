@@ -129,9 +129,13 @@ Each is a PR that ships on its own.
      removed, the backup schedule, Remote Control's log, logout, building an org's image, pulling berth's), and
      the by-name sheet in the web UI, made from the OpenAPI document (`x-berth-about` is each operation's plain
      description), which is where those twelve are until they have screens.
-   - **2b, left:** what the coverage test still lists as `later`: hosts (add, rm, guard, rotate-access,
-     reconcile), restore, rehydrate, migrate, build, upgrade, repo publish, secrets migrate, and run. Each needs a
-     scenario with more than the shared fixtures have (an sshd, a release, a backup to restore).
+   - **2d, done:** twelve more: hosts (add, rm, rotate-access, the guard on, off and its status), rehydrate,
+     building berth's image, upgrading berth, repo publish, secrets into files, and running a prompt in an org.
+     Hosts, the prompt and the upgrade are tools no MCP server offers. A prompt isn't kept in the audit log. The
+     shared fixtures have no registered host and no release to go back from, so `TestBerthAPI` holds those
+     endpoints to the command's own refusal; `test/integration` has the hosts themselves.
+   - **Left:** `restore` and `migrate`, which replace or move an org and get a scenario of their own. `host
+     reconcile` goes with the cloud hosts, in phase 3: it needs the provider's key.
    - **2c, done:** the terminal dashboard on the same tools. `o` is every operation by name, with a form per
      operation made from the tool's input type (`mcpsrv.Spec.Fields`); the actions with keys run as the tools
      they are (`toolOf`), so there is one way an operation runs and one audit trail (`via: tui`).

@@ -96,6 +96,7 @@ func appMaker(st config.State) func(stdout, stderr io.Writer) *app.App {
 		a.DefaultBind = st.Bind
 		a.Self, _ = os.Executable()
 		a.Invoked = invokedPath()
+		a.Upgrader = newUpgrader() // berth_upgrade (#167): the API upgrades as the command does
 		return a
 	}
 }

@@ -168,7 +168,7 @@ func TestBerthMCPConformance(t *testing.T) {
 		"remote_logs":      {map[string]any{"org": "acme"}, []string{`"org":"acme"`, `"lines":[`}},
 	}
 	for _, s := range specs {
-		if s.Op.Access != ops.Read {
+		if s.Op.Access != ops.Read || s.NoMCP {
 			continue
 		}
 		c, ok := reads[s.Name]
@@ -317,6 +317,10 @@ func TestBerthMCPSafety(t *testing.T) {
 		"schedule_off":    {},
 		"schedule_run":    {},
 		"image_pull":      {},
+		"org_rehydrate":   {"org": "acme"},
+		"image_build":     {},
+		"repo_publish":    {"org": "acme", "dir": "notes", "repo": "acme/notes"},
+		"env_migrate":     {"org": "acme", "no_backup": true},
 	}
 	restarts := map[string]map[string]any{
 		"org_up":          {"org": "acme", "confirm": "acme"},

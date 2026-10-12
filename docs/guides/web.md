@@ -101,11 +101,13 @@ arguments and what each is for, and shows what it answered. The list is made fro
 itself, so an operation is there the day it has an endpoint, before it has a screen of its own.
 
 Today that is where these are: the repo policy and audit, adopting and creating repos, removing a variable, the
-backup schedule, Remote Control's log, signing an org out, building an org's image, and pulling berth's.
+backup schedule, Remote Control's log, signing an org out, building an org's image, pulling and building berth's,
+upgrading berth, hosts (adding, removing, guarding, rotating berth's key), rehydrating an org, publishing a local
+repo, moving secrets into files, and asking Claude something in an org.
 
 An operation that restarts or removes an org asks for its name there too.
 
 ## What isn't in it yet
 
-Sign-ins, setting a variable, restores, moving an org, upgrading berth, and managing hosts: use the commands.
+Sign-ins, setting a variable, restores, moving an org, and creating a host at a cloud provider: use the commands.
 Both dashboards are getting them ([#167](https://github.com/ar4mirez/berth/issues/167)).

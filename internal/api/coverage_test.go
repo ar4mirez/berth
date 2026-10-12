@@ -15,8 +15,9 @@ const (
 	// alias: another spelling of an operation that is served, or that is listed under its own name.
 	alias = "another spelling of "
 	// later: plain arguments, and no endpoint yet.
-	later = "no endpoint yet: plain arguments, coming with the rest of #167's phase 2"
-	// secret: it takes or shows a secret.
+	later = "no endpoint yet: it replaces or moves an org, and gets a scenario of its own (#167, phase 2)"
+	// secret: it takes or shows a secret, or needs one this server would have to hold (a cloud
+	// provider's key).
 	secret = "it takes or shows a secret: #167's phase 3"
 	// tokens: the API's own tokens.
 	tokens = "the API's tokens, for a caller with the admin scope: #167's phase 3"
@@ -34,19 +35,15 @@ var notServed = map[string]string{
 	"repo list": alias + "repo ls", "repo remove": alias + "repo rm", "repo create": alias + "repo new",
 	"repo policy/": alias + "repo ls, which has the policy", "remote ": alias + "remote status", "password ": alias + "password show",
 	"schedule --off": alias + "schedule off", "schedule now": alias + "schedule run", "host guard/": alias + "host guard/status",
-	"host reconcile/": alias + "host ls, as a report for a person",
+	"host reconcile/": secret,
 
 	// Plain arguments, not yet.
-	"repo publish": later,
 
-	"host add": later, "host rm": later, "host rotate-access": later, "host guard/on": later, "host guard/off": later,
-	"host guard/status": later, "host reconcile/--prune": later,
-	"restore ": later, "rehydrate ": later, "migrate ": later, "build ": later, "upgrade ": later,
-	"secrets migrate": later, "run ": later,
+	"restore ": later, "migrate ": later,
 
 	// Secrets.
 	"env set": secret, "env accept": secret, "token ": secret, "password show": secret, "password rotate": secret,
-	"keygen ": secret, "host create": secret, "host destroy": secret,
+	"keygen ": secret, "host create": secret, "host destroy": secret, "host reconcile/--prune": secret,
 	"serve token add": tokens, "serve token rm": tokens, "serve token ls": tokens,
 
 	// A terminal.

@@ -669,6 +669,811 @@
         "x-berth-about": "This machine and every registered host: whether each is reachable, its container engine, and how many orgs it has.",
         "x-berth-access": "read",
         "x-berth-operation": "host ls"
+      },
+      "post": {
+        "description": "Register another machine to run orgs on, over SSH: berth checks it, installs a key of its own there, and by default the host guard. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "host_add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "accept_new_host_key": {
+                    "description": "trust the key the host presents now, when no fingerprint is given",
+                    "type": "boolean"
+                  },
+                  "address": {
+                    "description": "where it is, as ssh takes it: [user@]host[:port]",
+                    "type": "string"
+                  },
+                  "bind": {
+                    "description": "where its orgs' ports listen (berth's default when empty)",
+                    "type": "string"
+                  },
+                  "engine": {
+                    "description": "its container engine: docker (the default) or podman",
+                    "type": "string"
+                  },
+                  "fingerprint": {
+                    "description": "the host's SSH key fingerprint to expect (SHA256:…)",
+                    "type": "string"
+                  },
+                  "home": {
+                    "description": "the state root on that host (berth's default there when empty)",
+                    "type": "string"
+                  },
+                  "host": {
+                    "description": "the name to give it: lowercase letters, digits and dashes",
+                    "type": "string"
+                  },
+                  "identities": {
+                    "description": "private key files on this machine to try first; berth then installs a key of its own",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "no_guard": {
+                    "description": "don't install the host guard, which keeps org containers away from the host itself",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "host",
+                  "address"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Register another machine to run orgs on, over SSH: berth checks it, installs a key of its own there, and by default the host guard",
+        "x-berth-about": "Register another machine to run orgs on, over SSH: berth checks it, installs a key of its own there, and by default the host guard.",
+        "x-berth-access": "write",
+        "x-berth-operation": "host add"
+      }
+    },
+    "/v1/hosts/{host}": {
+      "delete": {
+        "description": "Forget a registered host. It is refused while the host has orgs, unless force. Its orgs, and the machine, are never touched. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "host_remove",
+        "parameters": [
+          {
+            "description": "a registered host's name, as hosts_list shows it",
+            "in": "path",
+            "name": "host",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "force": {
+                    "description": "forget it even if it still has orgs, or can't be reached to check; its orgs are never touched",
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Forget a registered host",
+        "x-berth-about": "Forget a registered host. It is refused while the host has orgs, unless force. Its orgs, and the machine, are never touched.",
+        "x-berth-access": "write",
+        "x-berth-operation": "host rm"
+      }
+    },
+    "/v1/hosts/{host}/guard": {
+      "get": {
+        "description": "The host guard on a registered host: whether it is installed, its container's state, and its rules. It keeps org containers away from the host itself.",
+        "operationId": "host_guard_status",
+        "parameters": [
+          {
+            "description": "a registered host's name, as hosts_list shows it",
+            "in": "path",
+            "name": "host",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "host": {
+                      "type": "string"
+                    },
+                    "installed": {
+                      "type": "boolean"
+                    },
+                    "rules": {
+                      "type": "string"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "host",
+                    "installed",
+                    "state",
+                    "rules"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "The host guard on a registered host: whether it is installed, its container's state, and its rules",
+        "x-berth-about": "The host guard on a registered host: whether it is installed, its container's state, and its rules. It keeps org containers away from the host itself.",
+        "x-berth-access": "read",
+        "x-berth-operation": "host guard/status"
+      }
+    },
+    "/v1/hosts/{host}/guard/off": {
+      "post": {
+        "description": "Remove the host guard from a registered host: its org containers can reach the host itself again. Nothing restarts. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "host_guard_off",
+        "parameters": [
+          {
+            "description": "a registered host's name, as hosts_list shows it",
+            "in": "path",
+            "name": "host",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Remove the host guard from a registered host: its org containers can reach the host itself again",
+        "x-berth-about": "Remove the host guard from a registered host: its org containers can reach the host itself again. Nothing restarts.",
+        "x-berth-access": "write",
+        "x-berth-operation": "host guard/off"
+      }
+    },
+    "/v1/hosts/{host}/guard/on": {
+      "post": {
+        "description": "Install the host guard on a registered host: its org containers can no longer reach the host itself. Applied live; nothing restarts. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "host_guard_on",
+        "parameters": [
+          {
+            "description": "a registered host's name, as hosts_list shows it",
+            "in": "path",
+            "name": "host",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Install the host guard on a registered host: its org containers can no longer reach the host itself",
+        "x-berth-about": "Install the host guard on a registered host: its org containers can no longer reach the host itself. Applied live; nothing restarts.",
+        "x-berth-access": "write",
+        "x-berth-operation": "host guard/on"
+      }
+    },
+    "/v1/hosts/{host}/rotate-access": {
+      "post": {
+        "description": "Replace berth's key on a registered host. The new key must log in before the old one is removed, so access is never lost. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "host_rotate_access",
+        "parameters": [
+          {
+            "description": "a registered host's name, as hosts_list shows it",
+            "in": "path",
+            "name": "host",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Replace berth's key on a registered host",
+        "x-berth-about": "Replace berth's key on a registered host. The new key must log in before the old one is removed, so access is never lost.",
+        "x-berth-access": "write",
+        "x-berth-operation": "host rotate-access"
+      }
+    },
+    "/v1/image/build": {
+      "post": {
+        "description": "Build berth's image on this machine from its own files. Orgs keep running on theirs until their next restart. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "image_build",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Build berth's image on this machine from its own files",
+        "x-berth-about": "Build berth's image on this machine from its own files. Orgs keep running on theirs until their next restart.",
+        "x-berth-access": "write",
+        "x-berth-operation": "build"
       }
     },
     "/v1/image/pull": {
@@ -1621,6 +2426,135 @@
         "x-berth-about": "The names of an org's custom environment variables. Values are never returned.",
         "x-berth-access": "read",
         "x-berth-operation": "env ls"
+      }
+    },
+    "/v1/orgs/{org}/env/migrate": {
+      "post": {
+        "description": "Move an org's secrets and custom variables out of org.env into files of their own, after a backup. Nothing restarts: the container takes them from the files at its next restart. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "env_migrate",
+        "parameters": [
+          {
+            "description": "an org on this machine, as in acme (not acme@box1: its files are moved where they are)",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "no_backup": {
+                    "description": "don't take a backup of the org first",
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Move an org's secrets and custom variables out of org.env into files of their own, after a backup",
+        "x-berth-about": "Move an org's secrets and custom variables out of org.env into files of their own, after a backup. Nothing restarts: the container takes them from the files at its next restart.",
+        "x-berth-access": "write",
+        "x-berth-operation": "secrets migrate"
       }
     },
     "/v1/orgs/{org}/env/{name}": {
@@ -3834,6 +4768,118 @@
         "x-berth-operation": "pkg rm"
       }
     },
+    "/v1/orgs/{org}/rehydrate": {
+      "post": {
+        "description": "Reinstall in a running org what backups leave out: its repos, toolchains and project dependencies. For an org that was restored or moved. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "org_rehydrate",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Reinstall in a running org what backups leave out: its repos, toolchains and project dependencies",
+        "x-berth-about": "Reinstall in a running org what backups leave out: its repos, toolchains and project dependencies. For an org that was restored or moved.",
+        "x-berth-access": "write",
+        "x-berth-operation": "rehydrate"
+      }
+    },
     "/v1/orgs/{org}/remote": {
       "get": {
         "description": "Remote Control in a running org: on, login-needed, blocked-by-org or restarting, with its link and capacity when on.",
@@ -4998,6 +6044,147 @@
         "x-berth-operation": "repo policy/\u003cmode\u003e"
       }
     },
+    "/v1/orgs/{org}/repos/publish": {
+      "post": {
+        "description": "Create a GitHub repository for one of an org's local repos, and push it there. It needs the org signed in to gh. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "repo_publish",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "dir": {
+                    "description": "the local repo's folder under /workspace, as repos_list shows it",
+                    "type": "string"
+                  },
+                  "repo": {
+                    "description": "owner/repo to create on GitHub and push it to",
+                    "type": "string"
+                  },
+                  "visibility": {
+                    "description": "private (the default), public or internal",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "dir",
+                  "repo"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Create a GitHub repository for one of an org's local repos, and push it there",
+        "x-berth-about": "Create a GitHub repository for one of an org's local repos, and push it there. It needs the org signed in to gh.",
+        "x-berth-access": "write",
+        "x-berth-operation": "repo publish"
+      }
+    },
     "/v1/orgs/{org}/repos/sync": {
       "post": {
         "description": "Clone an org's registered repos that aren't in its /workspace yet. Needs the org running. Changes the org: needs the server started with --allow-writes.",
@@ -5358,6 +6545,138 @@
         "x-berth-about": "Restart an org: recreates its container, applying pending changes (a new image, packages, variables).",
         "x-berth-access": "restart",
         "x-berth-operation": "restart"
+      }
+    },
+    "/v1/orgs/{org}/run": {
+      "post": {
+        "description": "Ask Claude something in a running org's /workspace, without a session: it answers and ends. It acts as the org, with what the org can reach. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "org_run",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "prompt": {
+                    "description": "what to ask Claude in the org's /workspace; it answers and ends",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "prompt"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Ask Claude something in a running org's /workspace, without a session: it answers and ends",
+        "x-berth-about": "Ask Claude something in a running org's /workspace, without a session: it answers and ends. It acts as the org, with what the org can reach.",
+        "x-berth-access": "write",
+        "x-berth-operation": "run"
       }
     },
     "/v1/orgs/{org}/up": {
@@ -6135,6 +7454,124 @@
         "x-berth-about": "Run the nightly backup now, as the schedule would.",
         "x-berth-access": "write",
         "x-berth-operation": "schedule run"
+      }
+    },
+    "/v1/upgrade": {
+      "post": {
+        "description": "Install a verified release of berth on this machine and move to it, or go back to the one before. Nothing restarts: a server that is running keeps its version until it is started again. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "berth_upgrade",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "rollback": {
+                    "description": "go back to the version before the last upgrade",
+                    "type": "boolean"
+                  },
+                  "version": {
+                    "description": "the release to install, as vX.Y.Z (the newest when empty)",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Install a verified release of berth on this machine and move to it, or go back to the one before",
+        "x-berth-about": "Install a verified release of berth on this machine and move to it, or go back to the one before. Nothing restarts: a server that is running keeps its version until it is started again.",
+        "x-berth-access": "write",
+        "x-berth-operation": "upgrade"
       }
     }
   },

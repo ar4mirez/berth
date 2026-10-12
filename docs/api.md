@@ -151,6 +151,17 @@ others take a JSON body.
 | `DELETE /v1/schedule` | Stop the nightly backups on this machine | write | `berth backup schedule off` |
 | `POST /v1/schedule/run` | Run the nightly backup now, as the schedule would | write | `berth backup schedule run` |
 | `POST /v1/image/pull` | Get berth's released image on this machine now; nothing restarts | write | `berth system pull` |
+| `POST /v1/image/build` | Build berth's image on this machine from its own files | write | `berth system build` |
+| `POST /v1/upgrade` | Install a verified release of berth and move to it, or go back to the one before; nothing restarts | write | `berth system upgrade` |
+| `POST /v1/hosts` | Register another machine to run orgs on, over SSH | write | `berth host add` |
+| `DELETE /v1/hosts/{host}` | Forget a registered host; refused while it has orgs, unless `force` | write | `berth host rm` |
+| `POST /v1/hosts/{host}/rotate-access` | Replace berth's key on a registered host | write | `berth host rotate-access` |
+| `GET /v1/hosts/{host}/guard` | The host guard on a registered host: installed or not, its state and rules | read | `berth host guard status` |
+| `POST /v1/hosts/{host}/guard/on`, `/guard/off` | Install or remove the host guard | write | `berth host guard on`, `off` |
+| `POST /v1/orgs/{org}/rehydrate` | Reinstall in a running org what backups leave out: repos, toolchains, dependencies | write | `berth org rehydrate` |
+| `POST /v1/orgs/{org}/run` | Ask Claude something in a running org's /workspace, without a session; the prompt isn't kept in the audit log | write | `berth org run` |
+| `POST /v1/orgs/{org}/repos/publish` | Create a GitHub repository for one of an org's local repos, and push it there | write | `berth repo publish` |
+| `POST /v1/orgs/{org}/env/migrate` | Move an org's secrets and variables out of org.env into files, after a backup | write | `berth env migrate` |
 | `GET /v1/orgs/{org}/logs/follow` | Follow an org's container log (an event stream) | read | `berth logs` |
 | `GET /v1` | What is serving, and what this caller may do | read | |
 | `GET /v1/openapi.json` | The OpenAPI document | read | |
@@ -216,7 +227,7 @@ the server was started with `--socket`.
 
 - **What can go** is what the API has endpoints for: the reads; the firewall, repos and packages; backups; creating
   and destroying an org; and up, restart and down. What needs a terminal (`shell`, `attach`, `claude`, sign-ins, `tui`), or has
-  no endpoint (`env set`, `host add`), says so and doesn't run.
+  no endpoint (`env set`, `backup restore`), says so and doesn't run.
 - The server's rules apply: a read-only server refuses a write. Typing the command is the confirmation, so a
   restart needs no `confirm` here.
 - A write through it is in the audit log, as `cli <operation>` with its arguments.
@@ -232,8 +243,8 @@ The [MCP server](guides/mcp.md) is also at `/mcp`, for a client that speaks MCP'
 claude mcp add --transport http berth https://127.0.0.1:8443/mcp --header "Authorization: Bearer $TOKEN"
 ```
 
-It has the same tools as `berth mcp`: the API's, without what can't be undone (`org_destroy`), which no MCP server
-offers, whatever the token. What they may do is the caller's: on TCP the token's scope (`read`, `write`,
+It has the same tools as `berth mcp`: the API's, without those no MCP server offers ([the list](guides/mcp.md)),
+whatever the token. What they may do is the caller's: on TCP the token's scope (`read`, `write`,
 `restart`), checked at every request; on the socket, everything `--read-only` allows. `--allow-writes` and
 `--allow-restarts` are `berth mcp`'s flags, for stdio, and don't apply here.
 
