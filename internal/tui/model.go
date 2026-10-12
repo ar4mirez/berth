@@ -110,6 +110,8 @@ type Model struct {
 	// confirmed confirmation runs instead of pending.
 	submitText func(string) tea.Cmd
 	confirmRun func() tea.Cmd
+	// mask hides what is typed into the input: an argument that is a secret.
+	mask bool
 	// exec runs something with the terminal released (tea.Exec; the tests run it in place).
 	exec   func(tea.ExecCommand, tea.ExecCallback) tea.Cmd
 	text   string // the result overlay's text
@@ -236,7 +238,7 @@ func (m *Model) show(text string, failed bool) {
 }
 
 func (m *Model) prompt(ask string, submit func(string) Action) {
-	m.over, m.ask, m.typed, m.submit, m.submitText = input, ask, "", submit, nil
+	m.over, m.ask, m.typed, m.submit, m.submitText, m.mask = input, ask, "", submit, nil, false
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -322,6 +324,7 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch k.Type {
 		case tea.KeyEnter:
 			m.over = none
+			m.mask = false
 			if take := m.submitText; take != nil {
 				m.submitText = nil
 				return m, take(strings.TrimSpace(m.typed))
@@ -330,7 +333,7 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, m.request(m.submit(v))
 			}
 		case tea.KeyEsc:
-			m.over, m.submitText = none, nil
+			m.over, m.submitText, m.mask = none, nil, false
 		case tea.KeyBackspace:
 			if r := []rune(m.typed); len(r) > 0 {
 				m.typed = string(r[:len(r)-1])

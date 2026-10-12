@@ -200,7 +200,10 @@ func (m *Model) opsKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			break
 		}
-		m.over, m.ask, m.typed = input, f.Name+": "+f.Help, m.opValues[f.Name]
+		m.over, m.ask, m.typed, m.mask = input, f.Name+": "+f.Help, m.opValues[f.Name], f.Secret
+		if f.Secret {
+			m.typed = "" // typed again, never shown to be edited
+		}
 		m.submitText = func(v string) tea.Cmd {
 			if v == "" {
 				delete(m.opValues, f.Name)
@@ -278,7 +281,7 @@ func (m *Model) requestOperation() tea.Cmd {
 		return run()
 	case o.Access == "admin":
 		args["confirm"] = org
-		m.over, m.typed = input, ""
+		m.over, m.typed, m.mask = input, "", false
 		m.ask = fmt.Sprintf("%s\n\n%s\nIt can't be undone.\n\nType %s to run it:", label, o.About, org)
 		m.submitText = func(v string) tea.Cmd {
 			if v != org {
@@ -316,6 +319,8 @@ func (m *Model) opsView() (body, keys string) {
 		switch {
 		case f.Kind == "bool":
 			v = yes(v != "", "[x]", "[ ]")
+		case f.Secret && v != "":
+			v = "(set, not shown)"
 		case v == "":
 			v = "-"
 		}

@@ -539,6 +539,103 @@
         "x-berth-operation": "backup"
       }
     },
+    "/v1/backups/key": {
+      "post": {
+        "description": "Make this machine's backup key, so backups are encrypted without a passphrase. The key stays in a file on this machine: only its public half is returned. It can't be undone, or it handles a secret: needs a caller with the admin scope, and no MCP server offers it.",
+        "operationId": "backup_keygen",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Make this machine's backup key, so backups are encrypted without a passphrase",
+        "x-berth-about": "Make this machine's backup key, so backups are encrypted without a passphrase. The key stays in a file on this machine: only its public half is returned.",
+        "x-berth-access": "admin",
+        "x-berth-operation": "keygen"
+      }
+    },
     "/v1/backups/restore": {
       "post": {
         "description": "Restore an org from a backup in this machine's backups directory, and start it. It is refused if an org of that name is there, unless force, which replaces it. Restarts or stops the org's container, which stops the work running in it: needs the server started with --allow-restarts, and `confirm` set to the org's name.",
@@ -2565,6 +2662,146 @@
         "x-berth-operation": "env ls"
       }
     },
+    "/v1/orgs/{org}/env/accept": {
+      "post": {
+        "description": "Take the secrets waiting inside a running org (typed there with berth-secret-drop) as its variables. Their values never leave the machine the org is on. A running org is restarted to apply them, unless no_restart. It can't be undone, or it handles a secret: needs a caller with the admin scope, and no MCP server offers it.",
+        "operationId": "env_accept",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "confirm": {
+                    "description": "the org's name again, exactly as in the path: the confirmation that stopping the work running in it was agreed to",
+                    "type": "string"
+                  },
+                  "names": {
+                    "description": "which of the waiting secrets to take, as env_pending shows them (every one when empty)",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "no_restart": {
+                    "description": "leave a running org as it is: it has them after its next restart",
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Take the secrets waiting inside a running org (typed there with berth-secret-drop) as its variables",
+        "x-berth-about": "Take the secrets waiting inside a running org (typed there with berth-secret-drop) as its variables. Their values never leave the machine the org is on. A running org is restarted to apply them, unless no_restart.",
+        "x-berth-access": "admin",
+        "x-berth-operation": "env accept"
+      }
+    },
     "/v1/orgs/{org}/env/migrate": {
       "post": {
         "description": "Move an org's secrets and custom variables out of org.env into files of their own, after a backup. Nothing restarts: the container takes them from the files at its next restart. Changes the org: needs the server started with --allow-writes.",
@@ -2692,6 +2929,105 @@
         "x-berth-about": "Move an org's secrets and custom variables out of org.env into files of their own, after a backup. Nothing restarts: the container takes them from the files at its next restart.",
         "x-berth-access": "write",
         "x-berth-operation": "secrets migrate"
+      }
+    },
+    "/v1/orgs/{org}/env/pending": {
+      "get": {
+        "description": "The secrets waiting inside a running org to be taken: what someone typed there with berth-secret-drop, by name. Values are never returned.",
+        "operationId": "env_pending",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "names": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "org": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "names"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "The secrets waiting inside a running org to be taken: what someone typed there with berth-secret-drop, by name",
+        "x-berth-about": "The secrets waiting inside a running org to be taken: what someone typed there with berth-secret-drop, by name. Values are never returned.",
+        "x-berth-access": "read",
+        "x-berth-operation": ""
       }
     },
     "/v1/orgs/{org}/env/{name}": {
@@ -2834,6 +3170,155 @@
         "x-berth-about": "Remove one of an org's custom variables. A running org is restarted to apply it, unless no_restart.",
         "x-berth-access": "restart",
         "x-berth-operation": "env unset"
+      },
+      "put": {
+        "description": "Set one of an org's custom variables, a secret included: its value is stored for the org and never shown again. A running org is restarted to apply it, unless no_restart. It can't be undone, or it handles a secret: needs a caller with the admin scope, and no MCP server offers it.",
+        "operationId": "env_set",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the variable's name: capitals, digits and underscores, as in OPENROUTER_API_KEY",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "confirm": {
+                    "description": "the org's name again, exactly as in the path: the confirmation that stopping the work running in it was agreed to",
+                    "type": "string"
+                  },
+                  "no_restart": {
+                    "description": "leave a running org as it is: it has the variable after its next restart",
+                    "type": "boolean"
+                  },
+                  "value": {
+                    "description": "its value: one line, with no single quote. It is stored for the org, and never shown again",
+                    "format": "password",
+                    "type": "string",
+                    "writeOnly": true
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Set one of an org's custom variables, a secret included: its value is stored for the org and never shown again",
+        "x-berth-about": "Set one of an org's custom variables, a secret included: its value is stored for the org and never shown again. A running org is restarted to apply it, unless no_restart.",
+        "x-berth-access": "admin",
+        "x-berth-operation": "env set"
       }
     },
     "/v1/orgs/{org}/firewall": {
@@ -5049,6 +5534,135 @@
         "x-berth-operation": "pkg rm"
       }
     },
+    "/v1/orgs/{org}/password/rotate": {
+      "post": {
+        "description": "Give an org's browser terminal a new password, which ends the sessions open in it. The password is not returned: berth org password show prints it, on the machine the org is on. It can't be undone, or it handles a secret: needs a caller with the admin scope, and no MCP server offers it.",
+        "operationId": "password_rotate",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "confirm": {
+                    "description": "the org's name again, exactly as in the path: the confirmation that stopping the work running in it was agreed to",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Give an org's browser terminal a new password, which ends the sessions open in it",
+        "x-berth-about": "Give an org's browser terminal a new password, which ends the sessions open in it. The password is not returned: berth org password show prints it, on the machine the org is on.",
+        "x-berth-access": "admin",
+        "x-berth-operation": "password rotate"
+      }
+    },
     "/v1/orgs/{org}/rehydrate": {
       "post": {
         "description": "Reinstall in a running org what backups leave out: its repos, toolchains and project dependencies. For an org that was restored or moved. Changes the org: needs the server started with --allow-writes.",
@@ -6960,6 +7574,148 @@
         "x-berth-operation": "run"
       }
     },
+    "/v1/orgs/{org}/token": {
+      "put": {
+        "description": "Give an org its Claude token, as claude setup-token prints it: it is stored for the org and never shown again. A running org is restarted to apply it, unless no_restart. It can't be undone, or it handles a secret: needs a caller with the admin scope, and no MCP server offers it.",
+        "operationId": "token_set",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "confirm": {
+                    "description": "the org's name again, exactly as in the path: the confirmation that stopping the work running in it was agreed to",
+                    "type": "string"
+                  },
+                  "no_restart": {
+                    "description": "leave a running org as it is: it uses the token after its next restart",
+                    "type": "boolean"
+                  },
+                  "token": {
+                    "description": "the org's Claude token (sk-ant-…), as claude setup-token prints it. It is stored for the org, and never shown again",
+                    "format": "password",
+                    "type": "string",
+                    "writeOnly": true
+                  }
+                },
+                "required": [
+                  "token"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Give an org its Claude token, as claude setup-token prints it: it is stored for the org and never shown again",
+        "x-berth-about": "Give an org its Claude token, as claude setup-token prints it: it is stored for the org and never shown again. A running org is restarted to apply it, unless no_restart.",
+        "x-berth-access": "admin",
+        "x-berth-operation": "token"
+      }
+    },
     "/v1/orgs/{org}/up": {
       "post": {
         "description": "Start an org: gets its image if needed, then recreates its container. Restarts or stops the org's container, which stops the work running in it: needs the server started with --allow-restarts, and `confirm` set to the org's name.",
@@ -7735,6 +8491,342 @@
         "x-berth-about": "Run the nightly backup now, as the schedule would.",
         "x-berth-access": "write",
         "x-berth-operation": "schedule run"
+      }
+    },
+    "/v1/tokens": {
+      "get": {
+        "description": "The tokens callers of this API present over the network: their names, scopes and dates. Never the tokens: berth keeps only their hashes.",
+        "operationId": "api_tokens_list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "tokens": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "created": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "scope",
+                          "created"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "tokens"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "The tokens callers of this API present over the network: their names, scopes and dates",
+        "x-berth-about": "The tokens callers of this API present over the network: their names, scopes and dates. Never the tokens: berth keeps only their hashes.",
+        "x-berth-access": "read",
+        "x-berth-operation": "serve token ls"
+      },
+      "post": {
+        "description": "Make a token for a caller of this API over the network. It is returned once, here: berth keeps only its hash. It can't be undone, or it handles a secret: needs a caller with the admin scope, and no MCP server offers it.",
+        "operationId": "api_token_add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "description": "what to call it: lowercase letters, digits and dashes, as in phone or ci",
+                    "type": "string"
+                  },
+                  "scope": {
+                    "description": "what it may do: read (the default), write, restart or admin",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string"
+                    },
+                    "token": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "scope",
+                    "token"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Make a token for a caller of this API over the network",
+        "x-berth-about": "Make a token for a caller of this API over the network. It is returned once, here: berth keeps only its hash.",
+        "x-berth-access": "admin",
+        "x-berth-operation": "serve token add"
+      }
+    },
+    "/v1/tokens/{name}": {
+      "delete": {
+        "description": "Remove one of this API's tokens. A running server refuses it from then on. It can't be undone, or it handles a secret: needs a caller with the admin scope, and no MCP server offers it.",
+        "operationId": "api_token_remove",
+        "parameters": [
+          {
+            "description": "the token's name, as api_tokens_list shows it",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Remove one of this API's tokens",
+        "x-berth-about": "Remove one of this API's tokens. A running server refuses it from then on.",
+        "x-berth-access": "admin",
+        "x-berth-operation": "serve token rm"
       }
     },
     "/v1/upgrade": {

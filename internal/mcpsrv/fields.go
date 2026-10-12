@@ -14,6 +14,8 @@ type Field struct {
 	// Kind is "string", "bool", "int" or "list" (of strings).
 	Kind     string
 	Required bool
+	// Secret is true for an argument that holds a secret: a form doesn't show what was typed.
+	Secret bool
 	// Help is the argument's description.
 	Help string
 }
@@ -39,7 +41,7 @@ func (s Spec) Fields() []Field {
 		case reflect.Slice:
 			kind = "list"
 		}
-		out = append(out, Field{Name: name, Kind: kind, Required: !strings.Contains(opts, "omitempty"), Help: f.Tag.Get("jsonschema")})
+		out = append(out, Field{Name: name, Kind: kind, Required: !strings.Contains(opts, "omitempty"), Help: f.Tag.Get("jsonschema"), Secret: f.Tag.Get("secret") != ""})
 	}
 	return out
 }

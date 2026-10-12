@@ -135,7 +135,7 @@
           <template x-for="f in opFields" :key="f.name">
             <div class="field">
               <label :for="'op-' + f.name"><span x-text="f.name"></span><span x-show="f.required"> (required)</span></label>
-              <input x-show="f.type !== 'boolean'" :id="'op-' + f.name" :type="f.type === 'integer' ? 'number' : 'text'" autocapitalize="off" autocomplete="off" spellcheck="false" x-model="opValues[f.name]">
+              <input x-show="f.type !== 'boolean'" :id="'op-' + f.name" :type="fieldType(f)" autocapitalize="off" autocomplete="off" spellcheck="false" x-model="opValues[f.name]">
               <input x-show="f.type === 'boolean'" class="check" :id="'op-check-' + f.name" type="checkbox" :aria-label="f.name" x-model="opValues[f.name]">
               <span class="hint" x-text="f.type === 'array' ? f.help + ' (separated by spaces)' : f.help"></span>
             </div>
@@ -286,9 +286,19 @@
         <p class="muted" x-show="envVars.length === 0">No custom variables.</p>
         <ul class="list">
           <template x-for="v in envVars" :key="v.name">
-            <li><code x-text="v.name"></code><span class="pill quiet" x-show="!v.present">missing from org.env</span></li>
+            <li>
+              <span><code x-text="v.name"></code> <span class="pill quiet" x-show="!v.present">missing from org.env</span></span>
+              <button class="link danger" type="button" x-show="server.restarts" @click="unsetVariable(v.name)">Remove</button>
+            </li>
           </template>
         </ul>
+        <form class="stacked" x-show="server.admin" @submit.prevent="setVariable">
+          <label for="env-name">Set a variable</label>
+          <input id="env-name" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="OPENROUTER_API_KEY" x-model="forms.envName">
+          <input id="env-value" type="password" aria-label="Its value" autocomplete="new-password" spellcheck="false" placeholder="its value: not shown, here or again" x-model="forms.envValue">
+          <button class="primary" type="submit">Set</button>
+        </form>
+        <p class="hint" x-show="server.admin">The value goes to berth and is stored for the org. It is never shown again, and isn't kept in this page. A running org is restarted to apply it.</p>
       </section>
 
       <!-- Packages -->

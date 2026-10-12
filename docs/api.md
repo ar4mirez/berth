@@ -64,7 +64,7 @@ berth serve --listen 127.0.0.1:8443            # the socket, and TCP
   | `read` (the default) | read |
   | `write` | also change things (firewall, repos, backups) |
   | `restart` | also start, restart and stop orgs, each still with `confirm` |
-  | `admin` | also what can't be undone: destroying an org, still with `confirm` |
+  | `admin` | also what can't be undone (destroying an org, still with `confirm`), and what takes a secret: a variable's value, a Claude token, the API's own tokens |
 
 - **berth keeps only a token's hash** (`~/.config/berth/api/tokens.json`, 0600). `berth serve token ls` lists names,
   scopes and dates; `berth serve token rm <name>` removes one, and a running server refuses it at once.
@@ -95,7 +95,11 @@ Each endpoint is one operation from berth's catalog, and the catalog decides wha
 | restarts a container | also needs the org's name again as `confirm` in the body, or it is refused (403) and says what would stop |
 | can't be undone (destroying an org) | also needs a caller that may do everything: the socket's owner, or a token with the `admin` scope |
 
-- **Secret values are never returned.** Variables are listed by name; there is no endpoint that sets one.
+- **A secret is taken, and never given back.** A caller with the `admin` scope can set a variable, give an org its
+  Claude token, or rotate a password; none of those values is ever in an answer, in an operation's events, or in the
+  audit log, which has that it was set and not what to. Variables are listed by name. The one thing returned once
+  is an API token, when it is made: berth keeps only its hash. An org's browser-terminal password is read on the
+  machine itself (`berth org password show`), not here.
 - **Every change asked for is in the audit log** (`audit.log` in the state root) with `"via":"api"`: the endpoint's
   tool, its arguments, and whether it ran, failed or was refused.
 - **An argument the endpoint doesn't have is refused** (400), in the query and in the body.
@@ -164,6 +168,15 @@ others take a JSON body.
 | `POST /v1/orgs/{org}/env/migrate` | Move an org's secrets and variables out of org.env into files, after a backup | write | `berth env migrate` |
 | `POST /v1/backups/restore` | Restore an org from a backup in this machine's backups directory, named as `GET /v1/backups` shows it (never a path); `force` replaces an org of that name | restart, and `confirm` (the file's name) | `berth backup restore` |
 | `POST /v1/orgs/{org}/migrate` | Move an org to a registered host: copied and checked while it runs, then stopped where it is and started there; `no_switch` only copies | restart, and `confirm` | `berth org migrate` |
+| `PUT /v1/orgs/{org}/env/{name}` | Set one of an org's variables, a secret included: `value` is stored for the org and never shown again | admin, and `confirm` | `berth env set` |
+| `GET /v1/orgs/{org}/env/pending` | The secrets waiting inside a running org to be taken, by name | read | `berth env accept --list` |
+| `POST /v1/orgs/{org}/env/accept` | Take the secrets typed inside a running org with `berth-secret-drop`; their values never leave that machine | admin, and `confirm` | `berth env accept` |
+| `PUT /v1/orgs/{org}/token` | Give an org its Claude token, as `claude setup-token` prints it | admin, and `confirm` | `berth account token --paste` |
+| `POST /v1/orgs/{org}/password/rotate` | Give an org's browser terminal a new password. It is not returned | admin, and `confirm` | `berth org password rotate` |
+| `POST /v1/backups/key` | Make this machine's backup key; only its public half is returned | admin | `berth backup keygen` |
+| `GET /v1/tokens` | This API's tokens: names, scopes and dates, never the tokens | read | `berth serve token ls` |
+| `POST /v1/tokens` | Make a token. It is returned once, here; berth keeps only its hash | admin | `berth serve token add` |
+| `DELETE /v1/tokens/{name}` | Remove a token: a running server refuses it from then on | admin | `berth serve token rm` |
 | `GET /v1/orgs/{org}/logs/follow` | Follow an org's container log (an event stream) | read | `berth logs` |
 | `GET /v1` | What is serving, and what this caller may do | read | |
 | `GET /v1/openapi.json` | The OpenAPI document | read | |
@@ -229,7 +242,8 @@ the server was started with `--socket`.
 
 - **What can go** is what the API has endpoints for: the reads; the firewall, repos and packages; backups; creating
   and destroying an org; and up, restart and down. What needs a terminal (`shell`, `attach`, `claude`, sign-ins, `tui`), or has
-  no endpoint (`env set`, `account token`), says so and doesn't run.
+  no endpoint (`account signin`, `host create`), says so and doesn't run. `env set` has an endpoint and can't go
+  this way all the same: it asks for the value, and there is no terminal on the server to ask in.
 - The server's rules apply: a read-only server refuses a write. Typing the command is the confirmation, so a
   restart needs no `confirm` here.
 - A write through it is in the audit log, as `cli <operation>` with its arguments.

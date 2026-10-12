@@ -1,6 +1,6 @@
 # PRD: a web UI in `berth serve`, and every action in both dashboards (#167)
 
-Status: **phases 1 and 2 done; 3 (secrets) and 4 (sign-in) open** · Issue: [#167](https://github.com/ar4mirez/berth/issues/167) · Restarts orgs: no
+Status: **phases 1 to 3 done; 4 (sign-in) open** · Issue: [#167](https://github.com/ar4mirez/berth/issues/167) · Restarts orgs: no
 
 ## Problem
 
@@ -145,7 +145,21 @@ Each is a PR that ships on its own.
      they are (`toolOf`), so there is one way an operation runs and one audit trail (`via: tui`).
      `TestBothDashboardsDoTheSame` holds the dashboard's list to the API's tools, which are what the web UI
      lists. A restart asks for a `y`; destroying an org for its name, typed.
-3. **Secrets.**
+3. **Secrets. Done**, with two things left to the command line on purpose:
+   - **In the API, both dashboards, and behind the `admin` scope:** a variable set (`env_set`), the secrets
+     dropped inside an org listed and taken (`env_pending`, `env_accept`), an org's Claude token (`token_set`),
+     a rotated password, the backup key, and the API's own tokens (list, add, remove). No MCP server offers any.
+   - **How a secret is kept out of everything but its store:** an argument is marked (`secret` in the tool's
+     input type; `writeOnly` and `format: password` in the OpenAPI document; a password field in the web UI; typed
+     unseen in the terminal dashboard). The tool runs with its output kept to itself (`call.private`), so what a
+     command prints is in no event; it answers with what it did, not with what the command printed; a failure's
+     message drops what was printed before it; and `auditArgs` never has the value. `TestBerthAPI` hands the API
+     a value, a token and a rotation, and looks for each in every answer, the audit log, the server's output and
+     the event streams.
+   - **An API token is the one secret returned**, once, when it is made: there is no other way to have it.
+   - **Not served: `password show`.** It gives a secret back, and the API never does: it is read on the machine.
+   - **Not served: cloud hosts** (`host create`, `destroy`, `reconcile`). They need the provider's key in berth's
+     own environment, and a server shouldn't hold one.
 4. **Sign-in**: `account gh` as events, then the terminal.
 
 ## Acceptance criteria

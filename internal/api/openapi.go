@@ -21,6 +21,9 @@ func argSchema(a Arg) map[string]any {
 	default:
 		s["type"] = "string"
 	}
+	if a.Secret {
+		s["format"], s["writeOnly"] = "password", true
+	}
 	return s
 }
 

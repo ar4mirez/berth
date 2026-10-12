@@ -94,6 +94,8 @@ uses to refuse writes under `--read-only`.
 - running a prompt in an org: one agent driving another;
 - upgrading berth: it replaces what is serving;
 - restoring a backup, and moving an org to another host: each replaces or stops an org.
+- anything that takes a secret: setting a variable, an org's Claude token, a rotated password, the backup key, and
+  the API's own tokens. Each needs the `admin` scope, which no MCP server has.
 
 An org is named as on the command line: `acme`, or `acme@box1` for one on a registered host.
 

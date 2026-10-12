@@ -94,6 +94,7 @@ func New(opts Options) (*mcp.Server, []Spec) {
 	s.settingsTools()
 	s.machineTools()
 	s.moveTools()
+	s.secretTools()
 	s.resources()
 	return s.mcp, s.specs
 }
