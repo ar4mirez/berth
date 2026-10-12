@@ -238,6 +238,7 @@
           }
         },
         "summary": "Which Claude account and GitHub account each org is signed in to",
+        "x-berth-about": "Which Claude account and GitHub account each org is signed in to.",
         "x-berth-access": "read",
         "x-berth-operation": "whoami"
       }
@@ -365,6 +366,7 @@
           }
         },
         "summary": "The backup files on this machine, newest first: org, when, size and how each is encrypted",
+        "x-berth-about": "The backup files on this machine, newest first: org, when, size and how each is encrypted.",
         "x-berth-access": "read",
         "x-berth-operation": ""
       },
@@ -532,6 +534,7 @@
           }
         },
         "summary": "Take an encrypted backup of orgs on this machine, into the backups directory",
+        "x-berth-about": "Take an encrypted backup of orgs on this machine, into the backups directory. The orgs keep running. Needs a backup key (berth keygen): there is no terminal to ask for a passphrase.",
         "x-berth-access": "write",
         "x-berth-operation": "backup"
       }
@@ -663,8 +666,106 @@
           }
         },
         "summary": "This machine and every registered host: whether each is reachable, its container engine, and how many orgs it has",
+        "x-berth-about": "This machine and every registered host: whether each is reachable, its container engine, and how many orgs it has.",
         "x-berth-access": "read",
         "x-berth-operation": "host ls"
+      }
+    },
+    "/v1/image/pull": {
+      "post": {
+        "description": "Get berth's released image on this machine now, so the orgs' next restarts don't wait for it. Nothing restarts. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "image_pull",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Get berth's released image on this machine now, so the orgs' next restarts don't wait for it",
+        "x-berth-about": "Get berth's released image on this machine now, so the orgs' next restarts don't wait for it. Nothing restarts.",
+        "x-berth-access": "write",
+        "x-berth-operation": "pull"
       }
     },
     "/v1/openapi.json": {
@@ -852,6 +953,7 @@
           }
         },
         "summary": "Every org, here and on registered hosts: whether it is up, its ports, whether it has a Claude token, and its Remote Control state",
+        "x-berth-about": "Every org, here and on registered hosts: whether it is up, its ports, whether it has a Claude token, and its Remote Control state.",
         "x-berth-access": "read",
         "x-berth-operation": "ls"
       },
@@ -978,6 +1080,7 @@
           }
         },
         "summary": "Create an org: its directory, keys and settings",
+        "x-berth-about": "Create an org: its directory, keys and settings. It isn't started, and it has no Claude account yet: org_up starts it, and signing in needs a terminal.",
         "x-berth-access": "write",
         "x-berth-operation": "init"
       }
@@ -1110,6 +1213,7 @@
           }
         },
         "summary": "Remove an org for good: its container, its workspace, Claude's config and history, its keys and secrets, and its backups here unless keep_backups",
+        "x-berth-about": "Remove an org for good: its container, its workspace, Claude's config and history, its keys and secrets, and its backups here unless keep_backups.",
         "x-berth-access": "admin",
         "x-berth-operation": "destroy"
       },
@@ -1269,6 +1373,7 @@
           }
         },
         "summary": "An org's connection sheet: its state, address and ports, the claude.ai/code link, and its git public key",
+        "x-berth-about": "An org's connection sheet: its state, address and ports, the claude.ai/code link, and its git public key. Never the browser terminal's password.",
         "x-berth-access": "read",
         "x-berth-operation": "info"
       }
@@ -1397,6 +1502,7 @@
           }
         },
         "summary": "Stop an org: stops and removes its container",
+        "x-berth-about": "Stop an org: stops and removes its container. Its files stay.",
         "x-berth-access": "restart",
         "x-berth-operation": "down"
       }
@@ -1512,8 +1618,151 @@
           }
         },
         "summary": "The names of an org's custom environment variables",
+        "x-berth-about": "The names of an org's custom environment variables. Values are never returned.",
         "x-berth-access": "read",
         "x-berth-operation": "env ls"
+      }
+    },
+    "/v1/orgs/{org}/env/{name}": {
+      "delete": {
+        "description": "Remove one of an org's custom variables. A running org is restarted to apply it, unless no_restart. Restarts or stops the org's container, which stops the work running in it: needs the server started with --allow-restarts, and `confirm` set to the org's name.",
+        "operationId": "env_unset",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the variable's name, as env_list shows it",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "confirm": {
+                    "description": "the org's name again, exactly as in the path: the confirmation that stopping the work running in it was agreed to",
+                    "type": "string"
+                  },
+                  "no_restart": {
+                    "description": "leave a running org as it is: the variable is gone at its next restart",
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Remove one of an org's custom variables",
+        "x-berth-about": "Remove one of an org's custom variables. A running org is restarted to apply it, unless no_restart.",
+        "x-berth-access": "restart",
+        "x-berth-operation": "env unset"
       }
     },
     "/v1/orgs/{org}/firewall": {
@@ -1625,6 +1874,7 @@
           }
         },
         "summary": "An org's egress allowlist as written, and the live firewall status of its container",
+        "x-berth-about": "An org's egress allowlist as written, and the live firewall status of its container.",
         "x-berth-access": "read",
         "x-berth-operation": "fw show"
       }
@@ -1790,6 +2040,7 @@
           }
         },
         "summary": "Add entries to an org's egress allowlist",
+        "x-berth-about": "Add entries to an org's egress allowlist. Applied live in a running org; nothing restarts.",
         "x-berth-access": "write",
         "x-berth-operation": "fw allow"
       }
@@ -1955,6 +2206,7 @@
           }
         },
         "summary": "Remove entries from an org's egress allowlist, exactly as written there",
+        "x-berth-about": "Remove entries from an org's egress allowlist, exactly as written there. Applied live in a running org; nothing restarts.",
         "x-berth-access": "write",
         "x-berth-operation": "fw deny"
       }
@@ -2097,6 +2349,7 @@
           }
         },
         "summary": "Turn an org's egress firewall off: the org can reach anything until it is turned on again",
+        "x-berth-about": "Turn an org's egress firewall off: the org can reach anything until it is turned on again. Applied live; nothing restarts.",
         "x-berth-access": "write",
         "x-berth-operation": "fw off"
       }
@@ -2239,6 +2492,7 @@
           }
         },
         "summary": "Turn an org's egress firewall on: only what its allowlist names can be reached",
+        "x-berth-about": "Turn an org's egress firewall on: only what its allowlist names can be reached. Applied live; nothing restarts.",
         "x-berth-access": "write",
         "x-berth-operation": "fw on"
       }
@@ -2353,6 +2607,7 @@
           }
         },
         "summary": "The firewall's @presets and the hosts each one allows",
+        "x-berth-about": "The firewall's @presets and the hosts each one allows.",
         "x-berth-access": "read",
         "x-berth-operation": "fw presets"
       }
@@ -2495,6 +2750,7 @@
           }
         },
         "summary": "Apply an org's allowlist again in its running container, resolving its names anew: for a host whose addresses changed",
+        "x-berth-about": "Apply an org's allowlist again in its running container, resolving its names anew: for a host whose addresses changed. Nothing restarts.",
         "x-berth-access": "write",
         "x-berth-operation": "fw reload"
       }
@@ -2630,8 +2886,142 @@
           }
         },
         "summary": "Whether a running org can reach each host or URL now, tried from inside its container",
+        "x-berth-about": "Whether a running org can reach each host or URL now, tried from inside its container.",
         "x-berth-access": "read",
         "x-berth-operation": "fw test"
+      }
+    },
+    "/v1/orgs/{org}/logout": {
+      "post": {
+        "description": "Sign an org out of Remote Control. With all, its Claude token is removed too, which restarts a running org. Signing in again needs a terminal. Restarts or stops the org's container, which stops the work running in it: needs the server started with --allow-restarts, and `confirm` set to the org's name.",
+        "operationId": "org_logout",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "all": {
+                    "description": "also remove the org's Claude token, which restarts a running org",
+                    "type": "boolean"
+                  },
+                  "confirm": {
+                    "description": "the org's name again, exactly as in the path: the confirmation that stopping the work running in it was agreed to",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Sign an org out of Remote Control",
+        "x-berth-about": "Sign an org out of Remote Control. With all, its Claude token is removed too, which restarts a running org. Signing in again needs a terminal.",
+        "x-berth-access": "restart",
+        "x-berth-operation": "logout"
       }
     },
     "/v1/orgs/{org}/logs": {
@@ -2737,6 +3127,7 @@
           }
         },
         "summary": "The last lines of a running org's container log (startup, firewall, Remote Control)",
+        "x-berth-about": "The last lines of a running org's container log (startup, firewall, Remote Control).",
         "x-berth-access": "read",
         "x-berth-operation": "logs"
       }
@@ -2900,6 +3291,7 @@
           }
         },
         "summary": "The system packages an org's image adds, and that image",
+        "x-berth-about": "The system packages an org's image adds, and that image.",
         "x-berth-access": "read",
         "x-berth-operation": "pkg ls"
       },
@@ -3086,8 +3478,171 @@
           }
         },
         "summary": "Add system packages to an org's image, and build it",
+        "x-berth-about": "Add system packages to an org's image, and build it. The org keeps running on its current image: the packages are there after its next restart.",
         "x-berth-access": "write",
         "x-berth-operation": "pkg add"
+      }
+    },
+    "/v1/orgs/{org}/packages/build": {
+      "post": {
+        "description": "Build an org's image with its system packages now, so its next restart doesn't wait for it. The org keeps running. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "packages_build",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    },
+                    "packages": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "base_image": {
+                          "type": "string"
+                        },
+                        "built": {
+                          "type": "boolean"
+                        },
+                        "entries": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "file": {
+                          "type": "string"
+                        },
+                        "image": {
+                          "type": "string"
+                        },
+                        "invalid": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "org": {
+                          "type": "string"
+                        },
+                        "packages": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "schema": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "schema",
+                        "org",
+                        "file",
+                        "entries",
+                        "packages",
+                        "invalid",
+                        "base_image",
+                        "image",
+                        "built"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "output",
+                    "packages"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Build an org's image with its system packages now, so its next restart doesn't wait for it",
+        "x-berth-about": "Build an org's image with its system packages now, so its next restart doesn't wait for it. The org keeps running.",
+        "x-berth-access": "write",
+        "x-berth-operation": "pkg build"
       }
     },
     "/v1/orgs/{org}/packages/remove": {
@@ -3274,6 +3829,7 @@
           }
         },
         "summary": "Remove entries from the system packages an org's image adds, exactly as written there",
+        "x-berth-about": "Remove entries from the system packages an org's image adds, exactly as written there. It applies at the org's next restart.",
         "x-berth-access": "write",
         "x-berth-operation": "pkg rm"
       }
@@ -3381,8 +3937,108 @@
           }
         },
         "summary": "Remote Control in a running org: on, login-needed, blocked-by-org or restarting, with its link and capacity when on",
+        "x-berth-about": "Remote Control in a running org: on, login-needed, blocked-by-org or restarting, with its link and capacity when on.",
         "x-berth-access": "read",
         "x-berth-operation": "remote status"
+      }
+    },
+    "/v1/orgs/{org}/remote/logs": {
+      "get": {
+        "description": "The last lines of Remote Control's log in a running org: why it is off, blocked, or waiting for a login.",
+        "operationId": "remote_logs",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "lines": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "org": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "lines"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "The last lines of Remote Control's log in a running org: why it is off, blocked, or waiting for a login",
+        "x-berth-about": "The last lines of Remote Control's log in a running org: why it is off, blocked, or waiting for a login.",
+        "x-berth-access": "read",
+        "x-berth-operation": "remote logs"
       }
     },
     "/v1/orgs/{org}/remote/restart": {
@@ -3492,6 +4148,7 @@
           }
         },
         "summary": "Restart Remote Control inside a running org: the service, not the container",
+        "x-berth-about": "Restart Remote Control inside a running org: the service, not the container. Sessions in claude.ai/code reconnect.",
         "x-berth-access": "write",
         "x-berth-operation": "remote restart"
       }
@@ -3652,6 +4309,7 @@
           }
         },
         "summary": "An org's registered repos, with branch and uncommitted changes when its container reports them, and anything in its workspace that isn't registered",
+        "x-berth-about": "An org's registered repos, with branch and uncommitted changes when its container reports them, and anything in its workspace that isn't registered.",
         "x-berth-access": "read",
         "x-berth-operation": "repo ls"
       },
@@ -3793,8 +4451,551 @@
           }
         },
         "summary": "Register a repository for an org and clone it into /workspace",
+        "x-berth-about": "Register a repository for an org and clone it into /workspace. Only registered repos can be used in an org.",
         "x-berth-access": "write",
         "x-berth-operation": "repo add"
+      }
+    },
+    "/v1/orgs/{org}/repos/adopt": {
+      "post": {
+        "description": "Register folders that are already in an org's /workspace, or bring them back from its quarantine. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "repo_adopt",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "all": {
+                    "description": "every folder that isn't registered",
+                    "type": "boolean"
+                  },
+                  "dirs": {
+                    "description": "folders under /workspace, or in the org's quarantine, to register as repos",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Register folders that are already in an org's /workspace, or bring them back from its quarantine",
+        "x-berth-about": "Register folders that are already in an org's /workspace, or bring them back from its quarantine.",
+        "x-berth-access": "write",
+        "x-berth-operation": "repo adopt"
+      }
+    },
+    "/v1/orgs/{org}/repos/audit": {
+      "get": {
+        "description": "An org's workspace checked against its registered repos: the policy, what isn't registered, and what is in quarantine.",
+        "operationId": "repo_audit",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "policy": {
+                      "type": "string"
+                    },
+                    "quarantine_dir": {
+                      "type": "string"
+                    },
+                    "quarantined": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "unregistered": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "org",
+                    "policy",
+                    "unregistered",
+                    "quarantine_dir",
+                    "quarantined"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "An org's workspace checked against its registered repos: the policy, what isn't registered, and what is in quarantine",
+        "x-berth-about": "An org's workspace checked against its registered repos: the policy, what isn't registered, and what is in quarantine.",
+        "x-berth-access": "read",
+        "x-berth-operation": "repo audit"
+      }
+    },
+    "/v1/orgs/{org}/repos/new": {
+      "post": {
+        "description": "Create a new repository for an org and register it: on GitHub (it needs the org signed in to gh), or a local one to publish later. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "repo_new",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "description": "the repository's description on GitHub",
+                    "type": "string"
+                  },
+                  "dir": {
+                    "description": "the folder under /workspace (the repository's name when empty)",
+                    "type": "string"
+                  },
+                  "local": {
+                    "description": "no GitHub repository yet: a local one, to publish later",
+                    "type": "boolean"
+                  },
+                  "readme": {
+                    "description": "start it with a README",
+                    "type": "boolean"
+                  },
+                  "repo": {
+                    "description": "owner/repo for a new repository on GitHub, or a name with local",
+                    "type": "string"
+                  },
+                  "visibility": {
+                    "description": "private (the default), public or internal",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "repo"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Create a new repository for an org and register it: on GitHub (it needs the org signed in to gh), or a local one to publish later",
+        "x-berth-about": "Create a new repository for an org and register it: on GitHub (it needs the org signed in to gh), or a local one to publish later.",
+        "x-berth-access": "write",
+        "x-berth-operation": "repo new"
+      }
+    },
+    "/v1/orgs/{org}/repos/policy": {
+      "post": {
+        "description": "Set what happens to folders in an org's /workspace that aren't registered repos. A running org is restarted to apply it. Restarts or stops the org's container, which stops the work running in it: needs the server started with --allow-restarts, and `confirm` set to the org's name.",
+        "operationId": "repo_policy_set",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "confirm": {
+                    "description": "the org's name again, exactly as in the path: the confirmation that stopping the work running in it was agreed to",
+                    "type": "string"
+                  },
+                  "mode": {
+                    "description": "enforce (unregistered folders go to quarantine), warn (they are reported), or off",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Set what happens to folders in an org's /workspace that aren't registered repos",
+        "x-berth-about": "Set what happens to folders in an org's /workspace that aren't registered repos. A running org is restarted to apply it.",
+        "x-berth-access": "restart",
+        "x-berth-operation": "repo policy/\u003cmode\u003e"
       }
     },
     "/v1/orgs/{org}/repos/sync": {
@@ -3904,6 +5105,7 @@
           }
         },
         "summary": "Clone an org's registered repos that aren't in its /workspace yet",
+        "x-berth-about": "Clone an org's registered repos that aren't in its /workspace yet. Needs the org running.",
         "x-berth-access": "write",
         "x-berth-operation": "repo sync"
       }
@@ -4024,6 +5226,7 @@
           }
         },
         "summary": "Unregister a repo from an org",
+        "x-berth-about": "Unregister a repo from an org. Its folder is moved to the org's quarantine, not deleted, and `berth repo adopt` brings it back.",
         "x-berth-access": "write",
         "x-berth-operation": "repo rm"
       }
@@ -4152,6 +5355,7 @@
           }
         },
         "summary": "Restart an org: recreates its container, applying pending changes (a new image, packages, variables)",
+        "x-berth-about": "Restart an org: recreates its container, applying pending changes (a new image, packages, variables).",
         "x-berth-access": "restart",
         "x-berth-operation": "restart"
       }
@@ -4280,6 +5484,7 @@
           }
         },
         "summary": "Start an org: gets its image if needed, then recreates its container",
+        "x-berth-about": "Start an org: gets its image if needed, then recreates its container.",
         "x-berth-access": "restart",
         "x-berth-operation": "up"
       }
@@ -4383,11 +5588,149 @@
           }
         },
         "summary": "The @presets for system packages and the packages each one stands for",
+        "x-berth-about": "The @presets for system packages and the packages each one stands for.",
         "x-berth-access": "read",
         "x-berth-operation": "pkg presets"
       }
     },
     "/v1/schedule": {
+      "delete": {
+        "description": "Stop the nightly backups on this machine. The backups there are stay. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "schedule_off",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    },
+                    "schedule": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "jobs": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "log": {
+                          "type": "string"
+                        },
+                        "runs": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "schema": {
+                          "type": "string"
+                        },
+                        "timer": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "schema",
+                        "kind",
+                        "timer",
+                        "runs",
+                        "jobs",
+                        "log"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "output",
+                    "schedule"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Stop the nightly backups on this machine",
+        "x-berth-about": "Stop the nightly backups on this machine. The backups there are stay.",
+        "x-berth-access": "write",
+        "x-berth-operation": "schedule off"
+      },
       "get": {
         "description": "The nightly backup schedule on this machine: a systemd timer and its last runs, or a crontab line.",
         "operationId": "schedule_status",
@@ -4492,8 +5835,306 @@
           }
         },
         "summary": "The nightly backup schedule on this machine: a systemd timer and its last runs, or a crontab line",
+        "x-berth-about": "The nightly backup schedule on this machine: a systemd timer and its last runs, or a crontab line.",
         "x-berth-access": "read",
         "x-berth-operation": "schedule status"
+      },
+      "post": {
+        "description": "Back up every org on this machine each night: a systemd user timer, or a crontab line where there is no systemd. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "schedule_on",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "at": {
+                    "description": "when, each night, as HH:MM in the machine's time (03:00 when empty)",
+                    "type": "string"
+                  },
+                  "keep": {
+                    "description": "how many backups of each org to keep (14 when empty)",
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    },
+                    "schedule": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "jobs": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "log": {
+                          "type": "string"
+                        },
+                        "runs": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "schema": {
+                          "type": "string"
+                        },
+                        "timer": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "schema",
+                        "kind",
+                        "timer",
+                        "runs",
+                        "jobs",
+                        "log"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "output",
+                    "schedule"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Back up every org on this machine each night: a systemd user timer, or a crontab line where there is no systemd",
+        "x-berth-about": "Back up every org on this machine each night: a systemd user timer, or a crontab line where there is no systemd.",
+        "x-berth-access": "write",
+        "x-berth-operation": "schedule"
+      }
+    },
+    "/v1/schedule/run": {
+      "post": {
+        "description": "Run the nightly backup now, as the schedule would. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "schedule_run",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    },
+                    "schedule": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "jobs": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "log": {
+                          "type": "string"
+                        },
+                        "runs": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "schema": {
+                          "type": "string"
+                        },
+                        "timer": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "schema",
+                        "kind",
+                        "timer",
+                        "runs",
+                        "jobs",
+                        "log"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "output",
+                    "schedule"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Run the nightly backup now, as the schedule would",
+        "x-berth-about": "Run the nightly backup now, as the schedule would.",
+        "x-berth-access": "write",
+        "x-berth-operation": "schedule run"
       }
     }
   },

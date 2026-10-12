@@ -93,8 +93,19 @@ While an operation runs the page shows its steps and output as they happen, and 
 the same words as the command line. Every change asked for is in the [audit log](../api.md#the-rules), as for
 any caller of the API.
 
+## Every operation, by name
+
+**All**, at the top, lists everything the API does: each operation by the command it is, what it needs
+(`read`, `write`, `restart` or `admin`), and whether this caller may run it. Opening one gives a form with its
+arguments and what each is for, and shows what it answered. The list is made from the API's own description of
+itself, so an operation is there the day it has an endpoint, before it has a screen of its own.
+
+Today that is where these are: the repo policy and audit, adopting and creating repos, removing a variable, the
+backup schedule, Remote Control's log, signing an org out, building an org's image, and pulling berth's.
+
+An operation that restarts or removes an org asks for its name there too.
+
 ## What isn't in it yet
 
-Sign-ins, setting a variable, the repo policy, the backup schedule, restores, moving an org, and
-managing hosts: use the commands. Both dashboards are getting them
-([#167](https://github.com/ar4mirez/berth/issues/167)).
+Sign-ins, setting a variable, restores, moving an org, upgrading berth, and managing hosts: use the commands.
+Both dashboards are getting them ([#167](https://github.com/ar4mirez/berth/issues/167)).

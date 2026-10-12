@@ -188,3 +188,63 @@ func (c *Client) PackagesRemove(ctx context.Context, org string, entries []strin
 func (c *Client) RemoteRestart(ctx context.Context, org string) (out mcpsrv.Changed, err error) {
 	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/remote/restart", nil, nil, &out)
 }
+
+// RepoAudit is GET /v1/orgs/{org}/repos/audit: An org's workspace checked against its registered repos: the policy, what isn't registered, and what is in quarantine.
+func (c *Client) RepoAudit(ctx context.Context, org string) (out ops.RepoAuditDoc, err error) {
+	return out, c.do(ctx, "GET", "/v1/orgs/"+url.PathEscape(org)+"/repos/audit", nil, nil, &out)
+}
+
+// RepoAdopt is POST /v1/orgs/{org}/repos/adopt: Register folders that are already in an org's /workspace, or bring them back from its quarantine.
+func (c *Client) RepoAdopt(ctx context.Context, org string, dirs []string, all bool) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/repos/adopt", nil, map[string]any{"dirs": dirs, "all": all}, &out)
+}
+
+// RepoNew is POST /v1/orgs/{org}/repos/new: Create a new repository for an org and register it: on GitHub (it needs the org signed in to gh), or a local one to publish later.
+func (c *Client) RepoNew(ctx context.Context, org string, repo string, local bool, visibility string, description string, readme bool, dir string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/repos/new", nil, map[string]any{"repo": repo, "local": local, "visibility": visibility, "description": description, "readme": readme, "dir": dir}, &out)
+}
+
+// RepoPolicySet is POST /v1/orgs/{org}/repos/policy: Set what happens to folders in an org's /workspace that aren't registered repos.
+func (c *Client) RepoPolicySet(ctx context.Context, org string, mode string, confirm string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/repos/policy", nil, map[string]any{"mode": mode, "confirm": confirm}, &out)
+}
+
+// EnvUnset is DELETE /v1/orgs/{org}/env/{name}: Remove one of an org's custom variables.
+func (c *Client) EnvUnset(ctx context.Context, org string, name string, noRestart bool, confirm string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "DELETE", "/v1/orgs/"+url.PathEscape(org)+"/env/"+url.PathEscape(name), nil, map[string]any{"no_restart": noRestart, "confirm": confirm}, &out)
+}
+
+// RemoteLogs is GET /v1/orgs/{org}/remote/logs: The last lines of Remote Control's log in a running org: why it is off, blocked, or waiting for a login.
+func (c *Client) RemoteLogs(ctx context.Context, org string) (out ops.Logs, err error) {
+	return out, c.do(ctx, "GET", "/v1/orgs/"+url.PathEscape(org)+"/remote/logs", nil, nil, &out)
+}
+
+// OrgLogout is POST /v1/orgs/{org}/logout: Sign an org out of Remote Control.
+func (c *Client) OrgLogout(ctx context.Context, org string, all bool, confirm string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/logout", nil, map[string]any{"all": all, "confirm": confirm}, &out)
+}
+
+// PackagesBuild is POST /v1/orgs/{org}/packages/build: Build an org's image with its system packages now, so its next restart doesn't wait for it.
+func (c *Client) PackagesBuild(ctx context.Context, org string) (out mcpsrv.PackagesChanged, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/packages/build", nil, nil, &out)
+}
+
+// ScheduleOn is POST /v1/schedule: Back up every org on this machine each night: a systemd user timer, or a crontab line where there is no systemd.
+func (c *Client) ScheduleOn(ctx context.Context, at string, keep int) (out mcpsrv.ScheduleChanged, err error) {
+	return out, c.do(ctx, "POST", "/v1/schedule", nil, map[string]any{"at": at, "keep": keep}, &out)
+}
+
+// ScheduleOff is DELETE /v1/schedule: Stop the nightly backups on this machine.
+func (c *Client) ScheduleOff(ctx context.Context) (out mcpsrv.ScheduleChanged, err error) {
+	return out, c.do(ctx, "DELETE", "/v1/schedule", nil, nil, &out)
+}
+
+// ScheduleRun is POST /v1/schedule/run: Run the nightly backup now, as the schedule would.
+func (c *Client) ScheduleRun(ctx context.Context) (out mcpsrv.ScheduleChanged, err error) {
+	return out, c.do(ctx, "POST", "/v1/schedule/run", nil, nil, &out)
+}
+
+// ImagePull is POST /v1/image/pull: Get berth's released image on this machine now, so the orgs' next restarts don't wait for it.
+func (c *Client) ImagePull(ctx context.Context) (out mcpsrv.Done, err error) {
+	return out, c.do(ctx, "POST", "/v1/image/pull", nil, nil, &out)
+}

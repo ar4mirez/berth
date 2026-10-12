@@ -18,6 +18,8 @@ const (
 	later = "no endpoint yet: plain arguments, coming with the rest of #167's phase 2"
 	// secret: it takes or shows a secret.
 	secret = "it takes or shows a secret: #167's phase 3"
+	// tokens: the API's own tokens.
+	tokens = "the API's tokens, for a caller with the admin scope: #167's phase 3"
 	// terminal: it needs a terminal.
 	terminal = "it needs a terminal: #167's phase 4"
 	// never: it isn't something a dashboard or an API caller does.
@@ -35,17 +37,17 @@ var notServed = map[string]string{
 	"host reconcile/": alias + "host ls, as a report for a person",
 
 	// Plain arguments, not yet.
-	"env unset": later, "pkg build": later, "repo adopt": later, "repo audit": later, "repo new": later, "repo publish": later,
-	"repo policy/<mode>": later, "schedule ": later, "schedule run": later, "schedule off": later,
+	"repo publish": later,
+
 	"host add": later, "host rm": later, "host rotate-access": later, "host guard/on": later, "host guard/off": later,
 	"host guard/status": later, "host reconcile/--prune": later,
-	"restore ": later, "rehydrate ": later, "migrate ": later, "pull ": later, "build ": later, "upgrade ": later,
-	"logout ": later, "secrets migrate": later, "remote logs": later, "run ": later, "serve token ls": later,
-	"use ": later, "use <org>": later, "use --clear": later,
+	"restore ": later, "rehydrate ": later, "migrate ": later, "build ": later, "upgrade ": later,
+	"secrets migrate": later, "run ": later,
 
 	// Secrets.
 	"env set": secret, "env accept": secret, "token ": secret, "password show": secret, "password rotate": secret,
-	"keygen ": secret, "serve token add": secret, "serve token rm": secret, "host create": secret, "host destroy": secret,
+	"keygen ": secret, "host create": secret, "host destroy": secret,
+	"serve token add": tokens, "serve token rm": tokens, "serve token ls": tokens,
 
 	// A terminal.
 	"auth ": terminal, "login ": terminal, "gh-login ": terminal, "attach ": terminal, "shell ": terminal, "claude ": terminal,
@@ -56,7 +58,9 @@ var notServed = map[string]string{
 	"install ": never + "it installs berth on a machine", "parity-check ": never + "the cutover from ccenv",
 	"takeover ": never + "the cutover from ccenv", "handback ": never + "the cutover from ccenv",
 	"image-tag ": never + "for berth's own upgrade",
-	"mcp ":       never + "a server", "mcp --allow-writes": never + "a server", "mcp --allow-restarts": never + "a server",
+	"use ":       never + "the command line's default org: an API caller names the org", "use <org>": never + "the command line's default org: an API caller names the org",
+	"use --clear": never + "the command line's default org: an API caller names the org",
+	"mcp ":        never + "a server", "mcp --allow-writes": never + "a server", "mcp --allow-restarts": never + "a server",
 	"serve ": never + "the server itself", "tui ": never + "a dashboard", "ui ": never + "a dashboard",
 	"service install": never + "it manages the server that would be asked", "service uninstall": never + "it manages the server that would be asked",
 	"service status": never + "it manages the server that would be asked", "service logs": never + "it manages the server that would be asked",

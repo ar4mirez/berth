@@ -139,6 +139,18 @@ others take a JSON body.
 | `POST /v1/orgs/{org}/packages` | Add system packages to an org's image, and build it; they are there after its next restart | write | `berth pkg add` |
 | `POST /v1/orgs/{org}/packages/remove` | Remove entries from the system packages an org's image adds | write | `berth pkg rm` |
 | `POST /v1/orgs/{org}/remote/restart` | Restart Remote Control inside a running org: the service, not the container | write | `berth account remote restart` |
+| `GET /v1/orgs/{org}/repos/audit` | An org's workspace checked against its registered repos: the policy, what isn't registered, what is in quarantine | read | `berth repo audit` |
+| `POST /v1/orgs/{org}/repos/adopt` | Register folders already in an org's /workspace, or bring them back from its quarantine | write | `berth repo adopt` |
+| `POST /v1/orgs/{org}/repos/new` | Create a new repository for an org and register it: on GitHub, or a local one to publish later | write | `berth repo new` |
+| `POST /v1/orgs/{org}/repos/policy` | Set what happens to folders that aren't registered repos; a running org is restarted to apply it | restart | `berth repo policy` |
+| `DELETE /v1/orgs/{org}/env/{name}` | Remove one of an org's custom variables; a running org is restarted unless `no_restart` | restart | `berth env unset` |
+| `GET /v1/orgs/{org}/remote/logs` | The last lines of Remote Control's log in a running org | read | `berth account remote logs` |
+| `POST /v1/orgs/{org}/logout` | Sign an org out of Remote Control; with `all`, remove its Claude token too | restart | `berth account logout` |
+| `POST /v1/orgs/{org}/packages/build` | Build an org's image with its system packages now | write | `berth pkg build` |
+| `POST /v1/schedule` | Back up every org on this machine each night | write | `berth backup schedule on` |
+| `DELETE /v1/schedule` | Stop the nightly backups on this machine | write | `berth backup schedule off` |
+| `POST /v1/schedule/run` | Run the nightly backup now, as the schedule would | write | `berth backup schedule run` |
+| `POST /v1/image/pull` | Get berth's released image on this machine now; nothing restarts | write | `berth system pull` |
 | `GET /v1/orgs/{org}/logs/follow` | Follow an org's container log (an event stream) | read | `berth logs` |
 | `GET /v1` | What is serving, and what this caller may do | read | |
 | `GET /v1/openapi.json` | The OpenAPI document | read | |
