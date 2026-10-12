@@ -103,11 +103,12 @@ itself, so an operation is there the day it has an endpoint, before it has a scr
 Today that is where these are: the repo policy and audit, adopting and creating repos, removing a variable, the
 backup schedule, Remote Control's log, signing an org out, building an org's image, pulling and building berth's,
 upgrading berth, hosts (adding, removing, guarding, rotating berth's key), rehydrating an org, publishing a local
-repo, moving secrets into files, and asking Claude something in an org.
+repo, moving secrets into files, asking Claude something in an org, restoring a backup, and moving an org to
+another host.
 
 An operation that restarts or removes an org asks for its name there too.
 
 ## What isn't in it yet
 
-Sign-ins, setting a variable, restores, moving an org, and creating a host at a cloud provider: use the commands.
+Sign-ins, setting a variable, and creating a host at a cloud provider: use the commands.
 Both dashboards are getting them ([#167](https://github.com/ar4mirez/berth/issues/167)).

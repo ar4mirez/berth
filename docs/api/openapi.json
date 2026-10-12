@@ -539,6 +539,143 @@
         "x-berth-operation": "backup"
       }
     },
+    "/v1/backups/restore": {
+      "post": {
+        "description": "Restore an org from a backup in this machine's backups directory, and start it. It is refused if an org of that name is there, unless force, which replaces it. Restarts or stops the org's container, which stops the work running in it: needs the server started with --allow-restarts, and `confirm` set to the org's name.",
+        "operationId": "backup_restore",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "as": {
+                    "description": "restore it under this org name (the backup's own when empty)",
+                    "type": "string"
+                  },
+                  "confirm": {
+                    "description": "the org's name again, exactly as in the path: the confirmation that stopping the work running in it was agreed to",
+                    "type": "string"
+                  },
+                  "file": {
+                    "description": "the backup to restore: a file's name in the backups directory, as backups_list shows it",
+                    "type": "string"
+                  },
+                  "force": {
+                    "description": "replace an org of that name that is there now: it is stopped, and its files are replaced by the backup's",
+                    "type": "boolean"
+                  },
+                  "no_rehydrate": {
+                    "description": "don't reinstall what backups leave out (repos, toolchains, dependencies) once it runs",
+                    "type": "boolean"
+                  },
+                  "no_start": {
+                    "description": "don't start the restored org",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Restore an org from a backup in this machine's backups directory, and start it",
+        "x-berth-about": "Restore an org from a backup in this machine's backups directory, and start it. It is refused if an org of that name is there, unless force, which replaces it.",
+        "x-berth-access": "restart",
+        "x-berth-operation": "restore"
+      }
+    },
     "/v1/hosts": {
       "get": {
         "description": "This machine and every registered host: whether each is reachable, its container engine, and how many orgs it has.",
@@ -4095,6 +4232,150 @@
         "summary": "Follow an org's container log",
         "x-berth-access": "read",
         "x-berth-operation": "logs"
+      }
+    },
+    "/v1/orgs/{org}/migrate": {
+      "post": {
+        "description": "Move an org to a registered host: it is copied there and checked while it keeps running, then stopped where it is and started there. With no_switch it is only copied. Restarts or stops the org's container, which stops the work running in it: needs the server started with --allow-restarts, and `confirm` set to the org's name.",
+        "operationId": "org_migrate",
+        "parameters": [
+          {
+            "description": "the org to move, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "as": {
+                    "description": "its name on that host (the same when empty)",
+                    "type": "string"
+                  },
+                  "confirm": {
+                    "description": "the org's name again, exactly as in the path: the confirmation that stopping the work running in it was agreed to",
+                    "type": "string"
+                  },
+                  "host": {
+                    "description": "the registered host to move it to, as hosts_list shows it (local for this machine)",
+                    "type": "string"
+                  },
+                  "no_switch": {
+                    "description": "copy it there and stop: the org keeps running where it is, and nothing is switched",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "host"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "output"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Move an org to a registered host: it is copied there and checked while it keeps running, then stopped where it is and started there",
+        "x-berth-about": "Move an org to a registered host: it is copied there and checked while it keeps running, then stopped where it is and started there. With no_switch it is only copied.",
+        "x-berth-access": "restart",
+        "x-berth-operation": "migrate"
       }
     },
     "/v1/orgs/{org}/packages": {

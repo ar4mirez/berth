@@ -152,6 +152,6 @@ shown when it ends, with the same message and hint as the command.
 
 ## What isn't in it
 
-Sign-ins, setting a variable (its value would be typed into the dashboard), restores, moving an org, and creating
+Sign-ins, setting a variable (its value would be typed into the dashboard), and creating
 a host at a cloud provider: use the commands. Both dashboards are getting them
 ([#167](https://github.com/ar4mirez/berth/issues/167)). The org list doesn't show each org's image.

@@ -260,7 +260,9 @@ func (m *Model) requestOperation() tea.Cmd {
 		m.show(ops.AsError(err).Error(), true)
 		return nil
 	}
-	org, _ := args["org"].(string)
+	// What is said again is the org, or what the operation is about when it has none: the backup
+	// to restore.
+	org, stops := o.subject(args)
 	if org != "" {
 		label += " " + org
 	}
@@ -288,7 +290,7 @@ func (m *Model) requestOperation() tea.Cmd {
 	default:
 		args["confirm"] = org
 		m.over, m.confirmRun = confirm, run
-		m.ask = fmt.Sprintf("%s\n\nThis %s.\nIt stops the work running in %s.", label, o.Note, org)
+		m.ask = fmt.Sprintf("%s\n\nThis %s.\n%s", label, o.Note, stops)
 	}
 	return nil
 }
@@ -361,4 +363,20 @@ func wrap(text string, width int) string {
 		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// subject is what a confirmed operation is about, which its confirmation says again: the org, or
+// its first required argument when it takes no org (the backup to restore); and what running it
+// does to that.
+func (o Operation) subject(args map[string]any) (name, stops string) {
+	if org, ok := args["org"].(string); ok {
+		return org, "It stops the work running in " + org + "."
+	}
+	for _, f := range o.form() {
+		if f.Required {
+			name, _ = args[f.Name].(string)
+			return name, "It can stop an org, or replace one."
+		}
+	}
+	return "", ""
 }

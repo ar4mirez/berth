@@ -84,6 +84,8 @@ var Routes = []Route{
 	{Method: "POST", Path: "/v1/orgs/{org}/env/migrate", Tool: "env_migrate"},
 	{Method: "POST", Path: "/v1/image/build", Tool: "image_build"},
 	{Method: "POST", Path: "/v1/upgrade", Tool: "berth_upgrade"},
+	{Method: "POST", Path: "/v1/backups/restore", Tool: "backup_restore"},
+	{Method: "POST", Path: "/v1/orgs/{org}/migrate", Tool: "org_migrate"},
 }
 
 // PathArgs are the arguments a route takes from its path.

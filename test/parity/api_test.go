@@ -136,13 +136,16 @@ func kindOf(err error) ops.Kind {
 func TestBerthAPI(t *testing.T) {
 	files := merge(jsonRepos, map[string]File{
 		"state/backups": {Dir: true},
-		"state/backups/acme-20261006-023000.tar.zst.age": {Content: "backup", Mode: 0o600},
+		"state/backups/acme-20261006-023000.tar.zst.age": {Content: "age-encryption.org/v1\n", Mode: 0o600},
 		"home/.config/berth/backup.key":                  {Content: "# public key: age1parity\nAGE-SECRET-KEY-1PARITY\n", Mode: 0o600},
 	})
 	c, sock, snap := apiSession(t, files, append([]Rule{
 		{Bin: "docker", Match: `^exec claude-acme test -e /workspace/widget$`, Exit: 1},
 		{Bin: "docker", Match: `^exec claude-acme test -e /workspace/gadget$`, Exit: 1},
 		{Bin: "docker", Match: `^image inspect`, Exit: 0},
+		// A backup to restore: what its archive holds, and no Tailscale to bind the restored org to.
+		extractRule(extracted("t-restored", restoredEnv)),
+		{Bin: "tailscale", Match: `^ip -4$`, Exit: 1},
 		// Remote Control's supervisor tries again when asked: one more start in its log.
 		{Bin: "docker", Match: `grep -ac "starting remote-control"`, Stdout: "3\n", Once: true},
 		{Bin: "docker", Match: `grep -ac "starting remote-control"`, Stdout: "4\n"},
@@ -220,6 +223,10 @@ func TestBerthAPI(t *testing.T) {
 		"env_migrate":        func() (any, error) { return c.EnvMigrate(ctx, "acme", true) },
 		"image_build":        func() (any, error) { return c.ImageBuild(ctx) },
 		"berth_upgrade":      func() (any, error) { return c.BerthUpgrade(ctx, "", true) },
+		"backup_restore": func() (any, error) {
+			return c.BackupRestore(ctx, "acme-20261006-023000.tar.zst.age", "t-back", false, true, true, "acme-20261006-023000.tar.zst.age")
+		},
+		"org_migrate": func() (any, error) { return c.OrgMigrate(ctx, "acme", "local", "", false, "acme") },
 	}
 	want := map[string][]string{
 		"hosts_list": {`"schema":"berth.hosts/v1"`}, "orgs_list": {`"schema":"berth.orgs/v1"`, `"name":"acme"`, `"name":"globex"`},
@@ -241,7 +248,8 @@ func TestBerthAPI(t *testing.T) {
 		"remote_logs": {`"lines":[`}, "org_logout": {`Logged out acme`}, "packages_build": {`has no extra packages`},
 		"schedule_on": {`daily at 02:30, keeping the newest 7 backups per org`}, "schedule_off": {`Backup schedule removed.`},
 		"org_rehydrate": {`== Rehydrating acme`}, "org_run": {`"org":"acme"`}, "image_build": {`"output"`},
-		"env_migrate": {`Moved CLAUDE_CODE_OAUTH_TOKEN to `, `Nothing was restarted`},
+		"env_migrate":    {`Moved CLAUDE_CODE_OAUTH_TOKEN to `, `Nothing was restarted`},
+		"backup_restore": {`Restoring 't-restored' from old-host`, `as 't-back'`, `Start with: berth up t-back`},
 	}
 	// What these fixtures have nothing for: no such variable, no systemd, no released image. The
 	// command's own refusal is the answer, as a document.
@@ -258,6 +266,8 @@ func TestBerthAPI(t *testing.T) {
 		"host_guard_on":      "unknown host 't-box'",
 		"host_guard_off":     "unknown host 't-box'",
 		"berth_upgrade":      "no previous version recorded",
+		// Moving an org needs another host: the command says where it already is.
+		"org_migrate": "acme is already on local",
 	}
 	for _, r := range api.Routes {
 		call, ok := calls[r.Tool]
@@ -333,6 +343,14 @@ func TestBerthAPI(t *testing.T) {
 		{"POST", "/v1/orgs/acme/firewall/allow", `not json`, 400, "isn't a JSON object"},
 		{"POST", "/v1/orgs/acme/firewall/allow", `{"entries":["web-git-*.example.app"]}`, 500, "berth.error/v1"},
 		{"POST", "/v1/orgs/acme/repos", `{"repo":"--no-clone"}`, 500, "can't start with '-'"},
+		// A backup is named, never a path on the server; and restoring one is confirmed with its name.
+		{"POST", "/v1/backups/restore", `{"file":"../../etc/passwd","confirm":"../../etc/passwd"}`, 500, "not a path"},
+		{"POST", "/v1/backups/restore", `{"file":"/tmp/x.tar.zst","confirm":"/tmp/x.tar.zst"}`, 500, "not a path"},
+		{"POST", "/v1/backups/restore", `{"file":"nope-20260101-000000.tar.zst","confirm":"nope-20260101-000000.tar.zst"}`, 404, "no backup named"},
+		{"POST", "/v1/backups/restore", `{"file":"acme-20261006-023000.tar.zst.age"}`, 403, "confirm set to"},
+		{"POST", "/v1/backups/restore", `{"file":"acme-20261006-023000.tar.zst.age","confirm":"acme"}`, 403, "confirm set to"},
+		{"POST", "/v1/orgs/acme/migrate", `{"host":"local"}`, 403, "confirm set to"},
+		{"POST", "/v1/orgs/acme/migrate", `{"host":"ops@elsewhere.example","confirm":"acme"}`, 404, "unknown host"},
 	} {
 		status, body := raw(t, c, tc.method, tc.path, tc.body)
 		if status != tc.status || !strings.Contains(body, tc.want) || !strings.Contains(body, "berth.error/v1") {
@@ -595,7 +613,7 @@ func TestBerthViaDaemon(t *testing.T) {
 		t.Errorf("the audit log: %s", audit)
 	}
 	// What needs a terminal, or has no endpoint, doesn't go; and without a server it says so.
-	for _, args := range [][]string{{"shell", "acme"}, {"claude", "acme"}, {"env", "acme", "set", "KEY"}, {"restore", "t-none.tar.zst"}, {"serve"}, {"tui"}} {
+	for _, args := range [][]string{{"shell", "acme"}, {"claude", "acme"}, {"env", "acme", "set", "KEY"}, {"token", "acme", "--paste"}, {"serve"}, {"tui"}} {
 		if out := via(args...); out.Exit != 1 || !strings.Contains(out.Stderr, "can't go through the daemon") {
 			t.Errorf("--via-daemon %v: %d %q", args, out.Exit, out.Stderr)
 		}
@@ -607,7 +625,7 @@ func TestBerthViaDaemon(t *testing.T) {
 	// The endpoint itself refuses a command the API doesn't serve, whoever asks.
 	c := apiclient.Unix(sock)
 	var errb strings.Builder
-	for _, args := range [][]string{{"restore", "t-none.tar.zst"}, {"shell", "acme"}, {"--home", "/tmp/x", "ls"}, {"nope"}, {"env", "acme", "set", "KEY"}} {
+	for _, args := range [][]string{{"token", "acme", "--paste"}, {"shell", "acme"}, {"--home", "/tmp/x", "ls"}, {"nope"}, {"env", "acme", "set", "KEY"}} {
 		errb.Reset()
 		if code, err := c.CLI(context.Background(), args, "", io.Discard, &errb); err != nil || code != 1 || !strings.Contains(errb.String(), "berth: ") {
 			t.Errorf("POST /v1/cli %v: exit %d, %v, %q", args, code, err, errb.String())

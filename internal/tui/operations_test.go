@@ -290,3 +290,25 @@ func TestResultText(t *testing.T) {
 		t.Errorf("a change that printed nothing shows what it answered: %q", got)
 	}
 }
+
+// TestOperationsConfirmWithoutAnOrg: an operation that is confirmed and takes no org says its
+// first required argument again: the backup to restore.
+func TestOperationsConfirmWithoutAnOrg(t *testing.T) {
+	const file = "acme-20261006-023000.tar.zst.age"
+	f := &fake{}
+	m := dash(t, f, 100, 24)
+	open(t, m, "backup_restore")
+	set(t, m, "file", file)
+	press(m, "r")
+	if v := m.View(); !strings.Contains(v, "berth backup restore "+file) || !strings.Contains(v, "It can stop an org, or replace one.") {
+		t.Fatalf("the confirmation:\n%s", v)
+	}
+	press(m, "n")
+	if len(f.invoked) != 0 {
+		t.Errorf("unconfirmed, it ran: %v", f.invoked)
+	}
+	press(m, "r", "y")
+	if want := []string{`backup_restore {"confirm":"` + file + `","file":"` + file + `"}`}; !slices.Equal(f.invoked, want) {
+		t.Errorf("confirmed: ran %v, want %v", f.invoked, want)
+	}
+}

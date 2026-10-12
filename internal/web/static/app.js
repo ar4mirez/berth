@@ -837,9 +837,13 @@ function app() {
         if (out) this.opResult = JSON.stringify(out, null, 2)
       }
       if (!op.fields.some((f) => f.name === 'confirm')) return go()
-      const name = String(this.opValues.org || '')
+      // What is said again is the org, or what the operation is about when it has none: the
+      // backup to restore.
+      const about = op.fields.find((f) => f.name === 'org') || op.fields.find((f) => f.required && f.name !== 'confirm')
+      const name = String((about && fieldValue(about, this.opValues[about.name])) || '')
+      const stops = about && about.name === 'org' ? 'It stops the work running in ' + name + ', or removes it.' : 'It can stop an org, or replace one.'
       body.confirm = name
-      this.ask(label + ' ' + name, [op.about, 'It stops the work running in ' + name + ', or removes it.'], name, go)
+      this.ask(label + ' ' + name, [op.about, stops], name, go)
     },
 
     // --- small things -----------------------------------------------------------------------
