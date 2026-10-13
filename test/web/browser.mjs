@@ -50,6 +50,7 @@ function serve(...flags) {
 }
 
 const problems = []
+const refusals = [] // every answer of 400 or more, from any page
 const browser = await chromium.launch()
 
 // open is a page on a server, with everything that would mean the page is broken recorded: an
@@ -57,7 +58,10 @@ const browser = await chromium.launch()
 async function open(server, options) {
   const context = await browser.newContext(options)
   const page = await context.newPage()
-  page.on('console', (m) => { if (m.type() === 'error') problems.push('console: ' + m.text()) })
+  // A refusal the API answers with is not the page breaking: the browser logs each as a failed
+  // load, and refused() below holds them to the ones this state root has reason for.
+  page.on('console', (m) => { if (m.type() === 'error' && !m.text().startsWith('Failed to load resource: the server responded with a status of 4')) problems.push('console: ' + m.text()) })
+  page.on('response', (r) => { if (r.status() >= 400) refusals.push(r.status() + ' ' + r.request().method() + ' ' + new URL(r.url()).pathname) })
   page.on('pageerror', (e) => problems.push('page error: ' + e.message))
   page.on('request', (r) => { if (!r.url().startsWith(server.origin + '/')) problems.push('a request to elsewhere: ' + r.url()) })
   await page.addInitScript(() => {
@@ -209,6 +213,11 @@ try {
   }
   await reader.context().close()
 
+  // The one thing the API refused: the log of an org that is down, which the page says in words.
+  // Anything else answered with an error would be the page asking for something it shouldn't.
+  const unexpected = refusals.filter((r) => r !== '409 GET /v1/orgs/t-web/logs')
+  assert.deepEqual(unexpected, [], 'the API refused nothing but the log of an org that is down')
+  assert.ok(refusals.length > 0, 'the log of an org that is down was asked for, and refused')
   assert.deepEqual(problems, [], 'nothing went wrong on any screen')
   console.log('ok')
 } finally {
