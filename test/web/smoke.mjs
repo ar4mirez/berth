@@ -309,12 +309,39 @@ async function boot({ url, caller, token }) {
   assert.ok(!t.w.document.documentElement.outerHTML.includes('sk-ant-PAGE-TOKEN'), 'the token is nowhere in the page afterwards')
   assert.equal(t.$('#op-token').value, '')
 
+  // What a terminal printed, read as text. A sign-in runs inside the org's container, so its lines
+  // pass through two terminals and end in two carriage returns: they are lines all the same.
+  {
+    const read = t.w.screenText
+    const inContainer = '== Step 1/2: long-lived token\r\n' +
+      'Welcome to Claude Code\r\r\n\r\r\n' +
+      "Browser didn't open? Use the url below to sign in:\r\r\n\r\r\n" +
+      'https://claude.ai/oauth/authorize?code=true&client_id=abc-123&scope=user%3Ainference\r\r\n\r\r\n' +
+      'Paste code here if prompted > \r\r\n'
+    assert.equal(read(inContainer), '== Step 1/2: long-lived token\nWelcome to Claude Code\n\n' +
+      "Browser didn't open? Use the url below to sign in:\n\nhttps://claude.ai/oauth/authorize?code=true&client_id=abc-123&scope=user%3Ainference\n\nPaste code here if prompted >")
+    assert.deepEqual([...t.w.links(inContainer)], ['https://claude.ai/oauth/authorize?code=true&client_id=abc-123&scope=user%3Ainference'])
+    // A box drawn across a wide terminal is its words; a rule is nothing.
+    const wide = '╭' + '─'.repeat(1998) + '╮\r\r\n│ \x1b[1mPaste code here\x1b[0m' + ' '.repeat(1980) + '│\r\r\n╰' + '─'.repeat(1998) + '╯\r\r\n'
+    assert.equal(read(wide), 'Paste code here')
+    // A link behind a word, as a hyperlink a terminal would open, is still a link to open.
+    const behind = 'To sign in, \x1b]8;;https://claude.ai/oauth/authorize?state=xyz\x07click here\x1b]8;;\x07.\r\n'
+    assert.equal(read(behind), 'To sign in, click here.')
+    assert.deepEqual([...t.w.links(behind)], ['https://claude.ai/oauth/authorize?state=xyz'])
+    // A screen drawn piece by piece keeps its pieces apart; a line rewritten in place is its last
+    // writing; and one a carriage return left alone is still there.
+    assert.equal(read('Sign\x1b[1Cin\x1b[2Cto\x1b[5;1HClaude'), 'Sign in  to\nClaude')
+    assert.equal(read('Waiting.\rWaiting..\rWaiting...'), 'Waiting...')
+    assert.equal(read('still here\r'), 'still here')
+    assert.equal(read('\x1b[?25l\x1b[2K\x1b[1A\x1b[32m✓\x1b[39m Logged in\x1b[?25h\r\n'), '✓ Logged in')
+  }
+
   // Signing an org in: what the command prints is read as text, its link is offered to open, and
   // a code typed here reaches it.
   await t.go('#/orgs/acme')
   await t.click(t.button('Sign in to GitHub'))
   assert.match(t.$('#term-title').textContent, /berth account gh acme/)
-  assert.deepEqual(t.calls.find((c) => c.path === '/v1/terminal').body, { command: 'gh', org: 'acme', cols: 240, rows: 50 })
+  assert.deepEqual(t.calls.find((c) => c.path === '/v1/terminal').body, { command: 'gh', org: 'acme', cols: 1000, rows: 50 })
   const screen = () => t.$('pre[x-ref=term]').textContent
   assert.match(screen(), /First copy your one-time code: ABCD-1234/)
   assert.ok(!screen().includes('\x1b') && !screen().includes('[32m'), 'escape sequences are taken out')
