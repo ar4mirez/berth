@@ -46,6 +46,29 @@ jobs:
         working-directory: test/web
         run: npm ci && node smoke.mjs
 
+  # What a DOM can't check (#167): that the policy lets the page run, and that it fits a phone.
+  browser:
+    name: the web UI, in a browser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - name: build berth
+        run: go build -o "$RUNNER_TEMP/berth" ./cmd/berth
+      - name: Chromium
+        working-directory: test/web
+        run: npm ci && npx playwright install --with-deps chromium
+      - name: test
+        working-directory: test/web
+        run: node browser.mjs "$RUNNER_TEMP/berth"
+      - name: the screens, to look at
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-ui-screens
+          path: test/web/shots/
+          if-no-files-found: ignore
+
   vuln:
     name: govulncheck
     runs-on: ubuntu-latest
