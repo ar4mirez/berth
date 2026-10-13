@@ -84,6 +84,9 @@ it.
 - **A port taken by something else:** change `SSH_PORT`/`TTYD_PORT` in `org.env`, then `berth up acme`.
 - **`… runs on <host> (it holds the lease)`:** the org is active on another host. Start it there, or move it with
   `berth up acme --take-lease`, which stops the other copy first ([Hosts](hosts.md#active-host-leases)).
+- **`range of CPUs is from 0.01 to 2.00`:** an older berth asked Docker for more CPUs than its VM has. Upgrade
+  (`berth system upgrade`): berth now starts the org with what there is. For more, give the VM more (Colima:
+  `colima stop`, then `colima start --cpu 4`).
 - **`read-only mode`:** `--read-only` was given. It refuses every change.
 
 ## berth itself
