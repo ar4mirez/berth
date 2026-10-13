@@ -165,7 +165,10 @@ Each is a PR that ships on its own.
      a value, a token and a rotation, and looks for each in every answer, the audit log, the server's output and
      the event streams.
    - **An API token is the one secret returned**, once, when it is made: there is no other way to have it.
-   - **Not served: `password show`.** It gives a secret back, and the API never does: it is read on the machine.
+   - **`password show` is served, to a caller with `admin`** (`GET /v1/orgs/{org}/password`). The first cut left
+     it on the command line, as the API gave no secret back. Using the page showed that wrong: it links to the
+     org's browser terminal, and the link is no use without what to type into it. The page shows the user, and
+     the password when asked: for a minute, or until the page moves on. Each showing is in the audit log.
    - **Not served: cloud hosts** (`host create`, `destroy`, `reconcile`). They need the provider's key in berth's
      own environment, and a server shouldn't hold one.
 4. **Sign-in. Done**: the three sign-ins on a terminal of the API's own; a sheet in the web UI that reads it as

@@ -154,6 +154,6 @@ shown when it ends, with the same message and hint as the command.
 
 ## What isn't in it
 
-An org's browser-terminal password (`berth org password show`), and creating
+Creating
 a host at a cloud provider: use the commands
 (the [web dashboard's guide](web.md#what-stays-on-the-command-line) says why). The org list doesn't show each org's image.

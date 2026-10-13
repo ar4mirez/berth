@@ -103,7 +103,10 @@ var Catalog = map[string]Op{
 
 	// Settings, per subcommand.
 	"password": {Access: BySub, Subs: map[string]Op{
-		"": readText("a secret: secrets never appear in JSON"), "show": readText("a secret: secrets never appear in JSON"),
+		"": readText("a secret: secrets never appear in JSON"),
+		// A secret, shown: on the command line to whoever typed it, and through the API to a caller
+		// that may do everything, on request (#167). It is the one secret the API gives back.
+		"show":   admin(readText("a secret: secrets never appear in JSON")),
 		"rotate": admin(writeMay("restarts a running org so the browser terminal uses the new password")),
 	}},
 	"env": {Access: BySub, Subs: map[string]Op{

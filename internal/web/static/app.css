@@ -243,3 +243,6 @@ input[type="search"] { -webkit-appearance: none; appearance: none; }
 /* A sign-in's terminal. */
 .dialog.wide { max-width: 44rem; }
 a.wrap { word-break: break-all; }
+
+/* What the browser terminal asks for: its user, and its password when it is asked to be shown. */
+.creds { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.9rem; margin-top: 0.25rem; }
