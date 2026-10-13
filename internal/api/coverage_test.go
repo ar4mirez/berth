@@ -14,11 +14,10 @@ import (
 const (
 	// alias: another spelling of an operation that is served, or that is listed under its own name.
 	alias = "another spelling of "
-	// secret: it takes or shows a secret, or needs one this server would have to hold (a cloud
-	// provider's key).
-	secret = "it takes or shows a secret: #167's phase 3"
-	// tokens: the API's own tokens.
-	tokens = "the API's tokens, for a caller with the admin scope: #167's phase 3"
+	// shown: it gives a secret back, which the API never does.
+	shown = "it shows a secret, and the API never returns one: it is read on the machine itself"
+	// cloud: it needs a cloud provider's key.
+	cloud = "it needs a cloud provider's key in berth's own environment, which a server shouldn't hold: the command line"
 	// terminal: it needs a terminal.
 	terminal = "it needs a terminal: #167's phase 4"
 	// never: it isn't something a dashboard or an API caller does.
@@ -33,12 +32,11 @@ var notServed = map[string]string{
 	"repo list": alias + "repo ls", "repo remove": alias + "repo rm", "repo create": alias + "repo new",
 	"repo policy/": alias + "repo ls, which has the policy", "remote ": alias + "remote status", "password ": alias + "password show",
 	"schedule --off": alias + "schedule off", "schedule now": alias + "schedule run", "host guard/": alias + "host guard/status",
-	"host reconcile/": secret,
+	"host reconcile/": cloud,
 
 	// Secrets.
-	"env set": secret, "env accept": secret, "token ": secret, "password show": secret, "password rotate": secret,
-	"keygen ": secret, "host create": secret, "host destroy": secret, "host reconcile/--prune": secret,
-	"serve token add": tokens, "serve token rm": tokens, "serve token ls": tokens,
+	"password show": shown,
+	"host create":   cloud, "host destroy": cloud, "host reconcile/--prune": cloud,
 
 	// A terminal.
 	"auth ": terminal, "login ": terminal, "gh-login ": terminal, "attach ": terminal, "shell ": terminal, "claude ": terminal,

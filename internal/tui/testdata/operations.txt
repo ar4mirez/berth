@@ -1,11 +1,13 @@
 berth
 
-Every operation (58)
+Every operation (67)
 
   OPERATION               NEEDS    WHAT IT DOES
 ▸ account logout          restart  Sign an org out of Remote Control
+  account token           admin    Give an org its Claude token, as claude setup-token prints it: it
   account whoami          read     Which Claude account and GitHub account each org is signed in to
   backup                  write    Take an encrypted backup of orgs on this machine, into the backup
+  backup keygen           admin    Make this machine's backup key, so backups are encrypted without
   backup restore          restart  Restore an org from a backup in this machine's backups directory,
   backup schedule off     write    Stop the nightly backups on this machine
   backup schedule on      write    Back up every org on this machine each night: a systemd user time
@@ -13,12 +15,10 @@ Every operation (58)
   backup schedule status  read     The nightly backup schedule on this machine: a systemd timer and
   backups_list            read     The backup files on this machine, newest first: org, when, size a
   down                    restart  Stop an org: stops and removes its container
+  env accept              admin    Take the secrets waiting inside a running org (typed there with b
   env ls                  read     The names of an org's custom environment variables
   env migrate             write    Move an org's secrets and custom variables out of org.env into fi
+  env set                 admin    Set one of an org's custom variables, a secret included: its valu
   env unset               restart  Remove one of an org's custom variables
-  fw allow                write    Add entries to an org's egress allowlist
-  fw deny                 write    Remove entries from an org's egress allowlist, exactly as written
-  fw off                  write    Turn an org's egress firewall off: the org can reach anything unt
-  fw on                   write    Turn an org's egress firewall on: only what its allowlist names c
-  fw presets              read     The firewall's @presets and the hosts each one allows
+  env_pending             read     The secrets waiting inside a running org to be taken: what someon
 ↑↓ select · enter open · esc back · ? help · q quit

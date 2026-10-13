@@ -308,7 +308,11 @@ func (m *Model) overlayView() (body, keys string) {
 	case confirm:
 		return boxStyle.Render(m.ask + "\n\n" + headStyle.Render("Run it? y = yes, anything else = no")), "y run it · any other key cancels"
 	case input:
-		return boxStyle.Render(m.ask + "\n\n> " + m.typed + "█"), "enter confirm · esc cancel"
+		typed := m.typed
+		if m.mask {
+			typed = strings.Repeat("•", len([]rune(typed))) // a secret: what is typed isn't shown
+		}
+		return boxStyle.Render(m.ask + "\n\n> " + typed + "█"), "enter confirm · esc cancel"
 	case result:
 		style := lipgloss.NewStyle()
 		if m.failed {

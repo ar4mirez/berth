@@ -42,7 +42,8 @@ Open `https://100.64.0.7:8443/` and paste the token.
 
 - **The token's scope is what the dashboard can do.** With `read` it shows everything and offers no action;
   `write` adds the firewall, repos, packages, backups and creating an org; `restart` adds start, restart and stop;
-  `admin` adds destroying an org. The server decides, not
+  `admin` adds destroying an org, and what takes a secret (a variable's value, a Claude token, API tokens). The
+  server decides, not
   the page: what the page hides, the API would refuse.
 - **The token is kept in that browser tab only** (its session storage), and is forgotten when the tab closes or
   you sign out. There is no cookie, so no other site can act with it.
@@ -68,7 +69,7 @@ An org's page:
 | Info | the connection sheet: state, the claude.ai/code link, address, SSH, the browser terminal, the git key | open the link or the terminal, copy the SSH command or the key, restart Remote Control, destroy the org |
 | Firewall | the allowlist, and whether the firewall is live | turn it on or off, reload it, allow entries, deny one, test what the org can reach |
 | Repos | registered repos, their branch and state, and what isn't registered | add, remove, sync |
-| Env | the names of the org's variables, never their values | |
+| Env | the names of the org's variables, never their values | set one (its value is typed unseen, and never shown again), remove one |
 | Packages | the system packages the org's image adds, and that image | add, remove (there after the org's next restart) |
 | Backups | this org's backups on this machine | back up now |
 | Logs | the container's log | follow it |
@@ -110,5 +111,6 @@ An operation that restarts or removes an org asks for its name there too.
 
 ## What isn't in it yet
 
-Sign-ins, setting a variable, and creating a host at a cloud provider: use the commands.
-Both dashboards are getting them ([#167](https://github.com/ar4mirez/berth/issues/167)).
+Signing an org in from the page, and creating a host at a cloud provider (its key stays out of a server): use the
+commands. An org's browser-terminal password is never shown here: `berth org password show` prints it.
+Sign-in is the last part of [#167](https://github.com/ar4mirez/berth/issues/167).

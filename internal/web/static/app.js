@@ -141,7 +141,7 @@ function operations(doc) {
       const content = o.requestBody && o.requestBody.content && o.requestBody.content['application/json']
       const schema = (content && content.schema) || {}
       for (const [name, s] of Object.entries(schema.properties || {})) {
-        fields.push({ name, where: 'body', type: s.type || 'string', required: (schema.required || []).includes(name), help: s.description || '' })
+        fields.push({ name, where: 'body', type: s.type || 'string', required: (schema.required || []).includes(name), help: s.description || '', secret: !!s.writeOnly })
       }
       out.push({
         id: o.operationId, method: method.toUpperCase(), path, access: o['x-berth-access'] || 'read',
@@ -189,7 +189,7 @@ function app() {
     tabError: noError(),
     tabLoading: false,
     probes: [],
-    forms: { allow: '', probe: '', repo: '', branch: '', packages: '', org: '', gitName: '', gitEmail: '' },
+    forms: { allow: '', probe: '', repo: '', branch: '', packages: '', org: '', gitName: '', gitEmail: '', envName: '', envValue: '' },
 
     dialog: null,
     typed: '',
@@ -667,6 +667,28 @@ function app() {
       })
     },
 
+    // setVariable hands berth a variable's value, which may be a secret. It is sent once, in the
+    // request's body, and dropped from the page as soon as it is: berth stores it for the org and
+    // never gives it back. A running org is restarted to apply it, so the org's name is typed.
+    setVariable() {
+      const name = this.route.org
+      const key = this.forms.envName.trim()
+      const value = this.forms.envValue
+      if (!key || !value) return
+      this.forms.envValue = ''
+      this.ask('berth env set ' + name + ' ' + key, ['It sets ' + key + ' for ' + name + '. The value is stored for the org and never shown again.', 'A running org is restarted to apply it, which stops the work running in it.'], name, async () => {
+        const out = await this.run('berth env set ' + name + ' ' + key, 'PUT', org(name) + '/env/' + encodeURIComponent(key), { value, confirm: name })
+        if (out) this.forms.envName = ''
+      })
+    },
+
+    unsetVariable(key) {
+      const name = this.route.org
+      this.ask('berth env unset ' + name + ' ' + key, ['It removes ' + key + ' from ' + name + '\'s variables.', 'A running org is restarted to apply it, which stops the work running in it.'], name, () => {
+        this.run('berth env unset ' + name + ' ' + key, 'DELETE', org(name) + '/env/' + encodeURIComponent(key), { confirm: name })
+      })
+    },
+
     restartRemote() {
       const name = this.route.org
       this.run('berth account remote restart ' + name, 'POST', org(name) + '/remote/restart', {})
@@ -794,6 +816,11 @@ function app() {
       return access === 'admin' && this.server.admin
     },
 
+    fieldType(f) {
+      if (f.secret) return 'password'
+      return f.type === 'integer' ? 'number' : 'text'
+    },
+
     opHref(id) {
       return '#/operations/' + id
     },
@@ -833,6 +860,8 @@ function app() {
           }
           return
         }
+        // A secret is sent once and dropped from the form: it isn't kept in the page.
+        for (const f of op.fields) if (f.secret) delete this.opValues[f.name]
         const out = await this.run(label, op.method, path, body)
         if (out) this.opResult = JSON.stringify(out, null, 2)
       }

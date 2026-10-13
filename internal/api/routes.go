@@ -86,6 +86,16 @@ var Routes = []Route{
 	{Method: "POST", Path: "/v1/upgrade", Tool: "berth_upgrade"},
 	{Method: "POST", Path: "/v1/backups/restore", Tool: "backup_restore"},
 	{Method: "POST", Path: "/v1/orgs/{org}/migrate", Tool: "org_migrate"},
+	// What takes a secret (#167, phase 3): the admin scope.
+	{Method: "PUT", Path: "/v1/orgs/{org}/env/{name}", Tool: "env_set"},
+	{Method: "GET", Path: "/v1/orgs/{org}/env/pending", Tool: "env_pending"},
+	{Method: "POST", Path: "/v1/orgs/{org}/env/accept", Tool: "env_accept"},
+	{Method: "PUT", Path: "/v1/orgs/{org}/token", Tool: "token_set"},
+	{Method: "POST", Path: "/v1/orgs/{org}/password/rotate", Tool: "password_rotate"},
+	{Method: "POST", Path: "/v1/backups/key", Tool: "backup_keygen"},
+	{Method: "GET", Path: "/v1/tokens", Tool: "api_tokens_list"},
+	{Method: "POST", Path: "/v1/tokens", Tool: "api_token_add"},
+	{Method: "DELETE", Path: "/v1/tokens/{name}", Tool: "api_token_remove"},
 }
 
 // PathArgs are the arguments a route takes from its path.
@@ -107,6 +117,9 @@ type Arg struct {
 	Required bool
 	// In is where a route takes it from: "path", "query" or "body".
 	In string
+	// Secret is true for an argument that holds a secret (the `secret` tag): it is taken, and
+	// never given back or logged.
+	Secret bool
 	// Field is its field in the input type.
 	Field string
 }
@@ -120,7 +133,7 @@ func (r Route) Args(in reflect.Type) []Arg {
 		if name == "" || name == "-" {
 			continue
 		}
-		a := Arg{Name: name, Description: f.Tag.Get("jsonschema"), Type: f.Type, Required: !strings.Contains(opts, "omitempty"), In: "body", Field: f.Name}
+		a := Arg{Name: name, Description: f.Tag.Get("jsonschema"), Type: f.Type, Required: !strings.Contains(opts, "omitempty"), In: "body", Field: f.Name, Secret: f.Tag.Get("secret") != ""}
 		for _, p := range r.PathArgs() {
 			if p == name {
 				a.In, a.Required = "path", true

@@ -112,7 +112,7 @@ var Catalog = map[string]Op{
 		"unset": writeMay("restarts a running org unless --no-restart"),
 		"rm":    writeMay("restarts a running org unless --no-restart"),
 		// Takes secrets dropped inside the org (berth-secret-drop, #10), then as set.
-		"accept": writeMay("restarts a running org unless --no-restart (accept --list changes nothing)"),
+		"accept": admin(writeMay("restarts a running org unless --no-restart (accept --list changes nothing)")),
 	}},
 	"remote": {Access: BySub, Subs: map[string]Op{
 		"": readJSON, "status": readJSON, "logs": events(Op{Access: Read}),

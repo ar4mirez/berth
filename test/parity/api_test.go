@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -131,6 +132,12 @@ func kindOf(err error) ops.Kind {
 	return ""
 }
 
+// Secrets the tests hand the API, to look for afterwards where they must not be.
+const (
+	secretValue = "sk-or-PARITY-SECRET-VALUE"
+	secretToken = "sk-ant-oat01-PARITY-NEW-TOKEN-VALUE"
+)
+
 // TestBerthAPI: over the socket, every endpoint answers with its document; errors are documents
 // with the right status; arguments that don't fit are refused; and the socket is its owner's only.
 func TestBerthAPI(t *testing.T) {
@@ -227,6 +234,16 @@ func TestBerthAPI(t *testing.T) {
 			return c.BackupRestore(ctx, "acme-20261006-023000.tar.zst.age", "t-back", false, true, true, "acme-20261006-023000.tar.zst.age")
 		},
 		"org_migrate": func() (any, error) { return c.OrgMigrate(ctx, "acme", "local", "", false, "acme") },
+		// What takes a secret (#167, phase 3).
+		"env_set":          func() (any, error) { return c.EnvSet(ctx, "acme", "OPENROUTER_API_KEY", secretValue, true, "acme") },
+		"env_pending":      func() (any, error) { return c.EnvPending(ctx, "acme") },
+		"env_accept":       func() (any, error) { return c.EnvAccept(ctx, "acme", nil, true, "acme") },
+		"token_set":        func() (any, error) { return c.TokenSet(ctx, "acme", secretToken, true, "acme") },
+		"password_rotate":  func() (any, error) { return c.PasswordRotate(ctx, "acme", "acme") },
+		"backup_keygen":    func() (any, error) { return c.BackupKeygen(ctx) },
+		"api_tokens_list":  func() (any, error) { return c.ApiTokensList(ctx) },
+		"api_token_add":    func() (any, error) { return c.ApiTokenAdd(ctx, "t-phone", "write") },
+		"api_token_remove": func() (any, error) { return c.ApiTokenRemove(ctx, "t-phone") },
 	}
 	want := map[string][]string{
 		"hosts_list": {`"schema":"berth.hosts/v1"`}, "orgs_list": {`"schema":"berth.orgs/v1"`, `"name":"acme"`, `"name":"globex"`},
@@ -250,6 +267,10 @@ func TestBerthAPI(t *testing.T) {
 		"org_rehydrate": {`== Rehydrating acme`}, "org_run": {`"org":"acme"`}, "image_build": {`"output"`},
 		"env_migrate":    {`Moved CLAUDE_CODE_OAUTH_TOKEN to `, `Nothing was restarted`},
 		"backup_restore": {`Restoring 't-restored' from old-host`, `as 't-back'`, `Start with: berth up t-back`},
+		"env_set":        {`Set OPENROUTER_API_KEY for acme.`}, "env_pending": {`"names":[]`}, "env_accept": {`Nothing is waiting in acme.`},
+		"token_set": {`Token saved for acme.`}, "password_rotate": {`Rotated; the browser terminal restarts`},
+		"api_tokens_list": {`"tokens":[]`}, "api_token_add": {`"name":"t-phone"`, `"scope":"write"`, `"token":"berth_`},
+		"api_token_remove": {`Removed t-phone`},
 	}
 	// What these fixtures have nothing for: no such variable, no systemd, no released image. The
 	// command's own refusal is the answer, as a document.
@@ -268,7 +289,10 @@ func TestBerthAPI(t *testing.T) {
 		"berth_upgrade":      "no previous version recorded",
 		// Moving an org needs another host: the command says where it already is.
 		"org_migrate": "acme is already on local",
+		// This machine has its backup key already.
+		"backup_keygen": "already exists (public key:",
 	}
+	var answers []string // every endpoint's answer, to look for what must never be in one
 	for _, r := range api.Routes {
 		call, ok := calls[r.Tool]
 		if !ok {
@@ -288,6 +312,7 @@ func TestBerthAPI(t *testing.T) {
 			continue
 		}
 		got := asJSON(out)
+		answers = append(answers, got)
 		for _, w := range want[r.Tool] {
 			if !strings.Contains(got, w) {
 				t.Errorf("%s %s: no %s in %s", r.Method, r.Path, w, got)
@@ -298,6 +323,64 @@ func TestBerthAPI(t *testing.T) {
 		}
 	}
 	res := snap()
+	// A secret handed to the API is stored where its command stores it, and is nowhere else: not in
+	// an answer, not in the audit log, not in what the server printed, not in an operation's events.
+	tree := asJSON(res.Tree)
+	audit0 := strings.Join(auditLines(t, res), "\n")
+	password := ""
+	if _, quoted, ok := strings.Cut(treeLine(res, "state/orgs/acme/config/secrets/ttyd_credential"), " 0600 "); ok {
+		if content, err := strconv.Unquote(quoted); err == nil {
+			_, password, _ = strings.Cut(strings.TrimSpace(content), ":")
+		}
+	}
+	if len(password) < 16 {
+		t.Errorf("password_rotate left no password in the org's secrets: %q", treeLine(res, "state/orgs/acme/config/secrets/ttyd_credential"))
+	}
+	var minted string
+	for _, a := range answers {
+		if _, rest, ok := strings.Cut(a, `"token":"berth_`); ok {
+			minted, _, _ = strings.Cut("berth_"+rest, `"`)
+		}
+	}
+	for what, secret := range map[string]string{"a variable's value": secretValue, "a Claude token": secretToken, "the rotated password": password} {
+		if secret == "" {
+			continue
+		}
+		if !strings.Contains(tree, secret) {
+			t.Errorf("%s isn't stored anywhere in the state root", what)
+		}
+		for where, text := range map[string]string{"an answer": strings.Join(answers, "\n"), "the audit log": audit0, "the server's output": serveStderr.String()} {
+			if strings.Contains(text, secret) {
+				t.Errorf("%s is in %s", what, where)
+			}
+		}
+	}
+	if minted == "" || strings.Contains(audit0, minted) || strings.Contains(serveStderr.String(), minted) || strings.Contains(tree, minted) {
+		t.Errorf("the API token made (%q) is in the audit log, the server's output or a file: only its hash is kept", minted)
+	}
+	// With progress asked for as events, too: what the command prints isn't streamed.
+	for _, tc := range []struct{ method, path, body, secret string }{
+		{"PUT", "/v1/orgs/acme/env/SENTRY_DSN", `{"value":"` + secretValue + `-2","no_restart":true,"confirm":"acme"}`, secretValue},
+		{"PUT", "/v1/orgs/acme/token", `{"token":"` + secretToken + `-2","no_restart":true,"confirm":"acme"}`, secretToken},
+	} {
+		status, body := raw(t, c, tc.method, tc.path, tc.body, "Accept", "text/event-stream")
+		if status != 200 || !strings.Contains(body, "event: result") || strings.Contains(body, tc.secret) {
+			t.Errorf("%s %s as events: %d %s", tc.method, tc.path, status, body)
+		}
+	}
+	if status, body := raw(t, c, "POST", "/v1/orgs/acme/password/rotate", `{"confirm":"acme"}`, "Accept", "text/event-stream"); status != 200 || strings.Contains(body, "pass:") {
+		t.Errorf("password rotate as events: %d %s", status, body)
+	}
+	// What can't be read whole is refused, and a secret is never echoed in a refusal.
+	for _, body := range []string{`{"value":"two\nlines","confirm":"acme"}`, `{"value":"","confirm":"acme"}`, `{"value":"it's-` + secretValue + `","no_restart":true,"confirm":"acme"}`} {
+		if status, answer := raw(t, c, "PUT", "/v1/orgs/acme/env/T_KEY", body); status < 400 || strings.Contains(answer, secretValue) {
+			t.Errorf("env set %s: %d %s", body, status, answer)
+		}
+	}
+	if status, answer := raw(t, c, "PUT", "/v1/orgs/acme/token", `{"token":"not-a-token-`+secretValue+`","confirm":"acme"}`); status < 400 || strings.Contains(answer, secretValue) {
+		t.Errorf("a token that isn't one: %d %s", status, answer)
+	}
+	res = snap()
 	if !hasCall(res, `"claude" "-p" "say hello"`) {
 		t.Errorf("org_run ran no claude -p with the prompt:\n%s", strings.Join(res.Calls, "\n"))
 	}
@@ -523,6 +606,14 @@ func TestBerthAPIOverTCP(t *testing.T) {
 		} else if may[3] && (err != nil) {
 			t.Errorf("%s: destroy: %v", scope, err)
 		}
+		// Taking a secret needs the admin scope too, whatever else the token may do.
+		if _, err := cl.EnvSet(ctx, "acme", "SCOPE_KEY", secretValue, true, "acme"); (err == nil) != may[3] ||
+			(err != nil && (kindOf(err) != ops.KindRefused || !strings.Contains(err.Error(), "admin scope") || strings.Contains(err.Error(), secretValue))) {
+			t.Errorf("%s: env set: %v", scope, err)
+		}
+		if _, err := cl.ApiTokenAdd(ctx, "t-"+scope+"-made", "admin"); (err == nil) != may[3] {
+			t.Errorf("%s: making an admin token: %v", scope, err)
+		}
 		// Even the restart scope needs the confirmation.
 		if _, err := cl.OrgRestart(ctx, "acme", ""); kindOf(err) != ops.KindRefused {
 			t.Errorf("%s: restart without confirm: %v", scope, err)
@@ -613,7 +704,7 @@ func TestBerthViaDaemon(t *testing.T) {
 		t.Errorf("the audit log: %s", audit)
 	}
 	// What needs a terminal, or has no endpoint, doesn't go; and without a server it says so.
-	for _, args := range [][]string{{"shell", "acme"}, {"claude", "acme"}, {"env", "acme", "set", "KEY"}, {"token", "acme", "--paste"}, {"serve"}, {"tui"}} {
+	for _, args := range [][]string{{"shell", "acme"}, {"claude", "acme"}, {"password", "acme", "show"}, {"auth", "acme"}, {"host", "create", "t-box", "--provider", "hetzner"}, {"serve"}, {"tui"}} {
 		if out := via(args...); out.Exit != 1 || !strings.Contains(out.Stderr, "can't go through the daemon") {
 			t.Errorf("--via-daemon %v: %d %q", args, out.Exit, out.Stderr)
 		}
@@ -625,7 +716,7 @@ func TestBerthViaDaemon(t *testing.T) {
 	// The endpoint itself refuses a command the API doesn't serve, whoever asks.
 	c := apiclient.Unix(sock)
 	var errb strings.Builder
-	for _, args := range [][]string{{"token", "acme", "--paste"}, {"shell", "acme"}, {"--home", "/tmp/x", "ls"}, {"nope"}, {"env", "acme", "set", "KEY"}} {
+	for _, args := range [][]string{{"auth", "acme"}, {"shell", "acme"}, {"--home", "/tmp/x", "ls"}, {"nope"}, {"password", "acme", "show"}} {
 		errb.Reset()
 		if code, err := c.CLI(context.Background(), args, "", io.Discard, &errb); err != nil || code != 1 || !strings.Contains(errb.String(), "berth: ") {
 			t.Errorf("POST /v1/cli %v: exit %d, %v, %q", args, code, err, errb.String())

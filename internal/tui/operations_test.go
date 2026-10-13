@@ -11,6 +11,7 @@ import (
 
 	"github.com/ar4mirez/berth/internal/api"
 	"github.com/ar4mirez/berth/internal/mcpsrv"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // The fake's operations are the real ones: the tools, as the dashboard lists them.
@@ -81,8 +82,8 @@ func TestBothDashboardsDoTheSame(t *testing.T) {
 			t.Errorf("%s: no title or description: %+v", name, o)
 		case o.Access != s.Access():
 			t.Errorf("%s needs %q in the dashboard, %q in the API", name, o.Access, s.Access())
-		case (o.Access == "restart" || o.Access == "admin") && !o.confirms():
-			t.Errorf("%s needs %q, and takes no confirmation", name, o.Access)
+		case s.Op.Restart != ops.Never && !o.confirms():
+			t.Errorf("%s can stop a container (it needs %q), and takes no confirmation", name, o.Access)
 		}
 	}
 }
@@ -310,5 +311,47 @@ func TestOperationsConfirmWithoutAnOrg(t *testing.T) {
 	press(m, "r", "y")
 	if want := []string{`backup_restore {"confirm":"` + file + `","file":"` + file + `"}`}; !slices.Equal(f.invoked, want) {
 		t.Errorf("confirmed: ran %v, want %v", f.invoked, want)
+	}
+}
+
+// TestSecretsAreNotShown: an argument that is a secret is typed unseen, and the form says only
+// that it is set; it still reaches the tool as typed.
+func TestSecretsAreNotShown(t *testing.T) {
+	const secret = "sk-or-PARITY-SECRET"
+	f := &fake{}
+	m := dash(t, f, 100, 24)
+	open(t, m, "env_set")
+	i := slices.IndexFunc(m.op.form(), func(fl mcpsrv.Field) bool { return fl.Name == "value" })
+	if i < 0 || !m.op.form()[i].Secret {
+		t.Fatalf("env_set's value isn't a secret argument: %+v", m.op.form())
+	}
+	set(t, m, "name", "OPENROUTER_API_KEY")
+	m.opCur = i
+	press(m, "enter")
+	press(m, strings.Split(secret, "")...)
+	if v := m.View(); strings.Contains(v, secret) || !strings.Contains(v, strings.Repeat("•", len(secret))) {
+		t.Errorf("the secret shows while it is typed:\n%s", v)
+	}
+	press(m, "enter")
+	if v := m.View(); strings.Contains(v, secret) || !strings.Contains(v, "(set, not shown)") {
+		t.Errorf("the form shows the secret:\n%s", v)
+	}
+	// Opened again, it starts empty: what was typed isn't offered back.
+	press(m, "enter")
+	if m.typed != "" {
+		t.Errorf("the secret is offered to edit: %q", m.typed)
+	}
+	press(m, "esc")
+	press(m, "r")
+	if v := m.View(); strings.Contains(v, secret) {
+		t.Errorf("the confirmation shows the secret:\n%s", v)
+	}
+	press(m, "a", "c", "m", "e", "enter")
+	want := `env_set {"confirm":"acme","name":"OPENROUTER_API_KEY","org":"acme","value":"` + secret + `"}`
+	if !slices.Equal(f.invoked, []string{want}) {
+		t.Errorf("ran %v, want %v", f.invoked, want)
+	}
+	if v := m.View(); strings.Contains(v, secret) {
+		t.Errorf("the result shows the secret:\n%s", v)
 	}
 }

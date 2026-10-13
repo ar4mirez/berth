@@ -318,3 +318,48 @@ func (c *Client) BackupRestore(ctx context.Context, file string, as string, forc
 func (c *Client) OrgMigrate(ctx context.Context, org string, host string, as string, noSwitch bool, confirm string) (out mcpsrv.Changed, err error) {
 	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/migrate", nil, map[string]any{"host": host, "as": as, "no_switch": noSwitch, "confirm": confirm}, &out)
 }
+
+// EnvSet is PUT /v1/orgs/{org}/env/{name}: Set one of an org's custom variables, a secret included: its value is stored for the org and never shown again.
+func (c *Client) EnvSet(ctx context.Context, org string, name string, value string, noRestart bool, confirm string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "PUT", "/v1/orgs/"+url.PathEscape(org)+"/env/"+url.PathEscape(name), nil, map[string]any{"value": value, "no_restart": noRestart, "confirm": confirm}, &out)
+}
+
+// EnvPending is GET /v1/orgs/{org}/env/pending: The secrets waiting inside a running org to be taken: what someone typed there with berth-secret-drop, by name.
+func (c *Client) EnvPending(ctx context.Context, org string) (out mcpsrv.Pending, err error) {
+	return out, c.do(ctx, "GET", "/v1/orgs/"+url.PathEscape(org)+"/env/pending", nil, nil, &out)
+}
+
+// EnvAccept is POST /v1/orgs/{org}/env/accept: Take the secrets waiting inside a running org (typed there with berth-secret-drop) as its variables.
+func (c *Client) EnvAccept(ctx context.Context, org string, names []string, noRestart bool, confirm string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/env/accept", nil, map[string]any{"names": names, "no_restart": noRestart, "confirm": confirm}, &out)
+}
+
+// TokenSet is PUT /v1/orgs/{org}/token: Give an org its Claude token, as claude setup-token prints it: it is stored for the org and never shown again.
+func (c *Client) TokenSet(ctx context.Context, org string, token string, noRestart bool, confirm string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "PUT", "/v1/orgs/"+url.PathEscape(org)+"/token", nil, map[string]any{"token": token, "no_restart": noRestart, "confirm": confirm}, &out)
+}
+
+// PasswordRotate is POST /v1/orgs/{org}/password/rotate: Give an org's browser terminal a new password, which ends the sessions open in it.
+func (c *Client) PasswordRotate(ctx context.Context, org string, confirm string) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/password/rotate", nil, map[string]any{"confirm": confirm}, &out)
+}
+
+// BackupKeygen is POST /v1/backups/key: Make this machine's backup key, so backups are encrypted without a passphrase.
+func (c *Client) BackupKeygen(ctx context.Context) (out mcpsrv.Done, err error) {
+	return out, c.do(ctx, "POST", "/v1/backups/key", nil, nil, &out)
+}
+
+// ApiTokensList is GET /v1/tokens: The tokens callers of this API present over the network: their names, scopes and dates.
+func (c *Client) ApiTokensList(ctx context.Context) (out mcpsrv.APITokens, err error) {
+	return out, c.do(ctx, "GET", "/v1/tokens", nil, nil, &out)
+}
+
+// ApiTokenAdd is POST /v1/tokens: Make a token for a caller of this API over the network.
+func (c *Client) ApiTokenAdd(ctx context.Context, name string, scope string) (out mcpsrv.APITokenMade, err error) {
+	return out, c.do(ctx, "POST", "/v1/tokens", nil, map[string]any{"name": name, "scope": scope}, &out)
+}
+
+// ApiTokenRemove is DELETE /v1/tokens/{name}: Remove one of this API's tokens.
+func (c *Client) ApiTokenRemove(ctx context.Context, name string) (out mcpsrv.Done, err error) {
+	return out, c.do(ctx, "DELETE", "/v1/tokens/"+url.PathEscape(name), nil, nil, &out)
+}
