@@ -118,14 +118,18 @@ try {
     if (tab === 'logs') assert.match(await phone.locator('main:visible [role=alert]:visible').first().innerText(), /not running/)
   }
 
-  // A restart asks for the org's name, and runs nothing without it.
+  // An org that is down says so, and is offered what fits: Start, and nothing that needs it
+  // running. Starting it stops no work, so it asks without its name typed.
   await phone.goto(server.origin + '/#/orgs/t-web/info')
-  await button(phone, 'Restart').click()
+  await phone.locator('p.banner', { hasText: "This org isn't running" }).waitFor({ state: 'visible' })
+  for (const text of ['Restart', 'Stop', 'Sign in to Claude', 'Sign in to GitHub', 'Restart Remote Control']) {
+    assert.ok(!(await button(phone, text).first().isVisible()), text + ' is not offered for an org that is down')
+  }
+  await button(phone, 'Start').click()
   await phone.locator('#dialog-title').waitFor({ state: 'visible' })
   await fits(phone, 'phone-confirm')
-  assert.ok(await button(phone, 'Run it').isDisabled(), 'Run it is off until the name is typed')
-  await phone.locator('#dialog-typed').fill('t-we')
-  assert.ok(await button(phone, 'Run it').isDisabled())
+  assert.ok(!(await phone.locator('#dialog-typed').isVisible()), 'starting an org that is down needs no name typed')
+  assert.ok(await button(phone, 'Run it').isEnabled())
   await button(phone, 'Cancel').click()
 
   // An operation runs, and what it printed shows: the firewall of an org that is down is saved.
@@ -155,14 +159,16 @@ try {
   await button(phone, 'Close').click()
   await phone.locator('ul.list code', { hasText: 'T_WEB_KEY' }).waitFor()
 
-  // Signing in: the terminal's sheet, with what the command printed. This org is down, so the
-  // command says so and ends: the terminal, the stream and the sheet are what is checked.
+  // Signing in: the terminal's sheet, with what the command printed. The page doesn't offer it for
+  // an org that is down, so it is asked for directly: the command says the org isn't running and
+  // ends, which is shown as the failure it is. The terminal, the stream and the sheet are checked.
   await phone.goto(server.origin + '/#/orgs/t-web/info')
-  await button(phone, 'Sign in to GitHub').click()
+  await phone.evaluate(() => { void window.Alpine.$data(document.querySelector('[x-data]')).signInOrg('gh') })
   await phone.locator('#term-title').waitFor({ state: 'visible' })
-  await phone.waitForFunction(() => document.querySelector('pre[x-ref=term]').textContent.includes('t-web'), null, { timeout: 20000 })
+  await phone.locator('.dialog.wide .error', { hasText: "didn't finish" }).waitFor({ state: 'visible', timeout: 20000 })
   await fits(phone, 'phone-signin')
   assert.match(await phone.locator('pre[x-ref=term]').innerText(), /not running/)
+  assert.ok(!(await phone.locator('.dialog.wide .ok-text').isVisible()), 'a sign-in that failed is not shown as done')
   await button(phone, 'Close').click()
 
   // The rest: hosts, every operation by name, one of them run.
@@ -179,13 +185,18 @@ try {
   await phone.locator('main pre.log', { hasText: 'T_WEB_KEY' }).waitFor()
   await fits(phone, 'phone-operation')
 
-  // Creating an org, from the list.
+  // Creating an org, from the list: its page opens, saying it isn't running yet, with Start.
   await phone.goto(server.origin + '/#/')
   await phone.locator('#org-new').fill('t-two')
   await phone.locator('#org-new').press('Enter')
   await phone.locator('#job-title').waitFor({ state: 'visible' })
   await phone.waitForFunction(() => ![...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Close' && b.offsetParent).disabled)
   await button(phone, 'Close').click()
+  assert.equal(new URL(phone.url()).hash, '#/orgs/t-two')
+  await phone.locator('p.banner', { hasText: "This org isn't running" }).waitFor({ state: 'visible' })
+  assert.ok(await button(phone, 'Start').isVisible())
+  await fits(phone, 'phone-org-new')
+  await phone.goto(server.origin + '/#/')
   await phone.locator('a.card', { hasText: 't-two' }).waitFor()
   await fits(phone, 'phone-orgs-two')
   const light = await phone.evaluate(() => getComputedStyle(document.body).backgroundColor)

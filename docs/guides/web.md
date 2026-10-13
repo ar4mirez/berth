@@ -74,16 +74,21 @@ An org's page:
 | Backups | this org's backups on this machine | back up now |
 | Logs | the container's log | follow it |
 
-Start, Restart and Stop are at the top of the page, and creating an org is under the list of orgs. Everything
-refreshes by itself every few seconds while the
-page is in front.
+The top of an org's page has what fits its state: **Start** for one that is down, **Restart** and **Stop** for
+one that is up. A page for an org that is down says so, and leaves out what needs it running (signing it in,
+Remote Control's restart) until it is started.
+
+Creating an org is under the list of orgs. It writes the org's files and keys and doesn't start it: its page
+opens next, to start it from. Everything refreshes by itself every few seconds while the page is in front.
 
 ## What it asks before acting
 
 As in the terminal dashboard, each action is an operation from berth's catalog, and the catalog decides:
 
-- **An operation that restarts a container** (start, restart, stop) says what it does and what stops, and runs
-  only after **the org's name is typed**. That is the `confirm` the API wants: the page can't send it for you.
+- **An operation that stops the work running in an org** (restart, stop) says what it does and what stops, and
+  runs only after **the org's name is typed**. That is the `confirm` the API wants.
+- **Starting an org that is down** stops nothing, so it asks without the name typed, and the page sends the
+  name for it. The first start gets the image, which can take a few minutes: its progress shows as it goes.
 - **Destroying an org** asks the same way, and needs a caller that may do everything: `berth ui`, or a token with
   the `admin` scope. Nobody else is shown the button.
 - **One that removes something** (denying a firewall entry, removing a repo or a package), and turning the firewall
@@ -120,7 +125,8 @@ caller that may do everything: `berth ui`, or a token with the `admin` scope.
 - The page reads what a terminal would draw; it isn't one. If a step shows a choice, the ↑, ↓, Enter and Esc
   buttons send those keys.
 - A sign-in can show the org's new token as it is made, as the command line does.
-- **Stop**, or closing the page, ends the sign-in. An org that is down has to be started first.
+- **Stop**, or closing the page, ends the sign-in. It is offered once the org is running: one that is down is
+  started first. A sign-in that ends badly says so, with what the command printed.
 
 ## What stays on the command line
 

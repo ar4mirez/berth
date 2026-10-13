@@ -131,6 +131,10 @@ async function boot({ url, caller, token }) {
   assert.match(t.$('dl.sheet').textContent, /ssh -p 2201 node@100\.64\.0\.7/)
   assert.equal(t.$$('dl.sheet a').find((a) => t.shown(a) && /terminal/.test(a.textContent)).getAttribute('href'), 'http://100.64.0.7:7701/')
   assert.ok(t.button('Restart'), 'a caller that may restart sees Restart')
+  // What is offered fits the org's state: one that is up isn't offered Start, and can be signed in.
+  assert.equal(t.button('Start'), undefined, 'an org that is up is not offered Start')
+  assert.ok(t.button('Stop') && t.button('Sign in to Claude') && t.button('Restart Remote Control'))
+  assert.ok(!/isn.t running/.test(t.$$('p.banner').filter(t.shown).map((p) => p.textContent).join(' ')), 'and is not said to be down')
 
   await t.go('#/orgs/acme/firewall')
   const rows = () => t.$$('ul.list > li > code').filter(t.shown).map((c) => c.textContent)
@@ -166,9 +170,14 @@ async function boot({ url, caller, token }) {
   await t.go('#/orgs/initech%40box1')
   assert.match(t.w.document.body.textContent, /initech is not running/)
   assert.match(t.w.document.body.textContent, /run: berth up initech@box1/)
+  // One that is down is offered Start and nothing that needs it running; starting it stops no
+  // work, so it asks without the name typed, and sends the name for it.
+  assert.match(t.$$('p.banner').filter(t.shown).map((p) => p.textContent).join(' '), /This org isn't running/)
+  for (const text of ['Restart', 'Stop', 'Sign in to Claude', 'Sign in to GitHub', 'Restart Remote Control']) assert.equal(t.button(text), undefined, text + ' is not offered for an org that is down')
   await t.click(t.button('Start'))
-  t.type(t.$('#dialog-typed'), 'initech@box1')
-  await sleep(200)
+  assert.match(t.$('#dialog-title').textContent, /berth up initech@box1/)
+  assert.ok(!t.shown(t.$('#dialog-typed')), 'starting an org that is down needs no name typed')
+  assert.ok(!t.button('Run it').disabled)
   await t.submit(t.button('Run it').closest('form'))
   assert.deepEqual(t.calls.find((c) => c.path === '/v1/orgs/initech%40box1/up').body, { confirm: 'initech@box1' })
   assert.match(t.w.document.body.textContent, /box1 is unreachable/)
@@ -200,6 +209,7 @@ async function boot({ url, caller, token }) {
   await t.submit(t.$('#org-new').closest('form'))
   assert.deepEqual(t.calls.find((c) => c.path === '/v1/orgs' && c.method === 'POST').body, { org: 't-new' })
   await t.click(t.button('Close'))
+  assert.equal(t.w.location.hash, '#/orgs/t-new', 'the new org\'s page opens, to start it from')
 
   // Destroying one needs its name typed, like a restart, and goes back to the list.
   await t.go('#/orgs/acme')
@@ -299,12 +309,39 @@ async function boot({ url, caller, token }) {
   assert.ok(!t.w.document.documentElement.outerHTML.includes('sk-ant-PAGE-TOKEN'), 'the token is nowhere in the page afterwards')
   assert.equal(t.$('#op-token').value, '')
 
+  // What a terminal printed, read as text. A sign-in runs inside the org's container, so its lines
+  // pass through two terminals and end in two carriage returns: they are lines all the same.
+  {
+    const read = t.w.screenText
+    const inContainer = '== Step 1/2: long-lived token\r\n' +
+      'Welcome to Claude Code\r\r\n\r\r\n' +
+      "Browser didn't open? Use the url below to sign in:\r\r\n\r\r\n" +
+      'https://claude.ai/oauth/authorize?code=true&client_id=abc-123&scope=user%3Ainference\r\r\n\r\r\n' +
+      'Paste code here if prompted > \r\r\n'
+    assert.equal(read(inContainer), '== Step 1/2: long-lived token\nWelcome to Claude Code\n\n' +
+      "Browser didn't open? Use the url below to sign in:\n\nhttps://claude.ai/oauth/authorize?code=true&client_id=abc-123&scope=user%3Ainference\n\nPaste code here if prompted >")
+    assert.deepEqual([...t.w.links(inContainer)], ['https://claude.ai/oauth/authorize?code=true&client_id=abc-123&scope=user%3Ainference'])
+    // A box drawn across a wide terminal is its words; a rule is nothing.
+    const wide = '╭' + '─'.repeat(1998) + '╮\r\r\n│ \x1b[1mPaste code here\x1b[0m' + ' '.repeat(1980) + '│\r\r\n╰' + '─'.repeat(1998) + '╯\r\r\n'
+    assert.equal(read(wide), 'Paste code here')
+    // A link behind a word, as a hyperlink a terminal would open, is still a link to open.
+    const behind = 'To sign in, \x1b]8;;https://claude.ai/oauth/authorize?state=xyz\x07click here\x1b]8;;\x07.\r\n'
+    assert.equal(read(behind), 'To sign in, click here.')
+    assert.deepEqual([...t.w.links(behind)], ['https://claude.ai/oauth/authorize?state=xyz'])
+    // A screen drawn piece by piece keeps its pieces apart; a line rewritten in place is its last
+    // writing; and one a carriage return left alone is still there.
+    assert.equal(read('Sign\x1b[1Cin\x1b[2Cto\x1b[5;1HClaude'), 'Sign in  to\nClaude')
+    assert.equal(read('Waiting.\rWaiting..\rWaiting...'), 'Waiting...')
+    assert.equal(read('still here\r'), 'still here')
+    assert.equal(read('\x1b[?25l\x1b[2K\x1b[1A\x1b[32m✓\x1b[39m Logged in\x1b[?25h\r\n'), '✓ Logged in')
+  }
+
   // Signing an org in: what the command prints is read as text, its link is offered to open, and
   // a code typed here reaches it.
   await t.go('#/orgs/acme')
   await t.click(t.button('Sign in to GitHub'))
   assert.match(t.$('#term-title').textContent, /berth account gh acme/)
-  assert.deepEqual(t.calls.find((c) => c.path === '/v1/terminal').body, { command: 'gh', org: 'acme', cols: 240, rows: 50 })
+  assert.deepEqual(t.calls.find((c) => c.path === '/v1/terminal').body, { command: 'gh', org: 'acme', cols: 1000, rows: 50 })
   const screen = () => t.$('pre[x-ref=term]').textContent
   assert.match(screen(), /First copy your one-time code: ABCD-1234/)
   assert.ok(!screen().includes('\x1b') && !screen().includes('[32m'), 'escape sequences are taken out')

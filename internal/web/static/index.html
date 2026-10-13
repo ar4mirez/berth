@@ -77,7 +77,7 @@
         <input type="email" aria-label="Email for its git commits" autocapitalize="off" autocomplete="off" placeholder="ada@example.com" x-model="forms.gitEmail">
         <button class="primary" type="submit">Create</button>
       </form>
-      <p class="hint" x-show="server.writes">A new org isn't started, and has no Claude account yet: start it from its page, then sign it in with <code>berth account signin</code>.</p>
+      <p class="hint" x-show="server.writes">Creating an org writes its files and keys. It isn't started yet: its page, which opens next, starts it, and signs it in once it runs.</p>
     </main>
 
     <!-- Hosts -->
@@ -158,10 +158,15 @@
         <span class="pill" :class="orgStateClass" x-text="orgState" x-show="orgState"></span>
       </div>
       <div class="actions" x-show="server.restarts">
-        <button type="button" @click="lifecycle('up')">Start</button>
-        <button type="button" @click="lifecycle('restart')">Restart</button>
-        <button type="button" class="danger" @click="lifecycle('down')">Stop</button>
+        <button type="button" class="primary" x-show="orgDown" @click="lifecycle('up')">Start</button>
+        <button type="button" x-show="orgUp" @click="lifecycle('restart')">Restart</button>
+        <button type="button" class="danger" x-show="orgUp" @click="lifecycle('down')">Stop</button>
       </div>
+      <p class="banner" x-show="orgDown">
+        <strong>This org isn't running.</strong>
+        <span x-show="server.restarts">Start it to sign it in and to work in it. The first start gets the image, which can take a few minutes.</span>
+        <span x-show="!server.restarts">Starting it needs a caller that may restart orgs.</span>
+      </p>
 
       <div class="tabs" role="tablist" aria-label="This org">
         <template x-for="t in tabs" :key="t.id">
@@ -210,13 +215,14 @@
             <button class="link" type="button" x-show="infoKey" @click="copy(infoKey)">Copy</button>
           </dd>
         </dl>
-        <div class="actions" x-show="server.writes">
+        <div class="actions" x-show="canRemote">
           <button type="button" @click="restartRemote">Restart Remote Control</button>
         </div>
-        <div class="actions" x-show="server.admin">
+        <div class="actions" x-show="canSignIn">
           <button type="button" @click="signInOrg('signin')">Sign in to Claude</button>
           <button type="button" @click="signInOrg('gh')">Sign in to GitHub</button>
         </div>
+        <p class="hint" x-show="server.admin &amp;&amp; orgDown">Signing it in to Claude and GitHub is here once it is running.</p>
         <div class="danger-zone" x-show="server.admin">
           <h2>Destroy this org</h2>
           <p class="muted">It removes the container, the workspace, Claude's config and history, the keys and secrets, and its backups on that machine. It can't be undone.</p>
@@ -405,6 +411,7 @@
       <pre class="log short" x-ref="term" x-text="termText"></pre>
       <p class="error" role="alert" x-show="termError" x-text="termError"></p>
       <p class="ok-text" role="status" x-show="termEnded" x-text="termEnded"></p>
+      <p class="error" role="alert" x-show="termFailed" x-text="termFailed"></p>
       <form class="inline" x-show="termRunning" @submit.prevent="termSend">
         <label for="term-input">Type, or paste the code</label>
         <input id="term-input" type="text" autocapitalize="off" autocomplete="off" spellcheck="false" x-model="termInput">

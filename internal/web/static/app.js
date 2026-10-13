@@ -172,12 +172,21 @@ const MAX_TERMINAL = 200000
 function screenText(raw) {
   const plain = raw
     .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '') // operating-system commands: titles, links
-    .replace(/\x1b\[[0-9;?<=>]*[ -/]*[@-~]/g, '') // control sequences: colours, the cursor, erasing
+    // What moves the cursor, read as the text it leaves: forward is spaces, and a new position or
+    // a line down is a new line. A screen drawn by placing each piece has its pieces kept apart.
+    .replace(/\x1b\[(\d*)C/g, (_, n) => ' '.repeat(Math.min(Number(n) || 1, 200)))
+    .replace(/\x1b\[[\d;]*[Hf]|\x1b\[\d*[BE]/g, '\n')
+    .replace(/\x1b\[[0-9;?<=>]*[ -/]*[@-~]/g, '') // the other control sequences: colours, erasing
     .replace(/\x1b[@-Z\\-_]/g, '')
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '')
   const out = []
-  for (const line of plain.replace(/\r\n/g, '\n').split('\n')) {
-    const text = line.slice(line.lastIndexOf('\r') + 1).replace(/\s+$/, '')
+  // A line may end in more than one carriage return: what runs inside a container passes through
+  // its terminal and then the engine's, and each adds one.
+  for (const line of plain.replace(/\r+\n/g, '\n').split('\n')) {
+    // A line rewritten in place is its last writing. A carriage return with nothing after it
+    // wrote nothing over the line: what was there still is.
+    const writings = line.split('\r').map(tidy).filter((w) => w !== '')
+    const text = writings.length ? writings[writings.length - 1] : ''
     const last = out[out.length - 1]
     if (text === last || (text === '' && last === '')) continue
     out.push(text)
@@ -185,10 +194,22 @@ function screenText(raw) {
   return out.slice(-400).join('\n').trim()
 }
 
-// links are the https links in a text, the newest first: the one to open is usually the last.
-function links(text) {
-  const found = text.match(/https:\/\/[^\s"'<>)\]]+/g) || []
-  return [...new Set(found.reverse())].slice(0, 3)
+// tidy is a line of a drawn screen as text: its frame taken off (a box's borders, a rule across
+// a terminal two thousand columns wide), and the room it was padded with closed up.
+function tidy(line) {
+  return line
+    .replace(/[─-╿▀-▟]+/g, ' ')
+    .replace(/\s+$/, '')
+    .replace(/^( {0,8}) +/, '$1')
+    .replace(/(\S) {3,}/g, '$1  ')
+}
+
+// links are the https links a terminal was given, the newest first: the one to open is usually the
+// last. A link may be written out, or be behind a word as a hyperlink the terminal would open.
+function links(raw) {
+  const behind = [...raw.matchAll(/\x1b\]8;[^;\x07\x1b]*;(https:\/\/[^\x07\x1b\s]+)/g)].map((m) => m[1])
+  const written = screenText(raw).match(/https:\/\/[^\s"'<>)\]]+/g) || []
+  return [...new Set([...written, ...behind].reverse())].slice(0, 3)
 }
 
 const emptyDetail = () => ({ info: null, firewall: null, repos: null, env: null, packages: null, backups: null, logs: null })
@@ -423,6 +444,24 @@ function app() {
       return this.current ? this.current.stateClass : 'off'
     },
 
+    // Whether the open org is running, once that is known: until the list is read, neither.
+    get orgUp() {
+      return this.orgState === 'up'
+    },
+
+    get orgDown() {
+      return this.orgState === 'down'
+    },
+
+    // What needs the org running: Remote Control's service, and a sign-in, which run in it.
+    get canRemote() {
+      return this.server.writes && this.orgUp
+    },
+
+    get canSignIn() {
+      return this.server.admin && this.orgUp
+    },
+
     get orgIsLocal() {
       return !this.route.org.includes('@')
     },
@@ -598,12 +637,20 @@ function app() {
       this.job = null
     },
 
+    // lifecycle starts, restarts or stops the org. What stops the work running in it runs only
+    // after its name is typed, which is the `confirm` the API wants. Starting an org that is down
+    // stops nothing: it asks, and the name is sent for it.
     lifecycle(kind) {
       const name = this.route.org
-      this.ask('berth ' + kind + ' ' + name, [LIFECYCLE[kind], kind === 'up' ? 'If ' + name + ' is running, it stops the work running in it.' : 'It stops the work running in ' + name + '.'], name, async () => {
+      const go = async () => {
         await this.run('berth ' + kind + ' ' + name, 'POST', org(name) + '/' + kind, { confirm: name })
         this.orgs = await this.read('/v1/orgs').catch(() => this.orgs)
-      })
+      }
+      if (kind === 'up' && this.orgDown) {
+        this.ask('berth up ' + name, [LIFECYCLE.up, name + ' isn\'t running, so nothing is stopped. The first start can take a few minutes.'], '', go)
+        return
+      }
+      this.ask('berth ' + kind + ' ' + name, [LIFECYCLE[kind], 'It stops the work running in ' + name + '.'], name, go)
     },
 
     async allow() {
@@ -738,6 +785,8 @@ function app() {
         this.forms.gitName = ''
         this.forms.gitEmail = ''
         this.orgs = await this.read('/v1/orgs').catch(() => this.orgs)
+        // To the new org's page, which says it isn't running yet and offers to start it.
+        location.hash = '#/orgs/' + encodeURIComponent(name)
       }
     },
 
@@ -930,7 +979,7 @@ function app() {
     },
 
     get termLinks() {
-      return this.term ? links(screenText(this.term.raw)) : []
+      return this.term ? links(this.term.raw) : []
     },
 
     get termError() {
@@ -939,7 +988,13 @@ function app() {
 
     get termEnded() {
       if (!this.term || this.term.running || this.term.error) return ''
-      return this.term.exit === 0 ? 'Done.' : 'It ended with exit code ' + this.term.exit + '.'
+      return this.term.exit === 0 ? 'Done.' : ''
+    },
+
+    // A sign-in that ended badly says so as a failure: what it printed, above, is why.
+    get termFailed() {
+      if (!this.term || this.term.running || this.term.error || this.term.exit === 0 || this.term.exit === null) return ''
+      return 'It didn\'t finish: the command ended with exit code ' + this.term.exit + '. What it printed, above, says why.'
     },
 
     async signInOrg(command) {
@@ -949,8 +1004,8 @@ function app() {
       this.term = term
       this.termInput = ''
       try {
-        // Wide, so a long link stays on one line.
-        await request('POST', '/v1/terminal', { command, org: name, cols: 240, rows: 50 }, {
+        // As wide as a terminal goes, so a long link stays on one line.
+        await request('POST', '/v1/terminal', { command, org: name, cols: 1000, rows: 50 }, {
           signal: abort.signal,
           progress: (event, data) => {
             if (this.term === null || this.term.abort !== abort) return
