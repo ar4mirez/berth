@@ -131,6 +131,10 @@ async function boot({ url, caller, token }) {
   assert.match(t.$('dl.sheet').textContent, /ssh -p 2201 node@100\.64\.0\.7/)
   assert.equal(t.$$('dl.sheet a').find((a) => t.shown(a) && /terminal/.test(a.textContent)).getAttribute('href'), 'http://100.64.0.7:7701/')
   assert.ok(t.button('Restart'), 'a caller that may restart sees Restart')
+  // What is offered fits the org's state: one that is up isn't offered Start, and can be signed in.
+  assert.equal(t.button('Start'), undefined, 'an org that is up is not offered Start')
+  assert.ok(t.button('Stop') && t.button('Sign in to Claude') && t.button('Restart Remote Control'))
+  assert.ok(!/isn.t running/.test(t.$$('p.banner').filter(t.shown).map((p) => p.textContent).join(' ')), 'and is not said to be down')
 
   await t.go('#/orgs/acme/firewall')
   const rows = () => t.$$('ul.list > li > code').filter(t.shown).map((c) => c.textContent)
@@ -166,9 +170,14 @@ async function boot({ url, caller, token }) {
   await t.go('#/orgs/initech%40box1')
   assert.match(t.w.document.body.textContent, /initech is not running/)
   assert.match(t.w.document.body.textContent, /run: berth up initech@box1/)
+  // One that is down is offered Start and nothing that needs it running; starting it stops no
+  // work, so it asks without the name typed, and sends the name for it.
+  assert.match(t.$$('p.banner').filter(t.shown).map((p) => p.textContent).join(' '), /This org isn't running/)
+  for (const text of ['Restart', 'Stop', 'Sign in to Claude', 'Sign in to GitHub', 'Restart Remote Control']) assert.equal(t.button(text), undefined, text + ' is not offered for an org that is down')
   await t.click(t.button('Start'))
-  t.type(t.$('#dialog-typed'), 'initech@box1')
-  await sleep(200)
+  assert.match(t.$('#dialog-title').textContent, /berth up initech@box1/)
+  assert.ok(!t.shown(t.$('#dialog-typed')), 'starting an org that is down needs no name typed')
+  assert.ok(!t.button('Run it').disabled)
   await t.submit(t.button('Run it').closest('form'))
   assert.deepEqual(t.calls.find((c) => c.path === '/v1/orgs/initech%40box1/up').body, { confirm: 'initech@box1' })
   assert.match(t.w.document.body.textContent, /box1 is unreachable/)
@@ -200,6 +209,7 @@ async function boot({ url, caller, token }) {
   await t.submit(t.$('#org-new').closest('form'))
   assert.deepEqual(t.calls.find((c) => c.path === '/v1/orgs' && c.method === 'POST').body, { org: 't-new' })
   await t.click(t.button('Close'))
+  assert.equal(t.w.location.hash, '#/orgs/t-new', 'the new org\'s page opens, to start it from')
 
   // Destroying one needs its name typed, like a restart, and goes back to the list.
   await t.go('#/orgs/acme')

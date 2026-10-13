@@ -423,6 +423,24 @@ function app() {
       return this.current ? this.current.stateClass : 'off'
     },
 
+    // Whether the open org is running, once that is known: until the list is read, neither.
+    get orgUp() {
+      return this.orgState === 'up'
+    },
+
+    get orgDown() {
+      return this.orgState === 'down'
+    },
+
+    // What needs the org running: Remote Control's service, and a sign-in, which run in it.
+    get canRemote() {
+      return this.server.writes && this.orgUp
+    },
+
+    get canSignIn() {
+      return this.server.admin && this.orgUp
+    },
+
     get orgIsLocal() {
       return !this.route.org.includes('@')
     },
@@ -598,12 +616,20 @@ function app() {
       this.job = null
     },
 
+    // lifecycle starts, restarts or stops the org. What stops the work running in it runs only
+    // after its name is typed, which is the `confirm` the API wants. Starting an org that is down
+    // stops nothing: it asks, and the name is sent for it.
     lifecycle(kind) {
       const name = this.route.org
-      this.ask('berth ' + kind + ' ' + name, [LIFECYCLE[kind], kind === 'up' ? 'If ' + name + ' is running, it stops the work running in it.' : 'It stops the work running in ' + name + '.'], name, async () => {
+      const go = async () => {
         await this.run('berth ' + kind + ' ' + name, 'POST', org(name) + '/' + kind, { confirm: name })
         this.orgs = await this.read('/v1/orgs').catch(() => this.orgs)
-      })
+      }
+      if (kind === 'up' && this.orgDown) {
+        this.ask('berth up ' + name, [LIFECYCLE.up, name + ' isn\'t running, so nothing is stopped. The first start can take a few minutes.'], '', go)
+        return
+      }
+      this.ask('berth ' + kind + ' ' + name, [LIFECYCLE[kind], 'It stops the work running in ' + name + '.'], name, go)
     },
 
     async allow() {
@@ -738,6 +764,8 @@ function app() {
         this.forms.gitName = ''
         this.forms.gitEmail = ''
         this.orgs = await this.read('/v1/orgs').catch(() => this.orgs)
+        // To the new org's page, which says it isn't running yet and offers to start it.
+        location.hash = '#/orgs/' + encodeURIComponent(name)
       }
     },
 
@@ -939,7 +967,13 @@ function app() {
 
     get termEnded() {
       if (!this.term || this.term.running || this.term.error) return ''
-      return this.term.exit === 0 ? 'Done.' : 'It ended with exit code ' + this.term.exit + '.'
+      return this.term.exit === 0 ? 'Done.' : ''
+    },
+
+    // A sign-in that ended badly says so as a failure: what it printed, above, is why.
+    get termFailed() {
+      if (!this.term || this.term.running || this.term.error || this.term.exit === 0 || this.term.exit === null) return ''
+      return 'It didn\'t finish: the command ended with exit code ' + this.term.exit + '. What it printed, above, says why.'
     },
 
     async signInOrg(command) {
