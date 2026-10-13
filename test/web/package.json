@@ -1,12 +1,14 @@
 {
   "name": "berth-web-test",
   "private": true,
-  "description": "The web UI's page, run in a DOM (test/web/smoke.mjs). Nothing here ships.",
+  "description": "The web UI's page, run in a DOM (smoke.mjs) and in a browser against berth ui (browser.mjs). Nothing here ships.",
   "type": "module",
   "scripts": {
-    "test": "node smoke.mjs"
+    "test": "node smoke.mjs",
+    "browser": "node browser.mjs"
   },
   "devDependencies": {
-    "jsdom": "30.1.2"
+    "jsdom": "30.1.2",
+    "playwright": "1.64.0"
   }
 }

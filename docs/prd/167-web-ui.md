@@ -180,8 +180,8 @@ Each is a PR that ships on its own.
 | No data without a token on TCP | `TestBerthUI`, `TestBerthServeWebUI`: the real binary; the files answer, every `/v1` path is 401, and nothing ran | phase 1 |
 | It can't do more than its token | `test/web/smoke.mjs`: with a caller that may only read, no control that changes anything is shown; `TestBerthUI`: a write on a read-only server is 403 | phase 1 |
 | Nothing restarts without the org's name typed | `test/web/smoke.mjs`: without the name, and with part of it, nothing is sent; with it, `confirm` is the name. `TestBerthUI`: without `confirm` the API refuses | phase 1 |
-| Usable on a phone | **not checked by a test yet**: it needs a real browser (Playwright at 360×640: no horizontal scroll, every control reachable) | open |
-| The policy lets the page run | **not checked by a test yet**: the same real browser. The page was run in a DOM, which enforces no policy | open |
+| Usable on a phone | `test/web/browser.mjs`, in CI: Chromium at 360×640 against a real `berth ui`. On every screen the page doesn't scroll sideways, and each control that shows is on the screen and at least 40px high. A picture of each screen is kept (`web-ui-screens`) | done |
+| The policy lets the page run | the same run: no console error, no policy violation, no request to another origin, on any screen; and the page works under it end to end (a restart's confirmation, an operation's stream, a secret set, the sign-in sheet) | done |
 | Both dashboards do everything | the parity tests: catalog against tools, tools against each dashboard's actions | phase 2 |
 | A secret typed in is not kept anywhere but where it belongs | a test sets one and searches the audit log, the response and the server's log for it | phase 3 |
 
