@@ -133,6 +133,15 @@ jobs:
           docker run --rm --network berth-race-ci --cap-add NET_ADMIN --cap-add NET_RAW -v "$cfg:/config" \
             -v "$PWD/test/image/firewall_race.sh:/firewall_race.sh:ro" --entrypoint bash berth-image-ci /firewall_race.sh
           docker network rm berth-race-ci >/dev/null
+      - name: firewall - dnsmasq is replaced where /proc isn't the container's own
+        run: |
+          set -euo pipefail
+          cfg=$(mktemp -d); chmod 777 "$cfg"
+          docker network create berth-proc-ci >/dev/null
+          docker run --rm --network berth-proc-ci --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_ADMIN \
+            --security-opt apparmor=unconfined -v "$cfg:/config" \
+            -v "$PWD/test/image/firewall_foreign_proc.sh:/firewall_foreign_proc.sh:ro" --entrypoint bash berth-image-ci /firewall_foreign_proc.sh
+          docker network rm berth-proc-ci >/dev/null
       - name: firewall - the DNS check asks again after a lost query (#159)
         run: |
           set -euo pipefail

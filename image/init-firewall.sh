@@ -143,12 +143,22 @@ dns_conf() {  # dns_conf <file> <domain>...: dnsmasq's config, with one ipset li
   } > "$f"
 }
 dns_ok() { dnsmasq --test --conf-file="$1" >/dev/null 2>&1; }
+# proc_ours: whether /proc is this pid namespace's own. It isn't in a container nested in another
+# (rootless Podman in a container): /proc then lists the outer one's processes, under other pids,
+# and says nothing about a pid of ours.
+proc_ours() { local p; read -r p _ < /proc/self/stat 2>/dev/null && [ "$p" = "$BASHPID" ]; }
 # dns_pid: the running dnsmasq's pid, or nothing. A pid file can outlive its process, and the pid
 # be another process's by then: it counts only while that process is dnsmasq.
 dns_pid() {
   local pid; pid=$(cat /run/dnsmasq.pid 2>/dev/null) || return 1
   case "$pid" in ''|*[!0-9]*) return 1 ;; esac
-  [ "$(cat "/proc/$pid/comm" 2>/dev/null)" = dnsmasq ] && echo "$pid"
+  if proc_ours; then
+    [ "$(cat "/proc/$pid/comm" 2>/dev/null)" = dnsmasq ] && echo "$pid"
+  else
+    # No /proc to ask: the pid is alive, and something listens where dnsmasq does. Without this,
+    # a running dnsmasq counted as gone, was never stopped, and the next one found port 53 taken.
+    kill -0 "$pid" 2>/dev/null && ss -Hlun 2>/dev/null | grep -q '127\.0\.0\.1:53 ' && echo "$pid"
+  fi
 }
 dns_running() { dns_pid >/dev/null; }
 # dns_stop: stop dnsmasq and wait until it is gone, so the next one finds port 53 free (#149: a
@@ -156,9 +166,9 @@ dns_running() { dns_pid >/dev/null; }
 dns_stop() {
   local pid; pid=$(dns_pid) || return 0
   kill "$pid" 2>/dev/null || true
-  for _ in $(seq 1 30); do [ -e "/proc/$pid" ] || return 0; sleep 0.1; done
+  for _ in $(seq 1 30); do kill -0 "$pid" 2>/dev/null || return 0; sleep 0.1; done
   kill -9 "$pid" 2>/dev/null || true
-  for _ in $(seq 1 10); do [ -e "/proc/$pid" ] || return 0; sleep 0.1; done
+  for _ in $(seq 1 10); do kill -0 "$pid" 2>/dev/null || return 0; sleep 0.1; done
 }
 # dns_start: start dnsmasq on the config in place. It doesn't keep the apply lock (9), which it
 # would hold for as long as it runs.
