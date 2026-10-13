@@ -18,8 +18,10 @@ const (
 	shown = "it shows a secret, and the API never returns one: it is read on the machine itself"
 	// cloud: it needs a cloud provider's key.
 	cloud = "it needs a cloud provider's key in berth's own environment, which a server shouldn't hold: the command line"
-	// terminal: it needs a terminal.
-	terminal = "it needs a terminal: #167's phase 4"
+	// signin: a sign-in, which needs a terminal: the API runs it on one of its own.
+	signin = "served on a terminal of its own, not as a tool: POST /v1/terminal"
+	// session: a session in the org, which the org has its own ways into.
+	session = "a session in the org: the org's browser terminal and SSH are the ways in, and the dashboards link to them"
 	// never: it isn't something a dashboard or an API caller does.
 	never = "not for the API: "
 )
@@ -39,8 +41,9 @@ var notServed = map[string]string{
 	"host create":   cloud, "host destroy": cloud, "host reconcile/--prune": cloud,
 
 	// A terminal.
-	"auth ": terminal, "login ": terminal, "gh-login ": terminal, "attach ": terminal, "shell ": terminal, "claude ": terminal,
-	"exec ": terminal, "fw edit": terminal,
+	"auth ": signin, "login ": signin, "gh-login ": signin,
+	"attach ": session, "shell ": session, "claude ": session, "exec ": session,
+	"fw edit": never + "an editor on the allowlist: allow and deny are",
 
 	// Not for the API.
 	"completion ": never + "a shell script", "connect ": never + "a tunnel from the operator's own machine",
@@ -149,5 +152,35 @@ func TestAdminOperations(t *testing.T) {
 	}
 	if n == 0 {
 		t.Error("no tool is an admin operation: org_destroy should be")
+	}
+}
+
+// TestTerminalRunsTheSignIns: each operation listed as served on a terminal is one a terminal
+// runs, and a terminal runs nothing else: berth's own sign-in commands, each a write in the catalog.
+func TestTerminalRunsTheSignIns(t *testing.T) {
+	onTerminal := map[string]bool{}
+	for name, c := range TerminalCommands {
+		if len(c.Args) != 2 || c.Args[0] != "account" || c.About == "" {
+			t.Errorf("%s runs berth %v: not one of the account group's commands, or it says nothing of itself", name, c.Args)
+			continue
+		}
+		op, ok := ops.Lookup(c.Args[0], c.Args[1])
+		if !ok || op.Access != ops.Write {
+			t.Errorf("%s runs berth %v, which isn't a write in the catalog", name, c.Args)
+		}
+		onTerminal[name] = true
+	}
+	// The flat names the catalog has them under, and the name a caller asks with.
+	for flat, name := range map[string]string{"auth ": "signin", "login ": "login", "gh-login ": "gh"} {
+		if notServed[flat] != signin {
+			t.Errorf("%q isn't listed as served on a terminal", flat)
+		}
+		if !onTerminal[name] {
+			t.Errorf("%q is listed as served on a terminal, and no terminal runs %s", flat, name)
+		}
+		delete(onTerminal, name)
+	}
+	for name := range onTerminal {
+		t.Errorf("a terminal runs %s, which the table doesn't list", name)
 	}
 }

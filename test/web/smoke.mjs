@@ -30,8 +30,10 @@ async function boot({ url, caller, token }) {
   const w = dom.window
   const calls = []
   let pkgs = ['jq']
+  let terminal = null
   let firewall = { schema: 'berth.firewall/v1', org: 'acme', file: 'f', entries: ['mode on', '@python', 'pypi.org'], live: 'on 159' }
   w.TextDecoder = TextDecoder
+  w.AbortController = AbortController
   settle = async () => { let last = Date.now(); const mo = new w.MutationObserver(() => { last = Date.now() }); mo.observe(w.document, { subtree: true, childList: true, attributes: true, characterData: true }); await raw(700); while (Date.now() - last < 700) await raw(50); mo.disconnect() }
   w.fetch = async (path, init = {}) => {
     const auth = (init.headers && init.headers.Authorization) || ''
@@ -43,6 +45,24 @@ async function boot({ url, caller, token }) {
       case 'GET /v1/orgs': return json({ schema: 'berth.orgs/v1', orgs: [
         { name: 'acme', state: 'up', remote: 'on', token: true, host: 'local', ssh_port: 2201, ttyd_port: 7701 },
         { name: 'initech', state: 'down', remote: '-', token: false, host: 'box1' }], unreachable: [{ host: 'box2', error: 'ssh: connection refused' }], destroyed: [] })
+      case 'POST /v1/terminal': {
+        // A terminal: its output as it comes, and more once something is typed.
+        const enc = new TextEncoder()
+        const ev = (e, d) => enc.encode(`event: ${e}\ndata: ${JSON.stringify(d)}\n\n`)
+        return new Response(new ReadableStream({
+          start(controller) {
+            terminal = { controller, ev }
+            controller.enqueue(ev('session', { id: 's1' }))
+            controller.enqueue(ev('output', { data: '\x1b[32m!\x1b[0m First copy your one-time code: ABCD-1234\r\nOpen this URL to continue: https://github.com/login/device\r\n' }))
+            controller.enqueue(ev('output', { data: 'Waiting.\rWaiting..\rWaiting...\r\n\x1b[1A\x1b[2KWaiting...\r\n' }))
+          },
+        }), { headers: { 'Content-Type': 'text/event-stream' } })
+      }
+      case 'POST /v1/terminal/s1/input':
+        terminal.controller.enqueue(terminal.ev('output', { data: '\x1b[32m✓\x1b[0m Authentication complete.\r\n' }))
+        terminal.controller.enqueue(terminal.ev('exit', 0))
+        terminal.controller.close()
+        return json({ ok: true })
       case 'GET /v1/openapi.json': return json(openapi)
       case 'POST /v1/backups/restore': return sse([['result', { output: 'Restored' }]])
       case 'GET /v1/orgs/acme/env': return json({ schema: 'berth.env/v1', org: 'acme', vars: [{ name: 'SENTRY_DSN', present: true }] })
@@ -279,6 +299,27 @@ async function boot({ url, caller, token }) {
   assert.ok(!t.w.document.documentElement.outerHTML.includes('sk-ant-PAGE-TOKEN'), 'the token is nowhere in the page afterwards')
   assert.equal(t.$('#op-token').value, '')
 
+  // Signing an org in: what the command prints is read as text, its link is offered to open, and
+  // a code typed here reaches it.
+  await t.go('#/orgs/acme')
+  await t.click(t.button('Sign in to GitHub'))
+  assert.match(t.$('#term-title').textContent, /berth account gh acme/)
+  assert.deepEqual(t.calls.find((c) => c.path === '/v1/terminal').body, { command: 'gh', org: 'acme', cols: 240, rows: 50 })
+  const screen = () => t.$('pre[x-ref=term]').textContent
+  assert.match(screen(), /First copy your one-time code: ABCD-1234/)
+  assert.ok(!screen().includes('\x1b') && !screen().includes('[32m'), 'escape sequences are taken out')
+  assert.equal((screen().match(/Waiting/g) || []).length, 1, 'a line drawn again is shown once')
+  const link = t.$$('.dialog.wide ul.list a').map((a) => a.getAttribute('href'))
+  assert.deepEqual(link, ['https://github.com/login/device'])
+  t.type(t.$('#term-input'), 'ABCD-1234')
+  await t.submit(t.$('#term-input').closest('form'))
+  assert.deepEqual(t.calls.find((c) => c.path === '/v1/terminal/s1/input').body, { data: 'ABCD-1234\r' })
+  assert.match(screen(), /Authentication complete/)
+  assert.match(t.$('.dialog.wide .ok-text').textContent, /Done\./)
+  assert.equal(t.button('Send'), undefined, 'once it has ended there is nothing to type into')
+  await t.click(t.button('Close'))
+  assert.ok(!t.shown(t.$('#term-title')))
+
   await t.go('#/hosts')
   assert.match(t.$$('li.card').filter(t.shown)[0].textContent, /local[\s\S]*reachable[\s\S]*docker 29\.0\.0/)
   assert.deepEqual(t.problems, [], 'nothing was logged')
@@ -295,7 +336,7 @@ async function boot({ url, caller, token }) {
   await t.go('#/orgs/acme/firewall')
   for (const text of ['Start', 'Restart', 'Stop', 'Deny', 'Allow', 'Turn on', 'Turn off', 'Reload']) assert.equal(t.button(text), undefined, text + ' is hidden')
   await t.go('#/orgs/acme')
-  for (const text of ['Destroy…', 'Restart Remote Control']) assert.equal(t.button(text), undefined, text + ' is hidden')
+  for (const text of ['Destroy…', 'Restart Remote Control', 'Sign in to Claude', 'Sign in to GitHub']) assert.equal(t.button(text), undefined, text + ' is hidden')
   await t.go('#/')
   assert.ok(!t.shown(t.$('#org-new')), 'creating an org is hidden')
   await t.go('#/orgs/acme/env')

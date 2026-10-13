@@ -25,7 +25,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ar4mirez/berth/internal/api"
+	"github.com/ar4mirez/berth/internal/config"
 	"github.com/ar4mirez/berth/internal/host"
+	"github.com/ar4mirez/berth/internal/host/local"
 	"github.com/ar4mirez/berth/internal/mcpsrv"
 	"github.com/ar4mirez/berth/internal/version"
 	"github.com/ar4mirez/berth/internal/web"
@@ -53,7 +55,7 @@ func uiCmd() *cobra.Command {
 			}
 			token := "berth_" + base64.RawURLEncoding.EncodeToString(raw)
 			want := sha256.Sum256([]byte(token))
-			opts := api.Options{Version: version.Version, ReadOnly: st.ReadOnly, NewApp: appMaker(st), UI: web.Handler()}
+			opts := api.Options{Version: version.Version, ReadOnly: st.ReadOnly, NewApp: appMaker(st), UI: web.Handler(), Terminal: terminalFor(st)}
 			opts.Caller = func(req *http.Request) (mcpsrv.Caller, error) {
 				h := req.Header.Get("Authorization")
 				got := sha256.Sum256([]byte(strings.TrimPrefix(h, "Bearer ")))
@@ -137,4 +139,20 @@ func openBrowser(ctx context.Context, op *host.Host, link string) (remove func()
 		_ = op.Exec.Run(ctx, host.Cmd{Args: []string{opener, file}, Stdout: io.Discard, Stderr: io.Discard})
 	}()
 	return func() { _ = op.FS.Remove(file) }, nil
+}
+
+// terminalFor is the API's terminal (#167): berth itself, on this state root, on a pseudo-terminal
+// of its own. The arguments are one of the API's sign-in commands and an org: never a caller's.
+func terminalFor(st config.State) func(ctx context.Context, args []string, cols, rows int) (api.Terminal, error) {
+	return func(ctx context.Context, args []string, cols, rows int) (api.Terminal, error) {
+		self, err := os.Executable()
+		if err != nil {
+			return nil, err
+		}
+		full := []string{self, "--home", st.Home.Path}
+		if st.ReadOnly {
+			full = append(full, "--read-only")
+		}
+		return local.StartPTY(ctx, append(full, args...), []string{"TERM=xterm-256color"}, cols, rows)
+	}
 }

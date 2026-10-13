@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 
@@ -134,6 +135,33 @@ func openAPI() map[string]any {
 		"x-berth-operation": "logs", "x-berth-access": "read",
 		"parameters": []any{map[string]any{"name": "org", "in": "path", "required": true, "schema": map[string]any{"type": "string"}}},
 		"responses":  map[string]any{"200": map[string]any{"description": "The events.", "content": map[string]any{"text/event-stream": map[string]any{"schema": map[string]any{"type": "string"}}}}}})
+	str := map[string]any{"type": "string"}
+	num := map[string]any{"type": "integer"}
+	names := make([]any, 0, len(TerminalCommands))
+	for n := range TerminalCommands {
+		names = append(names, n)
+	}
+	sort.Slice(names, func(i, j int) bool { return names[i].(string) < names[j].(string) })
+	add("/v1/terminal", "POST", map[string]any{"operationId": "terminal", "summary": "Sign an org in, on a terminal of its own",
+		"description": "Runs one of berth's sign-in commands on a pseudo-terminal, as server-sent events: `session` (its id), `output` (what it prints, as text) and `exit` (its exit code). " +
+			"What it prints is a terminal's: it has escape sequences, and for a sign-in it can show the org's new token, as the command line does. It ends with the command, or when the caller goes away. It is not a shell.",
+		"x-berth-access": "admin",
+		"requestBody": map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": map[string]any{
+			"type": "object", "additionalProperties": false, "required": []any{"command", "org"},
+			"properties": map[string]any{
+				"command": map[string]any{"type": "string", "enum": names, "description": "which sign-in: signin (the org's Claude account), login (Remote Control only), gh (GitHub)"},
+				"org":     map[string]any{"type": "string", "description": "the org, as in acme, or acme@box1 for one on a registered host"},
+				"cols":    num, "rows": num,
+			}}}}},
+		"responses": map[string]any{"200": map[string]any{"description": "The events.", "content": map[string]any{"text/event-stream": map[string]any{"schema": str}}},
+			"403": errResp("The caller may not: it needs the admin scope."), "409": errResp("As many terminals are open as the server runs at once.")}})
+	add("/v1/terminal/{id}/input", "POST", map[string]any{"operationId": "terminal_input", "summary": "Type into a terminal, or tell it its size",
+		"x-berth-access": "admin",
+		"parameters":     []any{map[string]any{"name": "id", "in": "path", "required": true, "schema": str, "description": "the session's id, from its `session` event"}},
+		"requestBody": map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": map[string]any{
+			"type": "object", "additionalProperties": false,
+			"properties": map[string]any{"data": map[string]any{"type": "string", "writeOnly": true, "description": "what was typed; a line ends with \\r"}, "cols": num, "rows": num}}}}},
+		"responses": map[string]any{"200": map[string]any{"description": "Taken."}, "404": errResp("No such terminal: it ended.")}})
 	return map[string]any{
 		"openapi": "3.1.0",
 		"info": map[string]any{"title": "berth", "version": Version, "license": map[string]any{"name": "MIT"},

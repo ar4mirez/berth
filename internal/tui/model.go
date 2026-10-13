@@ -217,7 +217,9 @@ func (m *Model) handOff(kind string) tea.Cmd {
 	if org == "" {
 		return nil
 	}
-	if op, _ := ops.Lookup(kind, ""); op.Access == ops.Write && m.b.ReadOnly() {
+	// kind is a command, or a group's command: "attach", "account signin".
+	cmd, sub, _ := strings.Cut(kind, " ")
+	if op, _ := ops.Lookup(cmd, sub); op.Access == ops.Write && m.b.ReadOnly() {
 		m.show("read-only mode (--read-only): refusing to run berth "+kind+" "+org, true)
 		return nil
 	}
@@ -373,6 +375,10 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.handOff("attach")
 	case "S":
 		return m, m.handOff("shell")
+	case "I":
+		return m, m.handOff("account signin")
+	case "G":
+		return m, m.handOff("account gh")
 	}
 	if m.open == "" {
 		return m.listKey(s)

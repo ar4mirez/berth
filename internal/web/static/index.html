@@ -213,6 +213,10 @@
         <div class="actions" x-show="server.writes">
           <button type="button" @click="restartRemote">Restart Remote Control</button>
         </div>
+        <div class="actions" x-show="server.admin">
+          <button type="button" @click="signInOrg('signin')">Sign in to Claude</button>
+          <button type="button" @click="signInOrg('gh')">Sign in to GitHub</button>
+        </div>
         <div class="danger-zone" x-show="server.admin">
           <h2>Destroy this org</h2>
           <p class="muted">It removes the container, the workspace, Claude's config and history, the keys and secrets, and its backups on that machine. It can't be undone.</p>
@@ -384,6 +388,36 @@
       <p class="ok-text" x-show="jobDone">Done.</p>
       <div class="actions end">
         <button type="button" class="primary" :disabled="jobRunning" @click="closeJob">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- A sign-in, on a terminal of its own on the machine the org is on: what it prints, and what is typed to it. -->
+  <div class="overlay" x-show="termOpen">
+    <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="term-title">
+      <h2 id="term-title"><code x-text="termTitle"></code></h2>
+      <p class="muted">It shows a link to open, in a browser signed in to that org's account, and waits for the code you get there.</p>
+      <ul class="list" x-show="termLinks.length">
+        <template x-for="u in termLinks" :key="u">
+          <li><a class="wrap" :href="u" target="_blank" rel="noopener noreferrer" x-text="u"></a></li>
+        </template>
+      </ul>
+      <pre class="log short" x-ref="term" x-text="termText"></pre>
+      <p class="error" role="alert" x-show="termError" x-text="termError"></p>
+      <p class="ok-text" role="status" x-show="termEnded" x-text="termEnded"></p>
+      <form class="inline" x-show="termRunning" @submit.prevent="termSend">
+        <label for="term-input">Type, or paste the code</label>
+        <input id="term-input" type="text" autocapitalize="off" autocomplete="off" spellcheck="false" x-model="termInput">
+        <button class="primary" type="submit">Send</button>
+      </form>
+      <div class="actions" x-show="termRunning">
+        <button type="button" @click="termKey('up')" aria-label="Up">↑</button>
+        <button type="button" @click="termKey('down')" aria-label="Down">↓</button>
+        <button type="button" @click="termKey('enter')">Enter</button>
+        <button type="button" @click="termKey('esc')">Esc</button>
+      </div>
+      <div class="actions end">
+        <button type="button" class="primary" @click="closeTerminal" x-text="termRunning ? 'Stop' : 'Close'"></button>
       </div>
     </div>
   </div>

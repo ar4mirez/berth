@@ -68,12 +68,14 @@ berth  acme
 | `esc` | back to the list |
 | `u` `d` `r` | start, stop, restart the org |
 | `A` `S` | attach to its tmux session, or open a shell |
+| `I` `G` | sign the org in to its Claude account, or to GitHub |
 | `o` | every operation, by name |
 | `R` | read again now |
 | `?` | the keys |
 | `q`, `ctrl+c` | quit |
 
-`A` and `S` give the terminal to `berth attach` and `berth shell`: the dashboard comes back when you leave them.
+`A` and `S` give the terminal to `berth attach` and `berth shell`, and `I` and `G` to `berth account signin` and
+`berth account gh`: the dashboard comes back when you leave them.
 
 ## Every operation, by name
 
@@ -152,6 +154,6 @@ shown when it ends, with the same message and hint as the command.
 
 ## What isn't in it
 
-Signing an org in from the dashboard, and creating
-a host at a cloud provider: use the commands. Sign-in is the last part of
-([#167](https://github.com/ar4mirez/berth/issues/167)). The org list doesn't show each org's image.
+An org's browser-terminal password (`berth org password show`), and creating
+a host at a cloud provider: use the commands
+(the [web dashboard's guide](web.md#what-stays-on-the-command-line) says why). The org list doesn't show each org's image.

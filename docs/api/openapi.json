@@ -8493,6 +8493,139 @@
         "x-berth-operation": "schedule run"
       }
     },
+    "/v1/terminal": {
+      "post": {
+        "description": "Runs one of berth's sign-in commands on a pseudo-terminal, as server-sent events: `session` (its id), `output` (what it prints, as text) and `exit` (its exit code). What it prints is a terminal's: it has escape sequences, and for a sign-in it can show the org's new token, as the command line does. It ends with the command, or when the caller goes away. It is not a shell.",
+        "operationId": "terminal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "cols": {
+                    "type": "integer"
+                  },
+                  "command": {
+                    "description": "which sign-in: signin (the org's Claude account), login (Remote Control only), gh (GitHub)",
+                    "enum": [
+                      "gh",
+                      "login",
+                      "signin"
+                    ],
+                    "type": "string"
+                  },
+                  "org": {
+                    "description": "the org, as in acme, or acme@box1 for one on a registered host",
+                    "type": "string"
+                  },
+                  "rows": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "command",
+                  "org"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The events."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The caller may not: it needs the admin scope."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "As many terminals are open as the server runs at once."
+          }
+        },
+        "summary": "Sign an org in, on a terminal of its own",
+        "x-berth-access": "admin"
+      }
+    },
+    "/v1/terminal/{id}/input": {
+      "post": {
+        "operationId": "terminal_input",
+        "parameters": [
+          {
+            "description": "the session's id, from its `session` event",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "cols": {
+                    "type": "integer"
+                  },
+                  "data": {
+                    "description": "what was typed; a line ends with \\r",
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "rows": {
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Taken."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such terminal: it ended."
+          }
+        },
+        "summary": "Type into a terminal, or tell it its size",
+        "x-berth-access": "admin"
+      }
+    },
     "/v1/tokens": {
       "get": {
         "description": "The tokens callers of this API present over the network: their names, scopes and dates. Never the tokens: berth keeps only their hashes.",

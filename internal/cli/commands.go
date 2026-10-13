@@ -123,7 +123,7 @@ func serveCmd() *cobra.Command {
 			if socket == "" {
 				socket = api.SocketPath(os.Getenv)
 			}
-			opts := api.Options{Version: version.Version, ReadOnly: st.ReadOnly, NewApp: appMaker(st), Caller: api.Local, RunCLI: runFor(st)}
+			opts := api.Options{Version: version.Version, ReadOnly: st.ReadOnly, NewApp: appMaker(st), Caller: api.Local, RunCLI: runFor(st), Terminal: terminalFor(st)}
 			if !noUI {
 				opts.UI = web.Handler()
 			}

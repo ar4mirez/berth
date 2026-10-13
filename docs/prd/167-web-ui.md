@@ -1,6 +1,6 @@
 # PRD: a web UI in `berth serve`, and every action in both dashboards (#167)
 
-Status: **phases 1 to 3 done; 4 (sign-in) open** · Issue: [#167](https://github.com/ar4mirez/berth/issues/167) · Restarts orgs: no
+Status: **done, phases 1 to 4**, with what stays on the command line listed in `internal/api/coverage_test.go` · Issue: [#167](https://github.com/ar4mirez/berth/issues/167) · Restarts orgs: no
 
 ## Problem
 
@@ -97,12 +97,20 @@ arrive.
 
 ### The terminal, for sign-in
 
-`POST /v1/terminal` starts one of a fixed list of commands (`account signin`, `account login`) as `berth` itself
-with a pseudo-terminal, as the terminal dashboard's handoff does. Output is an event stream; keys are posted
-back. xterm.js, vendored, draws it. It needs `admin`, ends with the command, and is in the audit log.
+`POST /v1/terminal` runs one of three commands (`account signin`, `account login`, `account gh`) as `berth`
+itself on a pseudo-terminal, as the terminal dashboard's handoff gives them the operator's. Output is an event
+stream; what is typed is posted back. It needs `admin`, ends with the command or with the caller, and the audit
+log has that it started.
 
-This adds a pty dependency on the host side, which `CLAUDE.md` says not to reimplement: it allocates one and
-runs berth in it, nothing more. Say so there.
+- **All three sign-ins need it.** The draft had `account gh` as plain events: it runs `docker exec -it` too.
+- **No xterm.js.** The draft had it vendored to draw the terminal. It adds style rules to the page as it runs,
+  which this page's policy (`style-src 'self'`) refuses, and loosening the policy for one screen isn't worth it.
+  The page reads what the terminal printed as text instead: escape sequences taken out, a line rewritten in
+  place kept as its last writing, what was drawn twice shown once, and the link picked out to open. That is
+  enough for a link and a code. It is not a terminal, and a sign-in screen that leans on cursor movement will
+  read badly: **this has not been run against a real `claude auth login`**, which no test here can do.
+- **The pty.** `internal/host/local`'s `StartPTY` (github.com/creack/pty) allocates one and runs berth in it,
+  nothing more. `CLAUDE.md` says so, as the one exception to "don't reimplement the pty".
 
 ### The terminal dashboard
 
@@ -160,7 +168,9 @@ Each is a PR that ships on its own.
    - **Not served: `password show`.** It gives a secret back, and the API never does: it is read on the machine.
    - **Not served: cloud hosts** (`host create`, `destroy`, `reconcile`). They need the provider's key in berth's
      own environment, and a server shouldn't hold one.
-4. **Sign-in**: `account gh` as events, then the terminal.
+4. **Sign-in. Done**: the three sign-ins on a terminal of the API's own; a sheet in the web UI that reads it as
+   text; `I` and `G` in the terminal dashboard, which has a terminal to hand over. See "The terminal, for
+   sign-in" for what differs from the draft, and what no test has run.
 
 ## Acceptance criteria
 

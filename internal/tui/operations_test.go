@@ -355,3 +355,26 @@ func TestSecretsAreNotShown(t *testing.T) {
 		t.Errorf("the result shows the secret:\n%s", v)
 	}
 }
+
+// TestSignInKeys: I and G hand the terminal to the org's sign-ins, as A and S do to attach and a
+// shell; under --read-only they are refused, since a sign-in changes the org.
+func TestSignInKeys(t *testing.T) {
+	f := &fake{}
+	m := dash(t, f, 100, 24)
+	press(m, "I", "down", "down", "G")
+	if got := strings.Join(f.handoffs, "|"); got != "account signin acme|account gh initech@box1" {
+		t.Errorf("handoffs: %q", got)
+	}
+	for _, kind := range []string{"account signin", "account gh"} {
+		cmd, sub, _ := strings.Cut(kind, " ")
+		if op, ok := ops.Lookup(cmd, sub); !ok || op.Access != ops.Write {
+			t.Errorf("%s isn't a write in the catalog", kind)
+		}
+	}
+	f = &fake{readOnly: true}
+	m = dash(t, f, 100, 24)
+	press(m, "I")
+	if len(f.handoffs) != 0 || !strings.Contains(m.View(), "read-only mode (--read-only): refusing to run berth account signin acme") {
+		t.Errorf("read-only: handoffs %v\n%s", f.handoffs, m.View())
+	}
+}

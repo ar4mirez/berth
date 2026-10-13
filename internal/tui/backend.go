@@ -173,6 +173,7 @@ func (b *appBackend) Run(ctx context.Context, act Action) (string, error) {
 
 // Handoff runs berth itself with the terminal, so attach and shell behave as the commands do.
 func (b *appBackend) Handoff(ctx context.Context, org, kind string) error {
-	args := append(append([]string{b.self}, b.args...), kind, org)
+	// kind is a command, or a group's: "attach", "account signin".
+	args := append(append(append([]string{b.self}, b.args...), strings.Fields(kind)...), org)
 	return b.app().Operator.Exec.Run(ctx, host.Cmd{Args: args, TTY: true})
 }

@@ -24,7 +24,9 @@ reference.
 - **Wire contracts keep ccenv names:** `.ccenv-manifest.json`, `.ccenv-format`, the org.env keys, and the container env vars.
   Host-side names use `berth`/`BERTH_`.
 - **All org-state I/O goes through `Host.FS`/`Host.Exec`.** No direct `os.*` calls on org state outside `internal/host/local`.
-- **Keep shelling out to `docker compose`.** Don't reimplement compose or the pty.
+- **Keep shelling out to `docker compose`.** Don't reimplement compose or the pty. The one place berth allocates a
+  pseudo-terminal is `internal/host/local`'s `StartPTY`, for the API's sign-in terminal (#167): it runs berth itself in
+  one and passes the bytes along. It doesn't emulate a terminal, and nothing else may use it for an org's sessions.
 - **Scrub real names.** No real org, client, or repo names in code, docs, fixtures, or commit messages. Use `acme`,
   `globex`, `initech`, and `t-*`.
 - **`image/` and `compose.yml` changes** reach a live org only when the host runs a berth build that has them (a CI

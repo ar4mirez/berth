@@ -228,6 +228,29 @@ curl -N --unix-socket "$s" -H 'Accept: text/event-stream' -X POST -d '{"confirm"
 
 `GET /v1/orgs/{org}/logs/follow` is always a stream: one `output` event per log line, until you disconnect.
 
+## A terminal, for signing an org in
+
+Signing an org in shows a link and waits for a code, so it needs a terminal. On the command line that is yours; for
+a caller of the API, berth runs the command on a pseudo-terminal of its own, on the machine the org's berth is on.
+
+```bash
+curl -N --unix-socket "$s" -X POST -d '{"command":"signin","org":"acme"}' http://berth/v1/terminal
+```
+
+| Endpoint | | Needs |
+|---|---|---|
+| `POST /v1/terminal` | Run a sign-in: `{"command": "signin" \| "login" \| "gh", "org": "acme"}`, and optionally `cols` and `rows`. An event stream: `session` (its id), `output` (what it prints), `exit` (its exit code) | admin |
+| `POST /v1/terminal/{id}/input` | Type into it: `{"data": "the code\r"}`. `cols` and `rows` tell it a new size | admin |
+
+- **It runs berth's sign-ins, and nothing else**: `berth account signin`, `account login` and `account gh`, for an org
+  named as one. It is not a shell, and there is no way to hand it a command.
+- **What it prints is a terminal's.** `output` is text with a terminal's escape sequences in it. A sign-in can show
+  the org's new token as it is made, as the command line does: the stream is for the person signing in.
+- **It ends with the command, or with the caller**: closing the connection ends the sign-in. A server runs four at
+  once, at most.
+- **The audit log** has that a sign-in was started, and for which org: never what was typed.
+- A read-only server, and a token without the `admin` scope, get none. No MCP server has one: it isn't a tool.
+
 ## The command line, through a running server
 
 ```bash
@@ -242,7 +265,7 @@ the server was started with `--socket`.
 
 - **What can go** is what the API has endpoints for: the reads; the firewall, repos and packages; backups; creating
   and destroying an org; and up, restart and down. What needs a terminal (`shell`, `attach`, `claude`, sign-ins, `tui`), or has
-  no endpoint (`account signin`, `host create`), says so and doesn't run. `env set` has an endpoint and can't go
+  no endpoint (`host create`, `org password show`), says so and doesn't run. `env set` has an endpoint and can't go
   this way all the same: it asks for the value, and there is no terminal on the server to ask in.
 - The server's rules apply: a read-only server refuses a write. Typing the command is the confirmation, so a
   restart needs no `confirm` here.
