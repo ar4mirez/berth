@@ -5534,6 +5534,106 @@
         "x-berth-operation": "pkg rm"
       }
     },
+    "/v1/orgs/{org}/password": {
+      "get": {
+        "description": "The user and password an org's browser terminal asks for. It is the one secret this API gives back, to a caller with the admin scope, and each time it is shown is in the audit log. It can't be undone, or it handles a secret: needs a caller with the admin scope, and no MCP server offers it.",
+        "operationId": "password_show",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "password": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "org",
+                    "user",
+                    "password"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "The user and password an org's browser terminal asks for",
+        "x-berth-about": "The user and password an org's browser terminal asks for. It is the one secret this API gives back, to a caller with the admin scope, and each time it is shown is in the audit log.",
+        "x-berth-access": "admin",
+        "x-berth-operation": "password show"
+      }
+    },
     "/v1/orgs/{org}/password/rotate": {
       "post": {
         "description": "Give an org's browser terminal a new password, which ends the sessions open in it. The password is not returned: berth org password show prints it, on the machine the org is on. It can't be undone, or it handles a secret: needs a caller with the admin scope, and no MCP server offers it.",

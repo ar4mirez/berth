@@ -1,6 +1,6 @@
 berth
 
-Every operation (67)
+Every operation (68)
 
   OPERATION               NEEDS    WHAT IT DOES
 ▸ account logout          restart  Sign an org out of Remote Control

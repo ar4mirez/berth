@@ -69,6 +69,7 @@ async function boot({ url, caller, token }) {
       case 'PUT /v1/orgs/acme/env/OPENROUTER_API_KEY': return sse([['result', { org: 'acme', output: 'Set OPENROUTER_API_KEY for acme.' }]])
       case 'DELETE /v1/orgs/acme/env/SENTRY_DSN': return sse([['result', { org: 'acme', output: 'Removed' }]])
       case 'PUT /v1/orgs/acme/token': return sse([['result', { org: 'acme', output: 'Token saved for acme.' }]])
+      case 'GET /v1/orgs/acme/password': return json({ org: 'acme', user: 'node', password: 'PAGE-PASSWORD-0123456789' })
       case 'POST /v1/schedule': return sse([['result', { output: 'Scheduled', schedule: { kind: 'cron' } }]])
       case 'GET /v1/orgs/acme/logs?lines=5': return json({ org: 'acme', lines: ['ready'] })
       case 'POST /v1/orgs/acme/repos/policy': return sse([['result', { org: 'acme', output: 'REPO_POLICY=warn' }]])
@@ -309,6 +310,26 @@ async function boot({ url, caller, token }) {
   assert.ok(!t.w.document.documentElement.outerHTML.includes('sk-ant-PAGE-TOKEN'), 'the token is nowhere in the page afterwards')
   assert.equal(t.$('#op-token').value, '')
 
+  // The browser terminal's link comes with what to type into it: the user always, and the
+  // password when a caller that may do everything asks to see it. It is asked for then, not
+  // before, and leaves the page when it is hidden or the page moves on.
+  await t.go('#/orgs/acme')
+  const creds = () => t.$$('.creds').filter(t.shown).map((e) => e.textContent.replace(/\s+/g, ' ')).join(' ')
+  assert.match(creds(), /user node/)
+  assert.ok(!t.calls.some((c) => c.path === '/v1/orgs/acme/password'), 'the password isn\'t asked for until it is wanted')
+  assert.ok(!t.w.document.documentElement.outerHTML.includes('PAGE-PASSWORD'))
+  await t.click(t.button('Show the password'))
+  assert.equal(t.calls.filter((c) => c.path === '/v1/orgs/acme/password' && c.method === 'GET').length, 1)
+  assert.match(creds(), /password PAGE-PASSWORD-0123456789/)
+  assert.equal(t.button('Show the password'), undefined)
+  await t.click(t.button('Hide'))
+  assert.ok(!t.w.document.documentElement.outerHTML.includes('PAGE-PASSWORD'), 'hidden, it is nowhere in the page')
+  await t.click(t.button('Show the password'))
+  await t.go('#/orgs/acme/firewall')
+  await t.go('#/orgs/acme')
+  assert.ok(!t.w.document.documentElement.outerHTML.includes('PAGE-PASSWORD'), 'it leaves with the page')
+  assert.ok(t.button('Show the password'))
+
   // What a terminal printed, read as text. A sign-in runs inside the org's container, so its lines
   // pass through two terminals and end in two carriage returns: they are lines all the same.
   {
@@ -373,7 +394,7 @@ async function boot({ url, caller, token }) {
   await t.go('#/orgs/acme/firewall')
   for (const text of ['Start', 'Restart', 'Stop', 'Deny', 'Allow', 'Turn on', 'Turn off', 'Reload']) assert.equal(t.button(text), undefined, text + ' is hidden')
   await t.go('#/orgs/acme')
-  for (const text of ['Destroy…', 'Restart Remote Control', 'Sign in to Claude', 'Sign in to GitHub']) assert.equal(t.button(text), undefined, text + ' is hidden')
+  for (const text of ['Destroy…', 'Restart Remote Control', 'Sign in to Claude', 'Sign in to GitHub', 'Show the password']) assert.equal(t.button(text), undefined, text + ' is hidden')
   await t.go('#/')
   assert.ok(!t.shown(t.$('#org-new')), 'creating an org is hidden')
   await t.go('#/orgs/acme/env')

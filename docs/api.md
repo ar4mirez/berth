@@ -95,11 +95,13 @@ Each endpoint is one operation from berth's catalog, and the catalog decides wha
 | restarts a container | also needs the org's name again as `confirm` in the body, or it is refused (403) and says what would stop |
 | can't be undone (destroying an org) | also needs a caller that may do everything: the socket's owner, or a token with the `admin` scope |
 
-- **A secret is taken, and never given back.** A caller with the `admin` scope can set a variable, give an org its
-  Claude token, or rotate a password; none of those values is ever in an answer, in an operation's events, or in the
-  audit log, which has that it was set and not what to. Variables are listed by name. The one thing returned once
-  is an API token, when it is made: berth keeps only its hash. An org's browser-terminal password is read on the
-  machine itself (`berth org password show`), not here.
+- **A secret is taken, and kept out of everything else.** A caller with the `admin` scope can set a variable, give
+  an org its Claude token, or rotate a password; none of those values is ever in an operation's events or in the
+  audit log, which has that it was set and not what to. Variables are listed by name. Two secrets are given
+  back, each to a caller with the `admin` scope and to nobody else:
+  - an **API token**, once, when it is made: berth keeps only its hash;
+  - an org's **browser-terminal password** (`GET /v1/orgs/{org}/password`), when it is asked for: a dashboard
+    links to that terminal, and the link is no use without it. Each time it is shown is in the audit log.
 - **Every change asked for is in the audit log** (`audit.log` in the state root) with `"via":"api"`: the endpoint's
   tool, its arguments, and whether it ran, failed or was refused.
 - **An argument the endpoint doesn't have is refused** (400), in the query and in the body.
@@ -173,6 +175,7 @@ others take a JSON body.
 | `POST /v1/orgs/{org}/env/accept` | Take the secrets typed inside a running org with `berth-secret-drop`; their values never leave that machine | admin, and `confirm` | `berth env accept` |
 | `PUT /v1/orgs/{org}/token` | Give an org its Claude token, as `claude setup-token` prints it | admin, and `confirm` | `berth account token --paste` |
 | `POST /v1/orgs/{org}/password/rotate` | Give an org's browser terminal a new password. It is not returned | admin, and `confirm` | `berth org password rotate` |
+| `GET /v1/orgs/{org}/password` | The user and password an org's browser terminal asks for; each showing is in the audit log | admin | `berth org password show` |
 | `POST /v1/backups/key` | Make this machine's backup key; only its public half is returned | admin | `berth backup keygen` |
 | `GET /v1/tokens` | This API's tokens: names, scopes and dates, never the tokens | read | `berth serve token ls` |
 | `POST /v1/tokens` | Make a token. It is returned once, here; berth keeps only its hash | admin | `berth serve token add` |
@@ -265,7 +268,7 @@ the server was started with `--socket`.
 
 - **What can go** is what the API has endpoints for: the reads; the firewall, repos and packages; backups; creating
   and destroying an org; and up, restart and down. What needs a terminal (`shell`, `attach`, `claude`, sign-ins, `tui`), or has
-  no endpoint (`host create`, `org password show`), says so and doesn't run. `env set` has an endpoint and can't go
+  no endpoint (`host create`, `org attach`), says so and doesn't run. `env set` has an endpoint and can't go
   this way all the same: it asks for the value, and there is no terminal on the server to ask in.
 - The server's rules apply: a read-only server refuses a write. Typing the command is the confirmation, so a
   restart needs no `confirm` here.

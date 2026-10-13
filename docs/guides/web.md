@@ -66,7 +66,7 @@ An org's page:
 
 | Tab | What it shows | What you can do there |
 |---|---|---|
-| Info | the connection sheet: state, the claude.ai/code link, address, SSH, the browser terminal, the git key | open the link or the terminal, copy the SSH command or the key, sign the org in to Claude or GitHub, restart Remote Control, destroy the org |
+| Info | the connection sheet: state, the claude.ai/code link, address, SSH, the browser terminal, the git key | open the link or the terminal (its user is shown, and its password when you ask), copy the SSH command or the key, sign the org in to Claude or GitHub, restart Remote Control, destroy the org |
 | Firewall | the allowlist, and whether the firewall is live | turn it on or off, reload it, allow entries, deny one, test what the org can reach |
 | Repos | registered repos, their branch and state, and what isn't registered | add, remove, sync |
 | Env | the names of the org's variables, never their values | set one (its value is typed unseen, and never shown again), remove one |
@@ -114,6 +114,17 @@ another host.
 
 An operation that restarts or removes an org asks for its name there too.
 
+## The browser terminal's password
+
+An org's Info tab links to its browser terminal, which asks for a user and a password. The user is shown beside
+the link. **Show the password** asks berth for the password and shows it, with a button to copy it:
+
+- only for a caller that may do everything (`berth ui`, or a token with the `admin` scope), and not on a
+  read-only server;
+- only when you ask: it isn't fetched with the page;
+- for a minute, or until you press **Hide** or the page moves on;
+- with a line in berth's audit log each time, saying it was shown and for which org.
+
 ## Signing an org in
 
 **Sign in to Claude** and **Sign in to GitHub**, on an org's Info tab, run `berth account signin` and
@@ -132,8 +143,8 @@ caller that may do everything: `berth ui`, or a token with the `admin` scope.
 
 - **A session in an org** (`attach`, `shell`, `claude`): the org has its own ways in, and its Info tab links to
   them: the browser terminal, SSH, and claude.ai/code.
-- **An org's browser-terminal password**: `berth org password show` prints it, on the machine the org is on. The
-  page rotates it and never shows it.
+- **An org's browser-terminal password, for a caller without the `admin` scope**: `berth org password show`
+  prints it, on the machine the org is on.
 - **Hosts at a cloud provider** (`host create`, `destroy`, `reconcile`): they need the provider's key, which
   stays out of a server.
 - berth's own setup: `install`, the service, shell completion.

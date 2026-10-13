@@ -344,6 +344,11 @@ func (c *Client) PasswordRotate(ctx context.Context, org string, confirm string)
 	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/password/rotate", nil, map[string]any{"confirm": confirm}, &out)
 }
 
+// PasswordShow is GET /v1/orgs/{org}/password: The user and password an org's browser terminal asks for.
+func (c *Client) PasswordShow(ctx context.Context, org string) (out mcpsrv.PasswordShown, err error) {
+	return out, c.do(ctx, "GET", "/v1/orgs/"+url.PathEscape(org)+"/password", nil, nil, &out)
+}
+
 // BackupKeygen is POST /v1/backups/key: Make this machine's backup key, so backups are encrypted without a passphrase.
 func (c *Client) BackupKeygen(ctx context.Context) (out mcpsrv.Done, err error) {
 	return out, c.do(ctx, "POST", "/v1/backups/key", nil, nil, &out)

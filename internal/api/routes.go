@@ -92,6 +92,7 @@ var Routes = []Route{
 	{Method: "POST", Path: "/v1/orgs/{org}/env/accept", Tool: "env_accept"},
 	{Method: "PUT", Path: "/v1/orgs/{org}/token", Tool: "token_set"},
 	{Method: "POST", Path: "/v1/orgs/{org}/password/rotate", Tool: "password_rotate"},
+	{Method: "GET", Path: "/v1/orgs/{org}/password", Tool: "password_show"},
 	{Method: "POST", Path: "/v1/backups/key", Tool: "backup_keygen"},
 	{Method: "GET", Path: "/v1/tokens", Tool: "api_tokens_list"},
 	{Method: "POST", Path: "/v1/tokens", Tool: "api_token_add"},

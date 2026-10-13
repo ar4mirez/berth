@@ -245,6 +245,8 @@ function app() {
     typed: '',
     job: null,
     toast: '',
+    terminalPassword: '',
+    passwordTimer: null,
     term: null,
     termInput: '',
     following: false,
@@ -305,6 +307,7 @@ function app() {
 
     forget() {
       this.closeTerminal()
+      this.hidePassword()
       this.stopFollowing()
       session.set('')
       this.token = ''
@@ -319,6 +322,7 @@ function app() {
     navigate() {
       const next = parseRoute(location.hash)
       const sameOrg = next.view === 'org' && this.route.view === 'org' && next.org === this.route.org
+      this.hidePassword()
       this.stopFollowing()
       if (!sameOrg) {
         this.detail = emptyDetail()
@@ -1052,6 +1056,39 @@ function app() {
       if (this.term) this.term.abort.abort()
       this.term = null
       this.termInput = ''
+    },
+
+    // --- the browser terminal's password --------------------------------------------------------
+    //
+    // The link to an org's browser terminal is no use without what to type into it. The password is
+    // asked for when it is wanted, by a caller that may do everything, and berth records each time
+    // it is shown. The page keeps it for a minute, or until the page moves on: not longer.
+
+    get infoUser() {
+      return (this.detail.info && this.detail.info.user) || 'node'
+    },
+
+    get canShowPassword() {
+      return this.server.admin && this.terminalPassword === ''
+    },
+
+    async showPassword() {
+      const name = this.route.org
+      try {
+        const out = await request('GET', org(name) + '/password')
+        if (this.route.org !== name) return
+        this.terminalPassword = out.password
+        this.tabError = noError()
+        clearTimeout(this.passwordTimer)
+        this.passwordTimer = setTimeout(() => this.hidePassword(), 60000)
+      } catch (e) {
+        this.tabError = { message: e.message, hint: e.hint || '' }
+      }
+    },
+
+    hidePassword() {
+      clearTimeout(this.passwordTimer)
+      this.terminalPassword = ''
     },
 
     // --- small things -----------------------------------------------------------------------

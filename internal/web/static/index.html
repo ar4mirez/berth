@@ -204,8 +204,17 @@
           <dt>Browser terminal</dt>
           <dd>
             <a x-show="infoTerminal" :href="infoTerminal" target="_blank" rel="noopener noreferrer">Open the terminal</a>
-            <span class="muted" x-show="infoTerminal"> (password: <code>berth org password show</code>)</span>
             <span class="muted" x-show="!infoTerminal">no address or port</span>
+            <span class="creds" x-show="infoTerminal">
+              <span>user <code x-text="infoUser"></code></span>
+              <span x-show="terminalPassword">
+                password <code class="wrap" x-text="terminalPassword"></code>
+                <button class="link" type="button" @click="copy(terminalPassword)">Copy</button>
+                <button class="link" type="button" @click="hidePassword">Hide</button>
+              </span>
+              <button class="link" type="button" x-show="canShowPassword" @click="showPassword">Show the password</button>
+              <span class="muted" x-show="!server.admin">password: <code>berth org password show</code>, on that machine</span>
+            </span>
           </dd>
           <dt x-show="infoTunnel">Tunnel</dt>
           <dd x-show="infoTunnel"><code x-text="infoTunnel"></code></dd>

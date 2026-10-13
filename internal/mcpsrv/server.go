@@ -95,6 +95,7 @@ func New(opts Options) (*mcp.Server, []Spec) {
 	s.machineTools()
 	s.moveTools()
 	s.secretTools()
+	s.passwordTools()
 	s.resources()
 	return s.mcp, s.specs
 }
@@ -206,7 +207,8 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 			}
 		}()
 		record := func(outcome string, err error) {
-			if op.Access != ops.Write {
+			// Every write asked for, and every secret shown: who may see one is worth a record.
+			if op.Access != ops.Write && !op.Admin {
 				return
 			}
 			e := app.AuditEntry{Via: by.Via, Tool: name, Outcome: outcome, Args: map[string]any{}}
@@ -278,11 +280,12 @@ var destructive = map[string]bool{"repo_remove": true, "firewall_deny": true}
 
 // allowed is the gate: what the catalog says the operation does, against how the server was started.
 func allowed(name string, op ops.Op, in any, by Caller) error {
-	if op.Access == ops.Read {
-		return nil
-	}
+	// What shows a secret needs the same caller as what takes one, though it changes nothing.
 	if op.Admin && !by.Admin {
 		return refused("%s can't be undone, or handles a secret, and this caller may not: it needs the admin scope: refused", name)
+	}
+	if op.Access == ops.Read {
+		return nil
 	}
 	if op.Restart != ops.Never {
 		if !by.Restarts {

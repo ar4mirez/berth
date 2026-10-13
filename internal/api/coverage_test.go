@@ -14,8 +14,6 @@ import (
 const (
 	// alias: another spelling of an operation that is served, or that is listed under its own name.
 	alias = "another spelling of "
-	// shown: it gives a secret back, which the API never does.
-	shown = "it shows a secret, and the API never returns one: it is read on the machine itself"
 	// cloud: it needs a cloud provider's key.
 	cloud = "it needs a cloud provider's key in berth's own environment, which a server shouldn't hold: the command line"
 	// signin: a sign-in, which needs a terminal: the API runs it on one of its own.
@@ -37,8 +35,8 @@ var notServed = map[string]string{
 	"host reconcile/": cloud,
 
 	// Secrets.
-	"password show": shown,
-	"host create":   cloud, "host destroy": cloud, "host reconcile/--prune": cloud,
+
+	"host create": cloud, "host destroy": cloud, "host reconcile/--prune": cloud,
 
 	// A terminal.
 	"auth ": signin, "login ": signin, "gh-login ": signin,

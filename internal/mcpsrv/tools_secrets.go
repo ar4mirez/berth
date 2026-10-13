@@ -296,3 +296,46 @@ func firstLine(s string) string {
 	l, _, _ := strings.Cut(s, "\n")
 	return l
 }
+
+// PasswordShown is the result of password_show: the browser terminal's sign-in.
+type PasswordShown struct {
+	Org string `json:"org"`
+	// User and Password are what the org's browser terminal asks for.
+	User     string `json:"user"`
+	Password string `json:"password"`
+}
+
+// passwordTools is the one tool that gives a secret back (#167): the browser terminal's password,
+// for a caller that may do everything, when it asks. A dashboard links to that terminal, and the
+// link is no use without what to type into it. It is an admin operation, so no MCP server offers
+// it; its output is kept to the call; and the audit log has that it was shown, and to which
+// interface.
+func (s *server) passwordTools() {
+	add(s, "password_show", "password", "show", "The user and password an org's browser terminal asks for. It is the one secret this API gives back, to a caller with the admin scope, and each time it is shown is in the audit log.",
+		func(ctx context.Context, c *call, in orgWrite) (PasswordShown, error) {
+			c.private()
+			b, o, err := c.at(ctx, in.Org)
+			if err != nil {
+				return PasswordShown{}, err
+			}
+			if err := b.Password(ctx, o, "show"); err != nil {
+				c.forget()
+				return PasswordShown{}, err
+			}
+			// The command prints "user: node" and "pass: …", each on a line.
+			out := PasswordShown{Org: in.Org}
+			for _, l := range strings.Split(c.stdout.String(), "\n") {
+				switch k, v, _ := strings.Cut(l, ": "); k {
+				case "user":
+					out.User = v
+				case "pass":
+					out.Password = v
+				}
+			}
+			c.forget()
+			if out.Password == "" {
+				return PasswordShown{}, errors.New("the password couldn't be read")
+			}
+			return out, nil
+		})
+}

@@ -240,6 +240,7 @@ func TestBerthAPI(t *testing.T) {
 		"env_accept":       func() (any, error) { return c.EnvAccept(ctx, "acme", nil, true, "acme") },
 		"token_set":        func() (any, error) { return c.TokenSet(ctx, "acme", secretToken, true, "acme") },
 		"password_rotate":  func() (any, error) { return c.PasswordRotate(ctx, "acme", "acme") },
+		"password_show":    func() (any, error) { return c.PasswordShow(ctx, "acme") },
 		"backup_keygen":    func() (any, error) { return c.BackupKeygen(ctx) },
 		"api_tokens_list":  func() (any, error) { return c.ApiTokensList(ctx) },
 		"api_token_add":    func() (any, error) { return c.ApiTokenAdd(ctx, "t-phone", "write") },
@@ -293,6 +294,7 @@ func TestBerthAPI(t *testing.T) {
 		"backup_keygen": "already exists (public key:",
 	}
 	var answers []string // every endpoint's answer, to look for what must never be in one
+	var shown string     // password_show's answer
 	for _, r := range api.Routes {
 		call, ok := calls[r.Tool]
 		if !ok {
@@ -312,6 +314,10 @@ func TestBerthAPI(t *testing.T) {
 			continue
 		}
 		got := asJSON(out)
+		if r.Tool == "password_show" {
+			shown = got // the one answer that holds a secret, on purpose: checked on its own below
+			continue
+		}
 		answers = append(answers, got)
 		for _, w := range want[r.Tool] {
 			if !strings.Contains(got, w) {
@@ -354,6 +360,14 @@ func TestBerthAPI(t *testing.T) {
 				t.Errorf("%s is in %s", what, where)
 			}
 		}
+	}
+	// The password is shown to the one endpoint that is asked for it, and that asking is recorded:
+	// the org, never the password.
+	if !strings.Contains(shown, `"user":"node"`) || password == "" || !strings.Contains(shown, `"password":"`+password+`"`) {
+		t.Errorf("password_show: %s, want the user and the password in the org's secrets", shown)
+	}
+	if !strings.Contains(audit0, `password_show|ok|{"org":"acme"}`) {
+		t.Errorf("the audit log doesn't have that the password was shown:\n%s", audit0)
 	}
 	if minted == "" || strings.Contains(audit0, minted) || strings.Contains(serveStderr.String(), minted) || strings.Contains(tree, minted) {
 		t.Errorf("the API token made (%q) is in the audit log, the server's output or a file: only its hash is kept", minted)
@@ -606,6 +620,12 @@ func TestBerthAPIOverTCP(t *testing.T) {
 		} else if may[3] && (err != nil) {
 			t.Errorf("%s: destroy: %v", scope, err)
 		}
+		// So does being shown one: the browser terminal's password is for a caller that may do
+		// everything, and nobody else, though showing it changes nothing.
+		if _, err := cl.PasswordShow(ctx, "acme"); may[3] == (kindOf(err) == ops.KindRefused) ||
+			(!may[3] && !strings.Contains(err.Error(), "admin scope")) {
+			t.Errorf("%s: password show: %v", scope, err)
+		}
 		// Taking a secret needs the admin scope too, whatever else the token may do.
 		if _, err := cl.EnvSet(ctx, "acme", "SCOPE_KEY", secretValue, true, "acme"); (err == nil) != may[3] ||
 			(err != nil && (kindOf(err) != ops.KindRefused || !strings.Contains(err.Error(), "admin scope") || strings.Contains(err.Error(), secretValue))) {
@@ -704,7 +724,7 @@ func TestBerthViaDaemon(t *testing.T) {
 		t.Errorf("the audit log: %s", audit)
 	}
 	// What needs a terminal, or has no endpoint, doesn't go; and without a server it says so.
-	for _, args := range [][]string{{"shell", "acme"}, {"claude", "acme"}, {"password", "acme", "show"}, {"auth", "acme"}, {"host", "create", "t-box", "--provider", "hetzner"}, {"serve"}, {"tui"}} {
+	for _, args := range [][]string{{"shell", "acme"}, {"claude", "acme"}, {"auth", "acme"}, {"host", "create", "t-box", "--provider", "hetzner"}, {"serve"}, {"tui"}} {
 		if out := via(args...); out.Exit != 1 || !strings.Contains(out.Stderr, "can't go through the daemon") {
 			t.Errorf("--via-daemon %v: %d %q", args, out.Exit, out.Stderr)
 		}
@@ -716,7 +736,7 @@ func TestBerthViaDaemon(t *testing.T) {
 	// The endpoint itself refuses a command the API doesn't serve, whoever asks.
 	c := apiclient.Unix(sock)
 	var errb strings.Builder
-	for _, args := range [][]string{{"auth", "acme"}, {"shell", "acme"}, {"--home", "/tmp/x", "ls"}, {"nope"}, {"password", "acme", "show"}} {
+	for _, args := range [][]string{{"auth", "acme"}, {"shell", "acme"}, {"--home", "/tmp/x", "ls"}, {"nope"}, {"attach", "acme"}} {
 		errb.Reset()
 		if code, err := c.CLI(context.Background(), args, "", io.Discard, &errb); err != nil || code != 1 || !strings.Contains(errb.String(), "berth: ") {
 			t.Errorf("POST /v1/cli %v: exit %d, %v, %q", args, code, err, errb.String())
