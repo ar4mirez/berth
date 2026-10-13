@@ -239,3 +239,7 @@ form.fields .field { display: grid; gap: 0.2rem; }
 form.fields button { justify-self: start; }
 input.check { width: var(--tap); height: var(--tap); min-height: 0; padding: 0; accent-color: var(--accent); }
 input[type="search"] { -webkit-appearance: none; appearance: none; }
+
+/* A sign-in's terminal. */
+.dialog.wide { max-width: 44rem; }
+a.wrap { word-break: break-all; }

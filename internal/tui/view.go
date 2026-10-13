@@ -284,6 +284,7 @@ const helpText = `Everywhere
   R            read again now            (every page refreshes by itself)
   u / d / r    start, stop, restart the org: each says what stops and asks first
   A / S        attach to its tmux session / open a shell: the terminal is theirs until you leave
+  I / G        sign the org in to its Claude account / to GitHub, in this terminal
   o            every operation, by name: what has no key of its own is run from there
 
 The list
@@ -298,8 +299,7 @@ An org's page
 Every operation (o)
   ↑ ↓ (k j)    select · enter opens one, or sets the selected argument · r runs it · esc back
 
-A restart or a removal runs only after a "y"; destroying an org only after its name is typed.
-With --read-only the dashboard only reads.`
+A restart or a removal needs a "y"; destroying an org, its name typed. --read-only only reads.`
 
 func (m *Model) overlayView() (body, keys string) {
 	switch m.over {

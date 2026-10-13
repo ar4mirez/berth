@@ -162,6 +162,35 @@ function fieldValue(f, raw) {
   return text
 }
 
+// What a terminal's keys send.
+const TERMINAL_KEYS = { enter: '\r', esc: '\x1b', up: '\x1b[A', down: '\x1b[B' }
+const MAX_TERMINAL = 200000
+
+// screenText is what a terminal printed, as text to read: its escape sequences taken out, a line
+// rewritten in place kept as its last writing, and what was drawn again and again shown once. It is
+// not what a terminal would show, cell for cell; it is enough to read a link and a prompt.
+function screenText(raw) {
+  const plain = raw
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '') // operating-system commands: titles, links
+    .replace(/\x1b\[[0-9;?<=>]*[ -/]*[@-~]/g, '') // control sequences: colours, the cursor, erasing
+    .replace(/\x1b[@-Z\\-_]/g, '')
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '')
+  const out = []
+  for (const line of plain.replace(/\r\n/g, '\n').split('\n')) {
+    const text = line.slice(line.lastIndexOf('\r') + 1).replace(/\s+$/, '')
+    const last = out[out.length - 1]
+    if (text === last || (text === '' && last === '')) continue
+    out.push(text)
+  }
+  return out.slice(-400).join('\n').trim()
+}
+
+// links are the https links in a text, the newest first: the one to open is usually the last.
+function links(text) {
+  const found = text.match(/https:\/\/[^\s"'<>)\]]+/g) || []
+  return [...new Set(found.reverse())].slice(0, 3)
+}
+
 const emptyDetail = () => ({ info: null, firewall: null, repos: null, env: null, packages: null, backups: null, logs: null })
 const noError = () => ({ message: '', hint: '' })
 
@@ -195,6 +224,8 @@ function app() {
     typed: '',
     job: null,
     toast: '',
+    term: null,
+    termInput: '',
     following: false,
     followAbort: null,
     logLines: [],
@@ -252,6 +283,7 @@ function app() {
     },
 
     forget() {
+      this.closeTerminal()
       this.stopFollowing()
       session.set('')
       this.token = ''
@@ -873,6 +905,98 @@ function app() {
       const stops = about && about.name === 'org' ? 'It stops the work running in ' + name + ', or removes it.' : 'It can stop an org, or replace one.'
       body.confirm = name
       this.ask(label + ' ' + name, [op.about, stops], name, go)
+    },
+
+    // --- signing an org in --------------------------------------------------------------------
+    //
+    // A sign-in needs a terminal: it shows a link, and waits for a code. The API runs berth's own
+    // sign-in command on a terminal of its own, where the org is, and this is what it prints and a
+    // place to type. It is not a terminal emulator: what a terminal would draw is read as text.
+
+    get termOpen() {
+      return this.term !== null
+    },
+
+    get termTitle() {
+      return this.term ? this.term.title : ''
+    },
+
+    get termRunning() {
+      return this.term !== null && this.term.running
+    },
+
+    get termText() {
+      return this.term ? screenText(this.term.raw) : ''
+    },
+
+    get termLinks() {
+      return this.term ? links(screenText(this.term.raw)) : []
+    },
+
+    get termError() {
+      return this.term ? this.term.error : ''
+    },
+
+    get termEnded() {
+      if (!this.term || this.term.running || this.term.error) return ''
+      return this.term.exit === 0 ? 'Done.' : 'It ended with exit code ' + this.term.exit + '.'
+    },
+
+    async signInOrg(command) {
+      const name = this.route.org
+      const abort = new AbortController()
+      const term = { title: 'berth account ' + command + ' ' + name, raw: '', id: '', running: true, exit: null, error: '', abort }
+      this.term = term
+      this.termInput = ''
+      try {
+        // Wide, so a long link stays on one line.
+        await request('POST', '/v1/terminal', { command, org: name, cols: 240, rows: 50 }, {
+          signal: abort.signal,
+          progress: (event, data) => {
+            if (this.term === null || this.term.abort !== abort) return
+            if (event === 'session') this.term.id = data.id
+            else if (event === 'exit') this.term.exit = data
+            else if (event === 'output') {
+              this.term.raw = (this.term.raw + data.data).slice(-MAX_TERMINAL)
+              this.$nextTick(() => { const el = this.$refs.term; if (el) el.scrollTop = el.scrollHeight })
+            }
+          },
+        })
+      } catch (e) {
+        if (e.name !== 'AbortError' && this.term !== null && this.term.abort === abort) this.term.error = e.hint ? e.message + ' ' + e.hint : e.message
+      } finally {
+        if (this.term !== null && this.term.abort === abort) {
+          this.term.running = false
+          this.refresh()
+        }
+      }
+    },
+
+    // termType sends what was typed. A terminal that has ended, or isn't there yet, takes nothing.
+    async termType(data) {
+      const term = this.term
+      if (!term || !term.running || !term.id) return
+      try {
+        await request('POST', '/v1/terminal/' + term.id + '/input', { data })
+      } catch (e) {
+        if (this.term === term) term.error = e.message
+      }
+    },
+
+    termSend() {
+      const text = this.termInput
+      this.termInput = ''
+      this.termType(text + '\r')
+    },
+
+    termKey(key) {
+      this.termType(TERMINAL_KEYS[key] || '')
+    },
+
+    closeTerminal() {
+      if (this.term) this.term.abort.abort()
+      this.term = null
+      this.termInput = ''
     },
 
     // --- small things -----------------------------------------------------------------------

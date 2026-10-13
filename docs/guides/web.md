@@ -66,7 +66,7 @@ An org's page:
 
 | Tab | What it shows | What you can do there |
 |---|---|---|
-| Info | the connection sheet: state, the claude.ai/code link, address, SSH, the browser terminal, the git key | open the link or the terminal, copy the SSH command or the key, restart Remote Control, destroy the org |
+| Info | the connection sheet: state, the claude.ai/code link, address, SSH, the browser terminal, the git key | open the link or the terminal, copy the SSH command or the key, sign the org in to Claude or GitHub, restart Remote Control, destroy the org |
 | Firewall | the allowlist, and whether the firewall is live | turn it on or off, reload it, allow entries, deny one, test what the org can reach |
 | Repos | registered repos, their branch and state, and what isn't registered | add, remove, sync |
 | Env | the names of the org's variables, never their values | set one (its value is typed unseen, and never shown again), remove one |
@@ -109,8 +109,25 @@ another host.
 
 An operation that restarts or removes an org asks for its name there too.
 
-## What isn't in it yet
+## Signing an org in
 
-Signing an org in from the page, and creating a host at a cloud provider (its key stays out of a server): use the
-commands. An org's browser-terminal password is never shown here: `berth org password show` prints it.
-Sign-in is the last part of [#167](https://github.com/ar4mirez/berth/issues/167).
+**Sign in to Claude** and **Sign in to GitHub**, on an org's Info tab, run `berth account signin` and
+`berth account gh` for it, on a terminal of berth's own where the org is. The page shows what the command
+prints, as text, offers the link it shows to open, and has a place to type the code you get there. They need a
+caller that may do everything: `berth ui`, or a token with the `admin` scope.
+
+- Open the link in a browser signed in to **that org's** account: a private window keeps yours out of it.
+- The page reads what a terminal would draw; it isn't one. If a step shows a choice, the ↑, ↓, Enter and Esc
+  buttons send those keys.
+- A sign-in can show the org's new token as it is made, as the command line does.
+- **Stop**, or closing the page, ends the sign-in. An org that is down has to be started first.
+
+## What stays on the command line
+
+- **A session in an org** (`attach`, `shell`, `claude`): the org has its own ways in, and its Info tab links to
+  them: the browser terminal, SSH, and claude.ai/code.
+- **An org's browser-terminal password**: `berth org password show` prints it, on the machine the org is on. The
+  page rotates it and never shows it.
+- **Hosts at a cloud provider** (`host create`, `destroy`, `reconcile`): they need the provider's key, which
+  stays out of a server.
+- berth's own setup: `install`, the service, shell completion.

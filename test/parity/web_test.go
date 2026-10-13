@@ -163,3 +163,39 @@ func TestBerthServeWebUI(t *testing.T) {
 		t.Errorf("--no-ui: GET /v1/orgs: %d", status)
 	}
 }
+
+// TestBerthTerminal (#167, phase 4): the API runs a sign-in on a terminal of its own, through the
+// real binary: berth's own command, with a terminal to print to, ending with its exit code.
+func TestBerthTerminal(t *testing.T) {
+	c, _, snap := apiSession(t, twoOrgs, mcpRules)
+	// GitHub, for an org whose gh is signed in already: the command says so and ends.
+	status, body := raw(t, c, "POST", "/v1/terminal", `{"command":"gh","org":"acme"}`)
+	if status != 200 || !strings.Contains(body, "event: session") || !strings.Contains(body, "gh already signed in as octo-acme") || !strings.Contains(body, "event: exit\ndata: 0") {
+		t.Errorf("gh: %d %s", status, body)
+	}
+	// An org that isn't there: the command's own refusal, and its exit code.
+	status, body = raw(t, c, "POST", "/v1/terminal", `{"command":"login","org":"t-none"}`)
+	if status != 200 || !strings.Contains(body, "unknown org 't-none'") || !strings.Contains(body, "event: exit\ndata: 1") {
+		t.Errorf("login on an org that isn't there: %d %s", status, body)
+	}
+	// It is not a shell: anything but a sign-in is refused before anything runs.
+	before := len(snap().Calls)
+	for _, b := range []string{`{"command":"shell","org":"acme"}`, `{"command":"gh","org":"acme --force"}`, `{"command":"exec","org":"acme"}`} {
+		if status, body := raw(t, c, "POST", "/v1/terminal", b); status != 400 || !strings.Contains(body, "berth.error/v1") {
+			t.Errorf("%s: %d %s", b, status, body)
+		}
+	}
+	if after := snap().Calls; len(after) != before {
+		t.Errorf("a refused terminal ran something: %v", after[before:])
+	}
+	audit := strings.Join(auditLines(t, snap()), "\n")
+	if !strings.Contains(audit, `terminal gh|started|{"org":"acme"}`) {
+		t.Errorf("the audit log: %s", audit)
+	}
+
+	// A read-only server signs nobody in.
+	ro, _, _ := apiSession(t, twoOrgs, mcpRules, "--read-only")
+	if status, body := raw(t, ro, "POST", "/v1/terminal", `{"command":"gh","org":"acme"}`); status != 403 || !strings.Contains(body, "admin scope") {
+		t.Errorf("read-only: %d %s", status, body)
+	}
+}

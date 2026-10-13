@@ -32,6 +32,9 @@ type Options struct {
 	// RunCLI runs one of berth's commands for a caller, as the command line would here, and returns
 	// its exit code: what `berth --via-daemon` asks for. Nil when the server doesn't offer it.
 	RunCLI func(ctx context.Context, by mcpsrv.Caller, args []string, output string, stdout, stderr io.Writer) int
+	// Terminal runs berth with these arguments on a terminal of its own (#167): what a sign-in
+	// needs. Nil when the server doesn't offer one.
+	Terminal func(ctx context.Context, args []string, cols, rows int) (Terminal, error)
 	// UI serves the web UI (#167) for a GET outside the API's paths. It has no caller: its files
 	// hold no data. Nil when the server doesn't offer it.
 	UI http.Handler
@@ -107,6 +110,9 @@ func Handler(o Options) http.Handler {
 	})
 	mux.HandleFunc("GET /"+Version+"/orgs/{org}/logs/follow", o.follow)
 	mux.HandleFunc("POST /"+Version+"/cli", o.cli)
+	ts := &terminals{}
+	mux.HandleFunc("POST /"+Version+"/terminal", o.terminal(ts))
+	mux.HandleFunc("POST /"+Version+"/terminal/{id}/input", o.terminalInput(ts))
 	// MCP over HTTP (#61): the same tools, for a client that speaks the protocol. Each request is
 	// its caller's: stateless, so a token's scope is checked every time.
 	servers := map[[2]bool]*mcp.Server{}
