@@ -19,8 +19,9 @@ import (
 )
 
 // publishedImage is a released image both sides pull instead of building image/ (minutes, twice).
-// Any release works: this tests where commands run, not the image.
-const publishedImage = "ghcr.io/ar4mirez/berth-image:v0.3.0"
+// Any release from v0.8.1 works: this tests where commands run, not the image. Older images let two
+// firewall applies run at once (#150), and `fw allow` right after `up` then failed now and again.
+const publishedImage = "ghcr.io/ar4mirez/berth-image:v0.12.2"
 
 // TestRemoteLifecycle: the lifecycle (init, up, fw allow, repo add, down) on this machine and, as
 // org@host, on the sshd + dind fixture, with the same results (#45).
