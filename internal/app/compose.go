@@ -84,6 +84,11 @@ func (a *App) compose(ctx context.Context, o string, args ...string) error {
 	if a.rootlessPodman(ctx) {
 		env = append(env, "BERTH_USERNS=keep-id", "BERTH_USER=0:0")
 	}
+	if len(args) > 0 && args[0] == "up" {
+		if n, capped := a.cappedCPUs(ctx, o); capped {
+			env = append(env, "CPUS="+n) // compose takes its environment over the env file
+		}
+	}
 	if own {
 		// An org that lists system packages runs on its own image, built on berth's (#106). It is
 		// built here when the org starts and it isn't there yet (the list changed, or berth's image

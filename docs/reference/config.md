@@ -70,7 +70,7 @@ Each org's settings, in `orgs/<org>/org.env` (0600). `berth init` writes it with
 | `REMOTE_CONTROL` | `1` runs the Remote Control service; `0` turns it off |
 | `REMOTE_CAPACITY` | how many Remote Control sessions may run at once (default 8) |
 | `REPO_POLICY` | `enforce` (default), `warn` or `off` ([Repos](../guides/repos.md#the-policy)) |
-| `MEM_LIMIT`, `CPUS` | the container's memory and CPU limits (default `8g`, `4`) |
+| `MEM_LIMIT`, `CPUS` | the container's memory and CPU limits (default `8g`, `4`). When Docker has fewer CPUs than `CPUS` (a small VM: Colima starts with 2), the org starts with what there is and berth says so. |
 | `SHARED_ACCOUNT` | `1` silences the warning when two orgs sign in to the same Claude organization |
 | `CCENV_ENV_KEYS` | the names of the org's custom variables (`berth env`) |
 

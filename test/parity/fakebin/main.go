@@ -51,7 +51,8 @@ type Call struct {
 
 // loggedEnv are the variables ccenv's and berth's compose() set, which matter to the comparison.
 var loggedEnv = []string{"ORG", "ORG_DIR", "BIND_ADDR", "HOST_UID", "HOST_GID",
-	"CLAUDE_ENV_IMAGE", "IMAGE_TAG", "CLAUDE_ENV_IMAGE_DIR"} // berth's image, for compose
+	"CLAUDE_ENV_IMAGE", "IMAGE_TAG", "CLAUDE_ENV_IMAGE_DIR", // berth's image, for compose
+	"CPUS"} // berth's, when the engine has fewer than the org asks for
 
 // fixedNow is the only time the fakes ever report.
 var fixedNow = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
