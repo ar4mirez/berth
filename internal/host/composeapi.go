@@ -17,38 +17,59 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
-// The Engine API path (#43, phase 2 of docs/prd/043-engine-api.md). With BERTH_ENGINE_API=1, an
-// org's `docker compose up|down|logs` on a Docker host goes to the engine's API instead of the
-// compose CLI, from the org's OrgSpec: the same container, network and labels compose makes, so
-// either can stop or recreate what the other made. Every other command, and Podman and Apple's
-// container, are unchanged. compose stays the default (CLAUDE.md).
+// The Engine API path (#43, docs/prd/043-engine-api.md). On a Docker host, an org's
+// `docker compose up|down|logs` goes to the engine's API instead of the compose CLI, from the
+// org's OrgSpec: the same container, network and labels compose makes, so either can stop or
+// recreate what the other made. Every other command, and Podman and Apple's container, are
+// unchanged. BERTH_ENGINE_API=0 keeps compose; so does an engine whose socket doesn't answer (a
+// Docker reached only through a docker context: Docker Desktop, colima), where compose's CLI
+// knows the way.
 
-// EngineAPIWanted is whether BERTH_ENGINE_API=1 asks for the Engine API path.
-func EngineAPIWanted() bool { return os.Getenv("BERTH_ENGINE_API") == "1" }
+// EngineAPIWanted is whether the Engine API path is on: unless BERTH_ENGINE_API=0.
+func EngineAPIWanted() bool { return os.Getenv("BERTH_ENGINE_API") != "0" }
 
 // apiExec runs an org's compose commands through the Engine API, and everything else as inner.
 type apiExec struct {
 	inner  Execer
 	engine *Engine
+	alive  *engineUp
+}
+
+// engineUp is whether the engine's socket answers, asked once, at the first compose command.
+type engineUp struct {
+	once sync.Once
+	ok   bool
 }
 
 // withEngineAPI is h with its orgs' compose commands going to its engine's API.
 func withEngineAPI(h *Host) *Host {
 	g := *h
-	g.Exec = apiExec{inner: h.Exec, engine: NewEngine(h.Docker)}
+	g.Exec = apiExec{inner: h.Exec, engine: NewEngine(h.Docker), alive: &engineUp{}}
 	return &g
 }
 
 func (e apiExec) Run(ctx context.Context, c Cmd) error {
 	if len(c.Args) > 2 && c.Args[0] == EngineDocker && c.Args[1] == "compose" {
 		file, envFile, verb := composeFiles(c.Args[2:])
-		if len(verb) > 0 && slices.Contains([]string{"up", "down", "logs"}, verb[0]) && file != "" && envFile != "" {
+		if len(verb) > 0 && slices.Contains([]string{"up", "down", "logs"}, verb[0]) && file != "" && envFile != "" && e.answers(ctx) {
 			return e.compose(ctx, c, file, envFile, verb)
 		}
 	}
 	return e.inner.Run(ctx, c)
+}
+
+// answers is whether the engine's socket answers; compose runs the commands when it doesn't.
+func (e apiExec) answers(ctx context.Context) bool {
+	e.alive.once.Do(func() {
+		pctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		e.alive.ok = e.engine.Ping(pctx) == nil
+	})
+	return e.alive.ok
 }
 
 // composeFiles splits `-f F --env-file E <verb> …` into the compose file, the env file and the verb.

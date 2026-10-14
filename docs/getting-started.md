@@ -3,8 +3,9 @@
 ## What you need
 
 - **An OS:** Linux (amd64 or arm64), or macOS (Apple silicon or Intel).
-- **Docker** with the compose plugin (`docker compose version`); on macOS, Docker Desktop or any engine that provides
-  the Docker API and `docker compose`. **Or Podman**, rootful or rootless, **or Apple's `container`** on Apple
+- **Docker** (`docker version`); on macOS, Docker Desktop or any engine that provides the Docker API. The compose plugin
+  is needed only where berth can't reach Docker's socket ([Container engines](engines.md#docker-through-its-api)).
+  **Or Podman**, rootful or rootless, **or Apple's `container`** on Apple
   silicon ([Container engines](engines.md)).
 - **Optional: [Tailscale](https://tailscale.com).** With it, each org's SSH and browser terminal are bound to this
   machine's Tailscale address, so you can reach them from your other devices and nobody else can. Without it, they're

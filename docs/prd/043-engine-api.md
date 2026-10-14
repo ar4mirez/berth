@@ -1,6 +1,6 @@
 # PRD: replace `docker compose` with the Engine API (#43)
 
-Status: **phases 1-3 done** (the API path is opt-in); phase 4 next · Issue:
+Status: **done**: Docker's orgs start through the Engine API (phases 1-4) · Issue:
 [#43](https://github.com/ar4mirez/berth/issues/43) · Restarts orgs: no, by design (the next ordinary restart uses the
 new path)
 
@@ -127,7 +127,7 @@ the compose plugin.
      - `TestComposeThroughEngineAPI` runs against a fake engine.
      - `TestEngineAPICompatibility` runs against Docker. It covers both directions, the inspected fields, no
        orphans, and no recreate on the switch.
-     - The `engine API path` CI job runs `TestRemoteLifecycle` with the flag set, here and on a registered host
+     - A CI job ran `TestRemoteLifecycle` with the flag set, here and on a registered host
        over SSH. It checks that the API made the container.
 3. **The parity harness on the API path:** an engine fake that records requests as calls the way `fakebin` records
    argv, and the scenarios moved over. This is most of the work.
@@ -141,6 +141,15 @@ the compose plugin.
    - Scenarios that fake compose's own answers (a port taken, a log) are left out: they test compose's side.
 4. **On by default.** compose then stays only for `BERTH_ENGINE_API=0`, for one release, and `host add` stops
    requiring the compose plugin.
+   - **Done.** `BERTH_ENGINE_API` now opts out (`=0`) instead of in.
+   - The engine is pinged once per host. When its socket doesn't answer, compose's CLI runs the command, because
+     Docker reached only through a docker context (Docker Desktop, colima, OrbStack) is out of berth's dialer's
+     reach.
+   - `host add` checks for compose only for Podman, with `BERTH_ENGINE_API=0`, or when Docker's API doesn't
+     answer over SSH.
+   - CI's `docker` job runs everything on the API path. A `compose path` job runs the lifecycle with
+     `BERTH_ENGINE_API=0`.
+   - compose isn't removed: Podman still uses it, and so does the fallback.
 
 ## Risks
 

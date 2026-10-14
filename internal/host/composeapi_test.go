@@ -53,6 +53,8 @@ func (f *apiEngine) serve(w http.ResponseWriter, r *http.Request) {
 	notFound := func() { w.WriteHeader(http.StatusNotFound); _, _ = io.WriteString(w, `{"message":"no such thing"}`) }
 	name := func(prefix, suffix string) string { return strings.TrimSuffix(strings.TrimPrefix(p, prefix), suffix) }
 	switch {
+	case p == "/_ping":
+		_, _ = io.WriteString(w, "OK")
 	case r.Method == "GET" && strings.HasPrefix(p, "/images/"):
 		if !f.images[name("/images/", "/json")] {
 			notFound()
@@ -235,5 +237,21 @@ func TestMemBytesAndEnvFile(t *testing.T) {
 	want := [][2]string{{"A", "1"}, {"B", "two words"}, {"C", "x"}, {"D", ""}}
 	if !slices.Equal(got, want) {
 		t.Errorf("envFileVars: %q", got)
+	}
+}
+
+// TestComposeWithoutAnEngineSocket: when the engine's socket doesn't answer (a Docker reached only
+// through a docker context), an org's compose commands run as they are, with compose's CLI.
+func TestComposeWithoutAnEngineSocket(t *testing.T) {
+	ex := &recExec{orgEnv: "SSH_PORT=1\nTTYD_PORT=2\n"}
+	h := withEngineAPI(&Host{Exec: ex, Docker: &apiEngine{sock: filepath.Join(t.TempDir(), "none.sock")}})
+	args := []string{"docker", "compose", "-f", "/s/compose.yml", "--env-file", "/s/org.env", "up", "-d", "--force-recreate"}
+	for range 2 {
+		if err := h.Exec.Run(context.Background(), Cmd{Args: args, Env: []string{"ORG=acme", "ORG_DIR=/s"}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(ex.ran) != 2 || !slices.Equal(ex.ran[0], args) {
+		t.Errorf("compose didn't run them: %q", ex.ran)
 	}
 }
