@@ -2,6 +2,7 @@ package ops
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -33,6 +34,8 @@ func GetRemoteStatus(ctx context.Context, s System, org string) (RemoteStatus, e
 	case RemoteRunning(ctx, s, org):
 		st.State = "on"
 		st.URL = RemoteURL(ctx, s, org)
+		_, st.Environment, _ = strings.Cut(st.URL, "environment=")
+		st.PointerEnvironment = PointerEnvironment(ctx, s, org)
 		// rc_log 200 | grep -a Capacity | tail -1 | sed 's/^ */  /': under pipefail, no Capacity
 		// line (grep exits 1) or a failing docker ends the command there, with exit 1.
 		log, err := s.CaptureRaw(ctx, false, "docker", "exec", contract.Container(org), "sh", "-c", RemoteLogScript(200))
@@ -50,4 +53,17 @@ func GetRemoteStatus(ctx context.Context, s System, org string) (RemoteStatus, e
 		st.State = "restarting"
 	}
 	return st, nil
+}
+
+// PointerEnvironment is the environment Remote Control's bridge-pointer.json names: the one it
+// reuses at its next start (#187). "" without the file, or one that doesn't parse.
+func PointerEnvironment(ctx context.Context, s System, org string) string {
+	out, _ := s.CaptureRaw(ctx, true, "docker", "exec", contract.Container(org), "sh", "-c", "cat "+contract.BridgePointer+" 2>/dev/null; true")
+	var p struct {
+		EnvironmentID string `json:"environmentId"`
+	}
+	if json.Unmarshal([]byte(out), &p) != nil {
+		return ""
+	}
+	return p.EnvironmentID
 }

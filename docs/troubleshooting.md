@@ -54,13 +54,40 @@ isn't allowed.
 | `blocked-by-org` | the Claude organization's policy doesn't allow Remote Control | an admin of that organization must enable it; then `berth account remote restart acme` |
 | `restarting` | the service is restarting | wait a moment; then `berth account remote logs acme` |
 
-`berth account remote restart acme` restarts the service, not the container, and waits until it has started again. While
-the organization's policy blocks Remote Control, the service tries again once an hour; a restart (or
-`berth account login acme`) makes it try now, so there is no hour to wait after an admin enables it.
+`berth account remote restart acme` restarts the service, not the container. It stops Remote Control, waits until it
+has exited (up to a minute, then kills it), and waits until the next one has started. While the organization's policy
+blocks Remote Control, the service tries again once an hour. A restart (or `berth account login acme`) makes it try
+now, so there is no hour to wait after an admin enables it.
 
 If the restart says `Remote Control didn't start again`, `berth account remote logs acme` shows why. A container started
 by berth 0.4.1 or older can't be asked to retry: `berth restart acme` recreates it, which stops the work running in
 it.
+
+### "This folder is already served" after a restart
+
+The log shows `Error: This folder is already served by a terminal claude remote-control on this device`, over and over
+for a few minutes. A new Remote Control was started while the old one was still exiting. Releases before 0.12.6 did
+this on every `remote restart`. It settles once the old one has exited. Since 0.12.6, berth and the container's
+supervisor both wait for the old one to exit before starting the next. The supervisor's part reaches an org only
+when its container is recreated (`berth restart acme`).
+
+### The environment shows offline in the Claude app while `remote status` says running
+
+Remote Control records the environment it serves in `~/.claude/projects/-workspace/bridge-pointer.json` and reuses it
+at every start (its log says `Environment preserved`). If that environment has gone stale, it stays offline in Claude
+Desktop and claude.ai, through restarts and container recreations, and deleting its session in claude.ai doesn't
+help. `berth account remote status acme` adds a `Note:` line when the file names another environment than the log
+shows.
+
+To start over with a new environment:
+
+```bash
+berth account remote restart acme --fresh
+```
+
+This stops Remote Control, renames `bridge-pointer.json` to `bridge-pointer.json.stale-<time>`, and starts it once. It
+then registers a new environment. Sessions attached to the old environment don't move to the new one: start new ones
+from the new environment.
 
 ## Signed in with the wrong account
 

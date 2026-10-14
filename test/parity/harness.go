@@ -217,7 +217,9 @@ var (
 	// repo add's write-access check (#103): TestBerthRepoAddWriteCheck.
 	// And the request to Remote Control's supervisor to try again now, after ccenv's pkill (#7).
 	// And the count of CPUs the engine has, asked before an org starts: TestBerthUpCapsCPUs.
-	berthOnlyCall = regexp.MustCompile(`^docker "info" "--format" "\{\{\.NCPU\}\}"$|^docker "exec" "-u" "node" "-w" "/workspace/[^"]+" "claude-[^"]+" "git" "push" "--dry-run" |^docker "exec" "claude-[^"]+" "touch" "/run/rc-retry"$`)
+	// And Remote Control's checks (#187): whether the one stopped has exited, before that request,
+	// and the environment its bridge-pointer.json names, for remote status: TestBerthRemoteRestart.
+	berthOnlyCall = regexp.MustCompile(`^docker "info" "--format" "\{\{\.NCPU\}\}"$|^docker "exec" "-u" "node" "-w" "/workspace/[^"]+" "claude-[^"]+" "git" "push" "--dry-run" |^docker "exec" "claude-[^"]+" "touch" "/run/rc-retry"$|^docker "exec" "claude-[^"]+" "sh" "-c" "pgrep -f '\^claude remote-control' \|\| true"$|^docker "exec" "claude-[^"]+" "sh" "-c" "cat /home/node/\.claude/projects/-workspace/bridge-pointer\.json 2>/dev/null; true"$`)
 	berthEnv      = regexp.MustCompile(`  \[(CLAUDE_ENV_IMAGE|IMAGE_TAG|CLAUDE_ENV_IMAGE_DIR)="[^"]*"\]`)
 	berthTag      = regexp.MustCompile(`"berth/claude-env:[0-9a-f]{12}"`)
 )

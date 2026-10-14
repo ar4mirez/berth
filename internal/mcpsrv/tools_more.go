@@ -100,12 +100,16 @@ func (s *server) moreTools() {
 			return c.pkgEdit(ctx, "rm", in)
 		})
 	add(s, "remote_restart", "remote", "restart", "Restart Remote Control inside a running org: the service, not the container. Sessions in claude.ai/code reconnect.",
-		func(ctx context.Context, c *call, in orgWrite) (Changed, error) {
+		func(ctx context.Context, c *call, in remoteRestartArgs) (Changed, error) {
 			b, o, err := c.at(ctx, in.Org)
 			if err != nil {
 				return Changed{}, err
 			}
-			err = b.Remote(ctx, o, "restart")
+			var flags []string
+			if in.Fresh {
+				flags = []string{"--fresh"}
+			}
+			err = b.Remote(ctx, o, "restart", flags...)
 			return Changed{Org: in.Org, Output: c.output()}, err
 		})
 	add(s, "org_create", "init", "", "Create an org: its directory, keys and settings. It isn't started, and it has no Claude account yet: org_up starts it, and signing in needs a terminal.",
@@ -166,4 +170,14 @@ func (c *call) pkgEdit(ctx context.Context, verb string, in pkgEditArgs) (Packag
 	}
 	p, err := ops.GetPackages(ctx, b, o)
 	return PackagesChanged{Output: c.output(), Packages: p}, err
+}
+
+type remoteRestartArgs struct {
+	Org string `json:"org" jsonschema:"the org, as in acme, or acme@box1 for one on a registered host"`
+	// Fresh is --fresh (#187).
+	Fresh bool `json:"fresh,omitempty" jsonschema:"move Remote Control's bridge-pointer.json aside first, so it registers a new environment instead of reusing the last one: for an environment the Claude app keeps showing offline"`
+}
+
+func (a remoteRestartArgs) auditArgs() map[string]any {
+	return map[string]any{"org": a.Org, "fresh": a.Fresh}
 }

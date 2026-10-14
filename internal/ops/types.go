@@ -183,6 +183,11 @@ type RemoteStatus struct {
 	URL string `json:"url"`
 	// Capacity is the service's last capacity line, when on ("" if it hasn't logged one).
 	Capacity string `json:"capacity"`
+	// Environment is the environment the log last showed, from URL, when on ("" otherwise).
+	Environment string `json:"environment"`
+	// PointerEnvironment is the environment Remote Control's bridge-pointer.json names, which it
+	// reuses at each start ("" without one). When it isn't Environment, the two disagree (#187).
+	PointerEnvironment string `json:"pointer_environment"`
 }
 
 // DefaultOrg is `berth use --output json`: the saved default org.

@@ -3,5 +3,7 @@
   "org": "acme",
   "state": "login-needed",
   "url": "",
-  "capacity": ""
+  "capacity": "",
+  "environment": "",
+  "pointer_environment": ""
 }

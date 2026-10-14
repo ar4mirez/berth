@@ -414,8 +414,8 @@ func (a *App) rcLog(ctx context.Context, o string, n int, stdout io.Writer) erro
 	return a.Host.Exec.Run(ctx, host.Cmd{Args: []string{"docker", "exec", "claude-" + o, "sh", "-c", script}, Stdout: stdout, Stderr: a.Stderr})
 }
 
-// Remote is `ccenv remote <org> [status|logs|restart]`.
-func (a *App) Remote(ctx context.Context, o, sub string) error {
+// Remote is `ccenv remote <org> [status|logs|restart]`; restart takes --fresh (#187).
+func (a *App) Remote(ctx context.Context, o, sub string, flags ...string) error {
 	if sub == "" {
 		sub = "status"
 	}
@@ -423,6 +423,11 @@ func (a *App) Remote(ctx context.Context, o, sub string) error {
 		return a.remoteStatus(ctx, o)
 	}
 	if sub == "restart" {
+		for _, f := range flags {
+			if f != "--fresh" {
+				return &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: "remote restart: unknown flag " + f + " (only --fresh)"}
+			}
+		}
 		if err := a.writable(o, "restart Remote Control"); err != nil {
 			return err
 		}
@@ -436,7 +441,7 @@ func (a *App) Remote(ctx context.Context, o, sub string) error {
 	case "logs":
 		return a.rcLog(ctx, o, 40, a.Stdout)
 	case "restart":
-		return a.remoteRestart(ctx, o)
+		return a.remoteRestart(ctx, o, len(flags) > 0)
 	}
 	return fmt.Errorf("usage: %s remote <org> [status|logs|restart]", Tool)
 }
@@ -461,6 +466,10 @@ func (a *App) remoteStatus(ctx context.Context, o string) error {
 		sayf(a.Stdout, "  Or:    claude.ai/code or the Claude app -> pick environment '%s' -> New session\n", o)
 		if st.Capacity != "" {
 			fmt.Fprintln(a.Stdout, "  "+st.Capacity)
+		}
+		if st.PointerEnvironment != "" && st.Environment != "" && st.PointerEnvironment != st.Environment {
+			sayf(a.Stdout, "  Note:  its bridge-pointer.json names environment %s, which it reuses at its next start. If an environment shows offline in the Claude app: %s remote %s restart --fresh\n",
+				st.PointerEnvironment, Tool, o)
 		}
 	case "blocked-by-org":
 		sayf(a.Stdout, `Remote Control: BLOCKED by the Claude organization's policy for this account.

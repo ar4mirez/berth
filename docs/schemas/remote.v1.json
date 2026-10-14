@@ -7,7 +7,13 @@
     "capacity": {
       "type": "string"
     },
+    "environment": {
+      "type": "string"
+    },
     "org": {
+      "type": "string"
+    },
+    "pointer_environment": {
       "type": "string"
     },
     "schema": {
@@ -25,7 +31,9 @@
     "org",
     "state",
     "url",
-    "capacity"
+    "capacity",
+    "environment",
+    "pointer_environment"
   ],
   "title": "berth.remote/v1",
   "type": "object"
