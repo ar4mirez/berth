@@ -110,7 +110,7 @@ func (b *appBackend) Detail(ctx context.Context, org string) Detail {
 	d.Errs[tabInfo] = err
 	d.Firewall, err = ops.GetFirewall(ctx, a, o)
 	d.Errs[tabFirewall] = err
-	d.Repos, err = ops.GetRepos(ctx, a, o)
+	d.Repos, err = ops.ListRepos(ctx, a, o)
 	d.Errs[tabRepos] = err
 	d.Env, err = ops.GetEnv(a, o)
 	d.Errs[tabEnv] = err

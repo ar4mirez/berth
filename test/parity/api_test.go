@@ -424,6 +424,11 @@ func TestBerthAPI(t *testing.T) {
 	if _, err := c.RemoteStatus(ctx, "globex"); kindOf(err) != ops.KindNotRunning {
 		t.Errorf("an org that is down: %v (%s)", err, kindOf(err))
 	}
+	// An org that has never started (no quarantine folder yet) has its repos listed: `repo ls` ends
+	// with ccenv's exit 2 there, and a list has nothing to refuse.
+	if r, err := c.ReposList(ctx, "globex"); err != nil || r.Org != "globex" || len(r.Quarantined) != 0 {
+		t.Errorf("the repos of an org that never started: %+v, %v", r, err)
+	}
 	for _, tc := range []struct {
 		method, path, body string
 		status             int

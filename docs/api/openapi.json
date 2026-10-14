@@ -41,7 +41,8 @@
   "info": {
     "description": "berth's API, served by `berth serve`. Each endpoint is one of berth's operations, with the rules the command line has: an operation that changes something needs a caller that may write; one that restarts a container needs a caller that may restart, and the org's name again as `confirm`. Secret values are never returned. Errors are berth.error/v1 documents.",
     "license": {
-      "name": "MIT"
+      "identifier": "Apache-2.0",
+      "name": "Apache-2.0"
     },
     "title": "berth",
     "version": "v1"

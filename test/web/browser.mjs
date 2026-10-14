@@ -114,7 +114,8 @@ try {
     await phone.goto(server.origin + '/#/orgs/t-web/' + tab)
     await fits(phone, 'phone-org-' + tab)
     // A tab the API refuses says why, with what to do about it: it isn't left empty.
-    if (tab === 'repos') assert.match(await phone.locator('main:visible [role=alert]:visible').first().innerText(), /never started[\s\S]*berth up t-web/)
+    // An org that has never started has its repos listed all the same: here, none.
+    if (tab === 'repos') assert.match(await phone.locator('main:visible').first().innerText(), /No repos registered/)
     if (tab === 'logs') assert.match(await phone.locator('main:visible [role=alert]:visible').first().innerText(), /not running/)
   }
 
@@ -228,10 +229,9 @@ try {
   await reader.context().close()
 
   // What the API refused, each for a reason this state root has, and each said in words by the
-  // page: the log of an org that is down, and the repos of one that has never started (it has no
-  // workspace to check them against yet).
+  // page: the log of an org that is down.
   // Anything else answered with an error would be the page asking for something it shouldn't.
-  const expected = ['409 GET /v1/orgs/t-web/logs', '409 GET /v1/orgs/t-web/repos']
+  const expected = ['409 GET /v1/orgs/t-web/logs']
   const unexpected = refusals.filter((r) => !expected.includes(r))
   assert.deepEqual(unexpected, [], 'the API refused nothing but what an org that never started has reason for')
   for (const e of expected) assert.ok(refusals.includes(e), e + ' was asked for, and refused')
