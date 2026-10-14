@@ -34,53 +34,41 @@ func envOf(lines []string) map[string]string {
 	return out
 }
 
-// appleRun is compose.yml as `container run` arguments: env is what berth gives compose (ORG,
-// ORG_DIR, BIND_ADDR, HOST_UID, HOST_GID, the image), org is the org's org.env (ports, limits),
-// and envFile its path.
+// appleRun is compose.yml as `container run` arguments, from the org's OrgSpec (#43): env is what
+// berth gives compose (ORG, ORG_DIR, BIND_ADDR, HOST_UID, HOST_GID, the image), org is the org's
+// org.env (ports, limits), and envFile its path.
 //
 // What compose.yml has and `container` doesn't: a hostname (the container's name is its
 // hostname), and a restart policy (an org doesn't come back by itself after a reboot).
 func appleRun(env, org map[string]string, envFile string) ([]string, error) {
-	or := func(m map[string]string, k, def string) string {
-		if v := m[k]; v != "" {
-			return v
-		}
-		return def
+	s, err := NewOrgSpec(env, org, envFile)
+	if err != nil {
+		return nil, err
 	}
-	name, dir := env["ORG"], env["ORG_DIR"]
-	if name == "" || dir == "" {
-		return nil, fmt.Errorf("starting an org with Apple's container needs ORG and ORG_DIR")
-	}
-	ssh, ttyd := org["SSH_PORT"], org["TTYD_PORT"]
-	if ssh == "" || ttyd == "" {
-		return nil, fmt.Errorf("%s has no SSH_PORT or TTYD_PORT", envFile)
-	}
-	bind := or(env, "BIND_ADDR", "127.0.0.1")
 	// CPUS can be a fraction for Docker (0.5); a VM has whole ones.
 	cpus := "4"
-	if f, err := strconv.ParseFloat(or(org, "CPUS", "4"), 64); err == nil && f > 0 {
+	if f, err := strconv.ParseFloat(s.CPUs, 64); err == nil && f > 0 {
 		cpus = strconv.Itoa(int(math.Ceil(f)))
 	}
-	args := []string{"run", "-d", "--name", "claude-" + name,
-		"--cap-add", "NET_ADMIN", "--cap-add", "NET_RAW", // for the egress firewall only
-		"--env-file", envFile,
-		"-e", "ORG=" + name, "-e", "HOST_UID=" + env["HOST_UID"], "-e", "HOST_GID=" + env["HOST_GID"],
-		"-p", bind + ":" + ssh + ":2222", "-p", bind + ":" + ttyd + ":7681",
+	args := []string{"run", "-d", "--name", s.Name}
+	for _, c := range s.CapAdd { // for the egress firewall only
+		args = append(args, "--cap-add", c)
 	}
-	for _, m := range [][3]string{
-		{"workspace", "/workspace", ""}, {"claude", "/home/node/.claude", ""}, {"mise", "/home/node/.mise", ""},
-		{"home-config", "/home/node/.config", ""}, {"ssh", "/opt/claude-secrets/ssh", "ro"}, {"sshd", "/etc/ssh/keys", ""},
-		{"config", "/config", "ro"}, {"quarantine", "/quarantine", ""},
-	} {
-		v := dir + "/" + m[0] + ":" + m[1]
-		if m[2] != "" {
-			v += ":" + m[2]
+	args = append(args, "--env-file", s.EnvFile)
+	for _, k := range []string{"ORG", "HOST_UID", "HOST_GID"} {
+		args = append(args, "-e", k+"="+s.Env[k])
+	}
+	for _, p := range s.Ports {
+		args = append(args, "-p", p.HostIP+":"+p.Host+":"+p.Container)
+	}
+	for _, m := range s.Mounts {
+		v := m.Source + ":" + m.Target
+		if m.ReadOnly {
+			v += ":ro"
 		}
 		args = append(args, "-v", v)
 	}
-	args = append(args, "-m", or(org, "MEM_LIMIT", "8g"), "-c", cpus,
-		or(env, "CLAUDE_ENV_IMAGE", "claude-env")+":"+or(env, "IMAGE_TAG", "latest"))
-	return args, nil
+	return append(args, "-m", s.Memory, "-c", cpus, s.Image), nil
 }
 
 // appleContainer is one entry of `container ls --format json`.
