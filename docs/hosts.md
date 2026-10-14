@@ -68,7 +68,8 @@ the host ends up registered completely or not at all.
    - A host whose key has changed is always refused, whatever the flags.
 3. **Checks that the host can run orgs:**
    - `docker version` works for that user (which usually means the user is in the `docker` group);
-   - `docker compose` is installed.
+   - `docker compose` is installed, for Podman, or for Docker when its API doesn't answer over SSH. Docker's orgs
+     start through its API (#43).
 
    It also reports the UID and GID, the architecture, the Tailscale IP and the number of ports in use.
 4. **Gives berth its own key for the host.** It makes an ed25519 key at `~/.config/berth/keys/<name>` (0600),

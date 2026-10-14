@@ -46,6 +46,8 @@ func startParityEngine(t *testing.T) *parityEngine {
 		e.mu.Unlock()
 		p := r.URL.Path
 		switch {
+		case p == "/_ping":
+			_, _ = io.WriteString(w, "OK")
 		case r.Method == "GET" && strings.HasPrefix(p, "/images/"):
 			_, _ = io.WriteString(w, "{}")
 		case r.Method == "GET" && strings.HasSuffix(p, "/logs"):

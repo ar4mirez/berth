@@ -371,9 +371,12 @@ func (a *App) HostAdd(ctx context.Context, args []string) (err error) {
 		}
 		return fmt.Errorf("%s on %s: %w (%s)", engine, name, err, hint)
 	}
-	cv, err := remoteOut(ctx, h, "docker", "compose", "version", "--short")
-	if err != nil {
-		return fmt.Errorf("%s compose on %s: %w", engine, name, err)
+	// Docker's orgs start through its API when its socket answers (#43): compose isn't needed there.
+	cv := "not needed (berth uses Docker's API)"
+	if engine != host.EngineDocker || !host.EngineAPIWanted() || host.NewEngine(h.Docker).Ping(ctx) != nil {
+		if cv, err = remoteOut(ctx, h, "docker", "compose", "version", "--short"); err != nil {
+			return fmt.Errorf("%s compose on %s: %w", engine, name, err)
+		}
 	}
 	facts, err := h.Facts.Facts(ctx)
 	if err != nil {

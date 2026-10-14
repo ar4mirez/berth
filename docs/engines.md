@@ -110,14 +110,20 @@ CPUs); `down` is stop and remove; the image is built with `container build` when
   wasn't tried (the test Mac has no Tailscale), a LAN address was.
 - **This machine only:** a registered host is Docker or Podman.
 
-## Docker without compose (opt-in)
+## Docker, through its API
 
-With `BERTH_ENGINE_API=1`, berth starts, stops and recreates orgs on Docker through the engine's API instead of
-`docker compose` (#43). The container is the same one compose would make, with compose's labels and the org's own
-`claude-<org>_default` network, so compose (or ccenv) can stop or recreate it, and the other way round. Setting or
-unsetting the variable restarts nothing: an org's next `up` or `restart` uses the path in force.
+On Docker, berth starts, stops and recreates orgs through the engine's API, not `docker compose` (#43). It makes
+the container compose would make, with compose's labels and the org's own `claude-<org>_default` network, so
+compose (or ccenv) can stop or recreate it, and the other way round.
 
-- It works here and on registered hosts, over the same SSH connection berth already uses for the engine.
+- It works here and on registered hosts, over the same SSH connection berth already uses for the engine. A Docker
+  host doesn't need the compose plugin.
 - `berth logs` prints the container's output without compose's `claude-<org>  |` prefix.
-- Podman and Apple's `container` don't use it yet.
-- compose is still the default, and `host add` still checks for it.
+- **compose is still used:**
+  - with `BERTH_ENGINE_API=0`;
+  - when Docker's socket doesn't answer at `$DOCKER_HOST` (`unix://`) or `/var/run/docker.sock`, as with an engine
+    reached only through a docker context. compose's CLI knows the way there;
+  - with Podman, and Apple's `container` has its own path.
+- **Changing the path restarts nothing.** An org's next `up` or `restart` uses the path in force. A container
+  made by the API carries a `berth.engine-api` label. compose's own plain `up` would make it again, as it does
+  whenever the configuration changed.
