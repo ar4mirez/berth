@@ -24,7 +24,10 @@ reference.
 - **Wire contracts keep ccenv names:** `.ccenv-manifest.json`, `.ccenv-format`, the org.env keys, and the container env vars.
   Host-side names use `berth`/`BERTH_`.
 - **All org-state I/O goes through `Host.FS`/`Host.Exec`.** No direct `os.*` calls on org state outside `internal/host/local`.
-- **Keep shelling out to `docker compose`.** Don't reimplement compose or the pty. The one place berth allocates a
+- **`docker compose` is the default way orgs are started.** The one exception is the Engine API path
+  (`internal/host/composeapi.go`, `BERTH_ENGINE_API=1`, #43): it makes the container `host.OrgSpec` describes, with
+  compose's labels, and `TestEngineAPICompatibility` keeps the two interchangeable. A change to `compose.yml` goes in
+  `OrgSpec` too (`TestOrgSpecMatchesCompose` fails otherwise). Don't reimplement the pty. The one place berth allocates a
   pseudo-terminal is `internal/host/local`'s `StartPTY`, for the API's sign-in terminal (#167): it runs berth itself in
   one and passes the bytes along. It doesn't emulate a terminal, and nothing else may use it for an org's sessions.
 - **Scrub real names.** No real org, client, or repo names in code, docs, fixtures, or commit messages. Use `acme`,
