@@ -6,11 +6,11 @@ title: berth backup schedule
 
 ## berth backup schedule
 
-nightly backups of every org (a systemd user timer, or cron)
+nightly backups of every org (a systemd user timer, a launchd agent on macOS, or cron)
 
 ### Synopsis
 
-nightly backups of every org (a systemd user timer, or cron)
+nightly backups of every org (a systemd user timer, a launchd agent on macOS, or cron)
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_backup_schedule/
 

@@ -8234,7 +8234,7 @@
         "x-berth-operation": "schedule off"
       },
       "get": {
-        "description": "The nightly backup schedule on this machine: a systemd timer and its last runs, or a crontab line.",
+        "description": "The nightly backup schedule on this machine: a systemd timer or a launchd agent and its last runs, or a crontab line.",
         "operationId": "schedule_status",
         "responses": {
           "200": {
@@ -8336,13 +8336,13 @@
             "description": "The operation failed."
           }
         },
-        "summary": "The nightly backup schedule on this machine: a systemd timer and its last runs, or a crontab line",
-        "x-berth-about": "The nightly backup schedule on this machine: a systemd timer and its last runs, or a crontab line.",
+        "summary": "The nightly backup schedule on this machine: a systemd timer or a launchd agent and its last runs, or a crontab line",
+        "x-berth-about": "The nightly backup schedule on this machine: a systemd timer or a launchd agent and its last runs, or a crontab line.",
         "x-berth-access": "read",
         "x-berth-operation": "schedule status"
       },
       "post": {
-        "description": "Back up every org on this machine each night: a systemd user timer, or a crontab line where there is no systemd. Changes the org: needs the server started with --allow-writes.",
+        "description": "Back up every org on this machine each night: a systemd user timer, a launchd agent on macOS, or a crontab line where there is neither. Changes the org: needs the server started with --allow-writes.",
         "operationId": "schedule_on",
         "requestBody": {
           "content": {
@@ -8494,8 +8494,8 @@
             "description": "The operation failed."
           }
         },
-        "summary": "Back up every org on this machine each night: a systemd user timer, or a crontab line where there is no systemd",
-        "x-berth-about": "Back up every org on this machine each night: a systemd user timer, or a crontab line where there is no systemd.",
+        "summary": "Back up every org on this machine each night: a systemd user timer, a launchd agent on macOS, or a crontab line where there is neither",
+        "x-berth-about": "Back up every org on this machine each night: a systemd user timer, a launchd agent on macOS, or a crontab line where there is neither.",
         "x-berth-access": "write",
         "x-berth-operation": "schedule"
       }

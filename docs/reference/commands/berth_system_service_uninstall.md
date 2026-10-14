@@ -15,7 +15,7 @@ stop it and remove it
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_system_service_uninstall/
 
 ```
-berth system service uninstall [flags]
+berth system service uninstall [--system] [flags]
 ```
 
 ### Examples

@@ -10,3 +10,4 @@ org.env
 .envrc
 /test/web/node_modules/
 /test/web/shots/
+/units/

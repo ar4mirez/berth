@@ -13,6 +13,7 @@ import (
 	"github.com/ar4mirez/berth/internal/apiclient"
 	"github.com/ar4mirez/berth/internal/app"
 	"github.com/ar4mirez/berth/internal/config"
+	"github.com/ar4mirez/berth/internal/host/local"
 	"github.com/ar4mirez/berth/internal/mcpsrv"
 	"github.com/ar4mirez/berth/internal/ops"
 	"github.com/ar4mirez/berth/internal/version"
@@ -56,7 +57,7 @@ func throughDaemon(c *cobra.Command) {
 				return run(cmd, args)
 			}
 			name, _, fargs := opOf(cmd, args)
-			client := apiclient.Unix(api.SocketPath(os.Getenv))
+			client := apiclient.Unix(api.ClientSocketPath(os.Getenv, local.New().FS.Stat))
 			code, err := client.CLI(cmd.Context(), append([]string{name}, fargs...), outputFrom(cmd.Context()), cmd.OutOrStdout(), cmd.ErrOrStderr())
 			if err != nil {
 				return err

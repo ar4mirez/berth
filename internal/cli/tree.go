@@ -401,7 +401,7 @@ func layout(root *cobra.Command) {
 	bk.AddCommand(r)
 	t.move(bk, "keygen", "keygen")
 	t.kept("schedule") // backup schedule on --host runs it on the host
-	sch := t.group(bk, "schedule", "nightly backups of every org (a systemd user timer, or cron)", "berth backup schedule on --at 03:30 --keep 14", "berth backup schedule status")
+	sch := t.group(bk, "schedule", "nightly backups of every org (a systemd user timer, a launchd agent on macOS, or cron)", "berth backup schedule on --at 03:30 --keep 14", "berth backup schedule status")
 	t.verb(sch, "schedule", "", "on [--at HH:MM] [--keep N] [-o dir] [--host <name>]", "schedule a nightly backup of every org",
 		argMap{to: func(args []string) []string { return args }}, completeArgs([]string{"--at", "--keep", "-o", "--host"}),
 		"berth backup schedule on", "berth backup schedule on --at 03:30 --keep 14", "berth backup schedule on --host box1")
@@ -432,10 +432,10 @@ func layout(root *cobra.Command) {
 	svc := t.group(sys, "service", "berth serve as a service of yours: at login, without starting it by hand", "berth system service install", "berth system service status")
 	svc.Long = t.flat["service"].Long
 	for _, v := range [][3]string{
-		{"install", "install [--listen ADDR]", "install and start it (a systemd user unit, or a launchd agent)"},
-		{"uninstall", "uninstall", "stop it and remove it"},
-		{"status", "status", "whether it is installed and running"},
-		{"logs", "logs [-f]", "its last log lines (-f: follow)"},
+		{"install", "install [--listen ADDR] [--system]", "install and start it (a systemd user unit, or a launchd agent; --system: a unit for the whole machine)"},
+		{"uninstall", "uninstall [--system]", "stop it and remove it"},
+		{"status", "status [--system]", "whether it is installed and running"},
+		{"logs", "logs [-f] [--system]", "its last log lines (-f: follow)"},
 	} {
 		ex := "berth system service " + v[0]
 		t.verb(svc, "service", v[0], v[1], v[2], prefixed(v[0]), completeArgs(), ex)

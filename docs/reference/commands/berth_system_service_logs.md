@@ -15,7 +15,7 @@ its last log lines (-f: follow)
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_system_service_logs/
 
 ```
-berth system service logs [-f] [flags]
+berth system service logs [-f] [--system] [flags]
 ```
 
 ### Examples

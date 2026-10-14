@@ -79,3 +79,12 @@ func Completions(root *cobra.Command, dir string) error {
 	}
 	return nil
 }
+
+// Units writes the systemd user unit the Linux packages install, not enabled (#63): unit, as
+// berth-serve.service.
+func Units(dir, unit string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:forbidigo,gosec // release files (world-readable), not org state
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "berth-serve.service"), []byte(unit), 0o644) //nolint:forbidigo,gosec // as above
+}

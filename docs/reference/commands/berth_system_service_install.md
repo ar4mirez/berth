@@ -6,16 +6,16 @@ title: berth system service install
 
 ## berth system service install
 
-install and start it (a systemd user unit, or a launchd agent)
+install and start it (a systemd user unit, or a launchd agent; --system: a unit for the whole machine)
 
 ### Synopsis
 
-install and start it (a systemd user unit, or a launchd agent)
+install and start it (a systemd user unit, or a launchd agent; --system: a unit for the whole machine)
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_system_service_install/
 
 ```
-berth system service install [--listen ADDR] [flags]
+berth system service install [--listen ADDR] [--system] [flags]
 ```
 
 ### Examples

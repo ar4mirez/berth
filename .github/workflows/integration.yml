@@ -82,6 +82,54 @@ jobs:
           if berth system service status; then echo "still installed"; exit 1; fi
           if curl -fsS -m 3 --unix-socket "$sock" http://berth/v1 2>/dev/null; then echo "still serving"; exit 1; fi
           echo "ok: the service installs, serves, and goes away"
+      - name: the whole machine's service (--system), with root's systemd
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.local/bin:$PATH" XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+          if berth system service install --system; then echo "installed without root"; exit 1; fi
+          sudo "$HOME/.local/bin/berth" system service install --system
+          grep -qx "User=$(id -un)" /etc/systemd/system/berth-serve.service
+          # No runtime directory for a system service: it listens in berth's config directory, and
+          # this user's commands find it there although $XDG_RUNTIME_DIR is set.
+          sock="$HOME/.config/berth/berth.sock"
+          for _ in $(seq 1 30); do [ -S "$sock" ] && break; sleep 1; done
+          curl -fsS --unix-socket "$sock" http://berth/v1 | grep -q '"schema": "berth.api/v1"'
+          test ! -e "$XDG_RUNTIME_DIR/berth.sock"
+          berth --via-daemon --output json host ls | grep -q '"schema": "berth.hosts/v1"'
+          berth system service status --system
+          if berth system service status; then echo "the user's status claims the system unit"; exit 1; fi
+          sudo "$HOME/.local/bin/berth" system service logs --system | tail -5
+          sudo "$HOME/.local/bin/berth" system service uninstall --system
+          if berth system service status --system; then echo "still installed"; exit 1; fi
+          echo "ok: the system service installs as this user, serves, and goes away"
+      - name: the backup schedule as a launchd agent
+        if: runner.os == 'macOS'
+        env:
+          # A recipient instead of a key (berth backup keygen needs Docker, which this runner hasn't).
+          BERTH_BACKUP_RECIPIENTS: age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.local/bin:$PATH"
+          agent="gui/$(id -u)/dev.berth.backup"
+          # A cron line from an older berth is replaced, and the user's own lines stay.
+          (crontab -l 2>/dev/null || true; echo "5 4 * * * true  # mine"; echo "0 3 * * * true  # berth-backup") | crontab -
+          berth backup schedule on --at 04:30 --keep 3
+          if crontab -l | grep -q "# berth-backup"; then echo "the cron line stayed"; exit 1; fi
+          crontab -l | grep -q "# mine"
+          launchctl print "$agent" | grep -q "state = "
+          berth backup schedule status | tee /tmp/status
+          grep -q "daily at 04:30 (launchd agent dev.berth.backup)" /tmp/status
+          # run starts the job now: it writes its log (the backup itself fails without Docker).
+          berth backup schedule run
+          for _ in $(seq 1 30); do [ -s "$HOME/Library/Logs/berth/backup.log" ] && break; sleep 1; done
+          test -s "$HOME/Library/Logs/berth/backup.log"
+          berth --output json backup schedule status | grep -q '"kind": "launchd"'
+          berth backup schedule off
+          test ! -e "$HOME/Library/LaunchAgents/dev.berth.backup.plist"
+          if launchctl print "$agent" >/dev/null 2>&1; then echo "the agent is still loaded"; exit 1; fi
+          crontab -l | grep -v "# mine" | crontab - || true
+          echo "ok: the schedule loads as a launchd agent, runs, and goes away"
 
   # Podman (#57): the org lifecycle and backups on Podman, rootless (this user) and rootful (root).
   # `podman compose` runs Docker's compose against Podman's API socket, which is started here.

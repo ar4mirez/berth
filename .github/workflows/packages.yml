@@ -16,7 +16,7 @@ name: packages
 # Weekly as well, so a channel that breaks between releases shows up.
 on:
   pull_request:
-    paths: [".goreleaser.yaml", "install.sh", "internal/docgen/**", "tools/gendocs/**", "tools/pkgrepo/**", ".github/workflows/packages.yml"]
+    paths: [".goreleaser.yaml", "install.sh", "internal/docgen/**", "internal/app/service_system.go", "tools/gendocs/**", "tools/pkgrepo/**", ".github/workflows/packages.yml"]
   schedule:
     - cron: "17 6 * * 1"
   workflow_dispatch:
@@ -84,6 +84,9 @@ jobs:
           test -f /usr/share/zsh/site-functions/_berth
           test -f /usr/share/fish/vendor_completions.d/berth.fish
           test -f /usr/share/licenses/berth/LICENSE
+          # The systemd user unit for berth serve (#63): installed, and enabled for no one.
+          grep -qx "ExecStart=/usr/bin/berth serve" /usr/lib/systemd/user/berth-serve.service
+          if ls /etc/systemd/user/*.wants/berth-serve.service 2>/dev/null; then echo "the package enabled the unit"; exit 1; fi
           # A package manager's install is upgraded there, not by berth upgrade.
           if out=$(berth system upgrade 2>&1); then echo "berth upgrade didn't defer: $out"; exit 1; fi
           echo "$out" | grep -q "package manager"

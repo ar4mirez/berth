@@ -125,7 +125,8 @@ carry no signature of their own.
 leaves the upgrade to it.
 
 **What's in every archive and package:** the man pages (`man berth`, `man berth-org-up`, …) and bash, zsh and fish
-completion.
+completion. The Linux packages also install a systemd user unit for `berth serve`, enabled for no one
+([Running it as a service](api.md#running-it-as-a-service)).
 
 **Checking a download by hand:** the release's `checksums.txt` is signed and covers every archive and package
 ([Releases](releases.md)).

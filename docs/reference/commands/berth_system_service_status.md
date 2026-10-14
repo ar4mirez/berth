@@ -15,7 +15,7 @@ whether it is installed and running
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_system_service_status/
 
 ```
-berth system service status [flags]
+berth system service status [--system] [flags]
 ```
 
 ### Examples

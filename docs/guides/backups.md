@@ -68,8 +68,13 @@ berth backup schedule run                          # run it now
 berth backup schedule off
 ```
 
-**How it runs:** through a systemd user timer where there is one, and cron otherwise. A run missed while the machine
-was off happens at the next boot.
+**How it runs:**
+- **Linux:** a systemd user timer where there is one, and cron otherwise. A run missed while the machine was off
+  happens at the next boot.
+- **macOS:** a launchd agent, `dev.berth.backup` (`~/Library/LaunchAgents/dev.berth.backup.plist`), which logs to
+  `~/Library/Logs/berth/backup.log`. A run missed while the Mac sleeps starts when it wakes; one missed while it's
+  off doesn't run. Setting the schedule removes a cron line that an older berth (0.12.5 and before) set, so the two
+  never both run.
 
 **Logged out:** runs happen only while you're logged in, unless linger is on (`sudo loginctl enable-linger $USER`).
 berth tells you when it's off.

@@ -1,6 +1,6 @@
 # PRD: `berth serve` as an OS service (#63)
 
-Status: **done for the daemon**; the backup job on macOS and Windows are not (below) · Issue: [#63](https://github.com/ar4mirez/berth/issues/63) · Restarts orgs: no
+Status: **done** (the daemon first, then the rest: below) · Issue: [#63](https://github.com/ar4mirez/berth/issues/63) · Restarts orgs: no
 
 ## Problem
 
@@ -54,3 +54,33 @@ someone has to start it by hand.
 - **System units** (`--system`).
 - **Packages installing the units, disabled** (#60).
 - **Windows** beyond WSL2.
+
+## Follow-up: the rest of the issue
+
+Done after the daemon, in one change:
+
+- **The backup schedule on macOS is a launchd agent**, `dev.berth.backup` (`internal/app/schedule_launchd.go`).
+  - It uses `StartCalendarInterval`, runs at background priority, and logs to `~/Library/Logs/berth/backup.log`.
+  - `schedule` writes and loads it, and removes the cron line an older berth set, so there's no gap and no double
+    run. `status`, `run` (`launchctl kickstart`) and `off` act on it.
+  - The decision above kept cron because ccenv is the reference there. ccenv's behaviour stays exactly as it was
+    on Linux. On macOS it is a recorded divergence (PARITY.md). `BERTH_SERVICE_MANAGER=systemd` keeps ccenv's
+    choice anywhere, and the parity suite sets it, so it runs on a Mac as it does on Linux.
+- **System units:** `--system` on `install|uninstall|status|logs` (`internal/app/service_system.go`).
+  - It writes `/etc/systemd/system/berth-serve.service` with `User=` set to the account that ran sudo, its
+    `HOME`, and no `--home`. It needs root.
+  - Its socket falls back to `~/.config/berth/berth.sock`, which that account's clients find
+    (`api.ClientSocketPath`).
+  - This reverses "No `--system`" above, for machines where a session or linger isn't wanted.
+- **Packages:** the `.deb`, `.rpm` and Arch packages, and both AUR packages, install
+  `/usr/lib/systemd/user/berth-serve.service`, which runs `/usr/bin/berth serve` and is enabled for no one.
+  - The unit is generated (`gendocs units`) from the same code as berth's own.
+  - `status` and `uninstall` know it.
+  - The packages workflow checks it is installed and not enabled.
+- **Windows** stays WSL2 only (#60). There, berth is the Linux build, and these are the systemd units.
+
+Checked by:
+- `TestBerthScheduleLaunchd`, `TestBerthService` (`--system` refusals), `TestSystemUnit`;
+- the `service` CI job, with real managers: `--system` with root's systemd on Linux, including a client finding
+  the socket, and the schedule agent with real launchd on macOS, including taking over a cron line;
+- the packages workflow's `native` job.

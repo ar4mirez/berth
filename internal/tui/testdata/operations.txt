@@ -12,7 +12,7 @@ Every operation (68)
   backup schedule off     write    Stop the nightly backups on this machine
   backup schedule on      write    Back up every org on this machine each night: a systemd user time
   backup schedule run     write    Run the nightly backup now, as the schedule would
-  backup schedule status  read     The nightly backup schedule on this machine: a systemd timer and
+  backup schedule status  read     The nightly backup schedule on this machine: a systemd timer or a
   backups_list            read     The backup files on this machine, newest first: org, when, size a
   down                    restart  Stop an org: stops and removes its container
   env accept              admin    Take the secrets waiting inside a running org (typed there with b

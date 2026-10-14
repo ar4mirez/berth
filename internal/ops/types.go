@@ -292,13 +292,15 @@ type FirewallProbe struct {
 // Schedule is `berth schedule status --output json`: the nightly backup's schedule.
 type Schedule struct {
 	Schema string `json:"schema"` // "berth.schedule/v1"
-	// Kind is "systemd" (a user timer), "cron" (a crontab line) or "none".
+	// Kind is "systemd" (a user timer), "launchd" (an agent, on macOS; #63), "cron" (a crontab line)
+	// or "none".
 	Kind string `json:"kind"`
-	// Timer is systemd's `list-timers` for the timer: its header line and the timer's.
+	// Timer is systemd's `list-timers` for the timer: its header line and the timer's. For launchd,
+	// when the agent runs and its state at launchd.
 	Timer []string `json:"timer"`
-	// Runs are the last runs' lines from the service's journal (systemd).
+	// Runs are the last runs' lines from the service's journal (systemd), or from Log (launchd).
 	Runs []string `json:"runs"`
-	// Jobs are the crontab's lines for the schedule, and Log where their output goes (cron).
+	// Jobs are the crontab's lines for the schedule (cron), and Log where the runs write (cron, launchd).
 	Jobs []string `json:"jobs"`
 	Log  string   `json:"log"`
 

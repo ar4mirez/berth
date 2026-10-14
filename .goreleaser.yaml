@@ -8,6 +8,8 @@ before:
   hooks:
     - go run ./tools/gendocs man man {{ .Version }}
     - go run ./tools/gendocs completions completions
+    # The systemd user unit the Linux packages install, not enabled (#63).
+    - go run ./tools/gendocs units units
 
 builds:
   - id: berth
@@ -37,6 +39,7 @@ archives:
       - LICENSE
       - man/*.1
       - completions/*
+      - units/*
 
 # The source archive, which the AUR's from-source package (aur_sources) builds.
 source:
@@ -97,6 +100,8 @@ nfpms:
         dst: /usr/share/zsh/site-functions/_berth
       - src: ./completions/berth.fish
         dst: /usr/share/fish/vendor_completions.d/berth.fish
+      - src: ./units/berth-serve.service
+        dst: /usr/lib/systemd/user/berth-serve.service
       - src: ./LICENSE
         dst: /usr/share/licenses/berth/LICENSE
       - src: ./README.md
@@ -149,6 +154,7 @@ aurs:
       install -Dm644 ./completions/berth.bash "${pkgdir}/usr/share/bash-completion/completions/berth"
       install -Dm644 ./completions/_berth "${pkgdir}/usr/share/zsh/site-functions/_berth"
       install -Dm644 ./completions/berth.fish "${pkgdir}/usr/share/fish/vendor_completions.d/berth.fish"
+      install -Dm644 ./units/berth-serve.service "${pkgdir}/usr/lib/systemd/user/berth-serve.service"
       for m in ./man/*.1; do install -Dm644 "$m" "${pkgdir}/usr/share/man/man1/$(basename "$m")"; done
 
 aur_sources:
@@ -172,6 +178,7 @@ aur_sources:
       go build -ldflags "-s -w -X github.com/ar4mirez/berth/internal/version.Version=${pkgver}" -o berth ./cmd/berth
       go run ./tools/gendocs man man "${pkgver}"
       go run ./tools/gendocs completions completions
+      go run ./tools/gendocs units units
     package: |-
       cd "${pkgname}_${pkgver}"
       install -Dm755 ./berth "${pkgdir}/usr/bin/berth"
@@ -179,6 +186,7 @@ aur_sources:
       install -Dm644 ./completions/berth.bash "${pkgdir}/usr/share/bash-completion/completions/berth"
       install -Dm644 ./completions/_berth "${pkgdir}/usr/share/zsh/site-functions/_berth"
       install -Dm644 ./completions/berth.fish "${pkgdir}/usr/share/fish/vendor_completions.d/berth.fish"
+      install -Dm644 ./units/berth-serve.service "${pkgdir}/usr/lib/systemd/user/berth-serve.service"
       for m in ./man/*.1; do install -Dm644 "$m" "${pkgdir}/usr/share/man/man1/$(basename "$m")"; done
 
 release:

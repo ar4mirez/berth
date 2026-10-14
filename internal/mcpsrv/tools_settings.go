@@ -194,7 +194,7 @@ func (s *server) settingsTools() {
 			p, err := ops.GetPackages(ctx, b, o)
 			return PackagesChanged{Output: c.output(), Packages: p}, err
 		})
-	add(s, "schedule_on", "schedule", "", "Back up every org on this machine each night: a systemd user timer, or a crontab line where there is no systemd.",
+	add(s, "schedule_on", "schedule", "", "Back up every org on this machine each night: a systemd user timer, a launchd agent on macOS, or a crontab line where there is neither.",
 		func(ctx context.Context, c *call, in scheduleOnArgs) (ScheduleChanged, error) {
 			var args []string
 			if in.At != "" {

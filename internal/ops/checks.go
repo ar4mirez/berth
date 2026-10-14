@@ -3,7 +3,9 @@ package ops
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ar4mirez/berth/internal/contract"
@@ -68,6 +70,66 @@ func ScheduleTimer(s System) string {
 	return s.OperatorEnv("HOME") + "/.config/systemd/user/" + ScheduleName + ".timer"
 }
 
+// ScheduleLabel is the schedule's launchd agent on macOS (#63).
+const ScheduleLabel = "dev.berth.backup"
+
+// ScheduleAgent is the launchd agent's property list, and ScheduleLog where its runs write.
+func ScheduleAgent(s System) string {
+	return s.OperatorEnv("HOME") + "/Library/LaunchAgents/" + ScheduleLabel + ".plist"
+}
+func ScheduleLog(s System) string { return s.OperatorEnv("HOME") + "/Library/Logs/berth/backup.log" }
+
+// agentTime is the time in an agent's StartCalendarInterval.
+var agentTime = regexp.MustCompile(`<key>Hour</key><integer>(\d+)</integer>\s*<key>Minute</key><integer>(\d+)</integer>`)
+
+// launchdSchedule is GetSchedule for the launchd agent: when it runs, its state at launchd, and the
+// last runs' lines from its log.
+func launchdSchedule(ctx context.Context, s System, out Schedule) Schedule {
+	out.Kind = "launchd"
+	when := "at a time berth can't read in " + ScheduleAgent(s)
+	if b, err := s.ReadFile(ScheduleAgent(s)); err == nil {
+		if m := agentTime.FindSubmatch(b); m != nil {
+			h, _ := strconv.Atoi(string(m[1]))
+			mi, _ := strconv.Atoi(string(m[2]))
+			when = fmt.Sprintf("%02d:%02d", h, mi)
+		}
+	}
+	out.Timer = append(out.Timer, "daily at "+when+" (launchd agent "+ScheduleLabel+")")
+	uid, _ := s.Capture(ctx, true, "id", "-u")
+	if p, err := s.Capture(ctx, true, "launchctl", "print", "gui/"+strings.TrimSpace(uid)+"/"+ScheduleLabel); err != nil {
+		out.Timer = append(out.Timer, "not loaded: "+Tool+" schedule loads it again")
+	} else {
+		state, exit := "", ""
+		for _, l := range strings.Split(p, "\n") {
+			k, v, ok := strings.Cut(strings.TrimSpace(l), " = ")
+			switch {
+			case !ok:
+			case k == "state" && state == "":
+				state = v
+			case k == "last exit code" && exit == "":
+				exit = v
+			}
+		}
+		state = "loaded, " + state
+		if exit != "" {
+			state += ", last exit code " + exit
+		}
+		out.Timer = append(out.Timer, state)
+	}
+	out.TimerText = strings.Join(out.Timer, "\n") + "\n"
+	out.Log = ScheduleLog(s)
+	if b, err := s.ReadFile(out.Log); err == nil {
+		for _, l := range lines(b) {
+			if journalLines.MatchString(l) {
+				out.Runs = append(out.Runs, l)
+			}
+		}
+		out.Runs = out.Runs[max(0, len(out.Runs)-15):]
+	}
+	out.NoRuns = len(out.Runs) == 0
+	return out
+}
+
 // HasScheduleTimer is whether the schedule is a systemd user timer: systemd answers for this user,
 // and the timer's unit is there.
 func HasScheduleTimer(ctx context.Context, s System) bool {
@@ -78,6 +140,9 @@ func HasScheduleTimer(ctx context.Context, s System) bool {
 // line. A failing `systemctl list-timers` comes back with what it printed.
 func GetSchedule(ctx context.Context, s System) (Schedule, error) {
 	out := Schedule{Schema: "berth.schedule/v1", Kind: "none", Timer: []string{}, Runs: []string{}, Jobs: []string{}}
+	if s.IsFile(ScheduleAgent(s)) {
+		return launchdSchedule(ctx, s, out), nil
+	}
 	if HasScheduleTimer(ctx, s) {
 		out.Kind = "systemd"
 		// systemctl … list-timers | head -2: under pipefail its failure ends the command.
