@@ -109,3 +109,15 @@ CPUs); `down` is stop and remove; the image is built with `container build` when
   `BIND_ADDR` says. `BIND_ADDR` decides where the published ports listen, as with Docker; a Tailscale address
   wasn't tried (the test Mac has no Tailscale), a LAN address was.
 - **This machine only:** a registered host is Docker or Podman.
+
+## Docker without compose (opt-in)
+
+With `BERTH_ENGINE_API=1`, berth starts, stops and recreates orgs on Docker through the engine's API instead of
+`docker compose` (#43). The container is the same one compose would make, with compose's labels and the org's own
+`claude-<org>_default` network, so compose (or ccenv) can stop or recreate it, and the other way round. Setting or
+unsetting the variable restarts nothing: an org's next `up` or `restart` uses the path in force.
+
+- It works here and on registered hosts, over the same SSH connection berth already uses for the engine.
+- `berth logs` prints the container's output without compose's `claude-<org>  |` prefix.
+- Podman and Apple's `container` don't use it yet.
+- compose is still the default, and `host add` still checks for it.

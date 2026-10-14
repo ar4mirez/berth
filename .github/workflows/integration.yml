@@ -41,6 +41,22 @@ jobs:
         # (the host guard on three engines, the host API): the job's own limit is the one that counts.
         run: BERTH_BIN="$RUNNER_TEMP/berth" go test -tags integration -count=1 -timeout 25m -v ./test/integration/...
 
+  # The Engine API path (#43, BERTH_ENGINE_API=1): berth's org lifecycle, here and on a registered
+  # host over SSH, with containers made through the engine's API instead of compose.
+  engine-api:
+    name: engine API path
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - name: build berth
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/berth" ./cmd/berth
+      - name: the org lifecycle and compose compatibility, through the Engine API
+        env:
+          BERTH_ENGINE_API: "1"
+        run: BERTH_BIN="$RUNNER_TEMP/berth" go test -tags integration -count=1 -timeout 20m -v -run 'TestRemoteLifecycle|TestEngineAPICompatibility' ./test/integration/...
+
   # berth serve as a service (#63), with the real service managers: systemd's user manager on Linux,
   # launchd on macOS. No container engine is needed: GET /v1 says only who is serving.
   service:

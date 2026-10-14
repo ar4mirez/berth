@@ -1,8 +1,10 @@
 package host
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -91,4 +93,81 @@ func (e *Engine) publishedPorts(ctx context.Context) ([]int, error) {
 		}
 	}
 	return ports, nil
+}
+
+// ErrEngineNotFound is the engine's 404: no such container, network or image.
+var ErrEngineNotFound = errors.New("not found")
+
+// Do sends method to an engine API path, with in as its JSON body (nil for none), and decodes a
+// JSON reply into out (nil to drop it). A 404 is ErrEngineNotFound; 304 (already started or
+// stopped) is not an error. Writes (#43) go through here.
+func (e *Engine) Do(ctx context.Context, method, path string, in, out any) error {
+	var body io.Reader = http.NoBody
+	if in != nil {
+		b, err := json.Marshal(in)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, "http://docker"+path, body)
+	if err != nil {
+		return err
+	}
+	if in != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := e.c.Do(req)
+	if err != nil {
+		return fmt.Errorf("docker engine: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	reply, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+	if err != nil {
+		return fmt.Errorf("docker engine %s %s: %w", method, path, err)
+	}
+	switch {
+	case resp.StatusCode == http.StatusNotFound:
+		return fmt.Errorf("docker engine %s %s: %w: %s", method, path, ErrEngineNotFound, engineMessage(reply))
+	case resp.StatusCode == http.StatusNotModified:
+		return nil
+	case resp.StatusCode >= 300:
+		return fmt.Errorf("docker engine %s %s: %s: %s", method, path, resp.Status, engineMessage(reply))
+	}
+	if out != nil && len(bytes.TrimSpace(reply)) > 0 {
+		if err := json.Unmarshal(reply, out); err != nil {
+			return fmt.Errorf("docker engine %s %s: %w", method, path, err)
+		}
+	}
+	return nil
+}
+
+// Stream GETs an engine API path and hands its body to read until it ends (a followed log).
+func (e *Engine) Stream(ctx context.Context, path string, read func(io.Reader) error) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://docker"+path, http.NoBody)
+	if err != nil {
+		return err
+	}
+	resp, err := e.c.Do(req)
+	if err != nil {
+		return fmt.Errorf("docker engine: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		if resp.StatusCode == http.StatusNotFound {
+			return fmt.Errorf("docker engine %s: %w: %s", path, ErrEngineNotFound, engineMessage(b))
+		}
+		return fmt.Errorf("docker engine %s: %s: %s", path, resp.Status, engineMessage(b))
+	}
+	return read(resp.Body)
+}
+
+// engineMessage is the engine's {"message": …}, or the body as it is.
+func engineMessage(b []byte) string {
+	var m struct{ Message string }
+	if json.Unmarshal(b, &m) == nil && m.Message != "" {
+		return m.Message
+	}
+	return strings.TrimSpace(string(b))
 }

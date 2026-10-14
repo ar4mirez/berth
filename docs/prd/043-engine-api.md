@@ -1,18 +1,22 @@
 # PRD: replace `docker compose` with the Engine API (#43)
 
-Status: **phase 1 done**; phases 2-4 need a decision (below) · Issue: [#43](https://github.com/ar4mirez/berth/issues/43) · Restarts
-orgs: no, by design (the next ordinary restart uses the new path)
+Status: **phases 1 and 2 done** (the API path is opt-in); phases 3 and 4 next · Issue:
+[#43](https://github.com/ar4mirez/berth/issues/43) · Restarts orgs: no, by design (the next ordinary restart uses the
+new path)
 
-## The decision this needs
+## The decision this needed
 
-Two standing rules say not to do this yet:
+Two standing rules said not to do this yet:
 - **CLAUDE.md:** "Keep shelling out to `docker compose`. Don't reimplement compose or the pty."
 - **Plan decision 3:** the Engine API is for reads only; replacing compose is a "v2 hardening" phase of its own.
 
-Phase 1 is built, because it keeps compose: berth still starts orgs with it. Nothing past phase 1 is built until
-the owner lifts that rule, for this phase only.
+**Decided on 2026-10-14:** the owner asked for every open issue to be cleared, one at a time, which lifts that rule
+for #43.
+- CLAUDE.md now names the Engine API path as the one exception to compose.
+- `TestEngineAPICompatibility` keeps the two interchangeable.
+- Each phase is its own change.
 
-**Recommendation: stop after phase 1 for now.** The issue's own
+**What was weighed before deciding** (the recommendation then was to stop after phase 1). The issue's own
 case is "control and fewer moving parts, not a blocker", and every part of berth works today with compose, remote
 hosts included. Against that:
 - **The parity harness** is built on compose's command line. About 60-80 scenarios compare it with ccenv's, and
@@ -116,6 +120,15 @@ the compose plugin.
      Hostname, Image and the compose project label. Check that either side's `down` leaves no orphan container or
      network.
    - The integration tests run on both paths.
+   - **Done** (`internal/host/composeapi.go`):
+     - With `BERTH_ENGINE_API=1` on a Docker host, an org's compose `up`, `down` and `logs` go to the engine: create,
+       start, stop, remove, the network, and the log stream. They are made from `OrgSpec`, with compose's labels.
+       Every other command is unchanged, and so are Podman and Apple's `container`.
+     - `TestComposeThroughEngineAPI` runs against a fake engine.
+     - `TestEngineAPICompatibility` runs against Docker. It covers both directions, the inspected fields, no
+       orphans, and no recreate on the switch.
+     - The `engine API path` CI job runs `TestRemoteLifecycle` with the flag set, here and on a registered host
+       over SSH. It checks that the API made the container.
 3. **The parity harness on the API path:** an engine fake that records requests as calls the way `fakebin` records
    argv, and the scenarios moved over. This is most of the work.
 4. **On by default.** compose then stays only for `BERTH_ENGINE_API=0`, for one release, and `host add` stops

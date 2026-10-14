@@ -40,9 +40,13 @@ func (h *Host) EngineName() string {
 
 // WithEngine is h driving engine: every command whose program is "docker" runs engine's CLI instead
 // (Podman takes Docker's argv, compose included), and the published ports come from that CLI. For
-// Docker (or ""), h itself.
+// Docker (or ""), h itself, unless BERTH_ENGINE_API=1 sends its orgs' compose commands to the engine's
+// API (composeapi.go, #43).
 func WithEngine(h *Host, engine string) *Host {
 	if engine == "" || engine == EngineDocker {
+		if EngineAPIWanted() && h.Docker != nil {
+			return withEngineAPI(h) // BERTH_ENGINE_API=1 (#43): its orgs' compose commands go to the API
+		}
 		return h
 	}
 	ex := engineExec{inner: h.Exec, bin: engine, rootless: &rootless{}}

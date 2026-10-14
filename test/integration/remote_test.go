@@ -127,6 +127,12 @@ func TestRemoteLifecycle(t *testing.T) {
 			if running, _ := s.docker("inspect", "-f", "{{.State.Running}}", "claude-"+o); strings.TrimSpace(running) != "true" {
 				t.Fatalf("not running after up (%s):\n%s", running, diag())
 			}
+			// With BERTH_ENGINE_API=1 (#43), the engine's API made it, not compose.
+			if os.Getenv("BERTH_ENGINE_API") == "1" {
+				if l, _ := s.docker("inspect", "-f", `{{index .Config.Labels "berth.engine-api"}}`, "claude-"+o); strings.TrimSpace(l) != "1" {
+					t.Errorf("BERTH_ENGINE_API=1, and the container wasn't made through the API (label %q)", l)
+				}
+			}
 			deadline := time.Now().Add(3 * time.Minute)
 			for {
 				st, _ := s.docker("exec", "claude-"+o, "cat", contract.FirewallStatus)
