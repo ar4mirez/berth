@@ -58,6 +58,18 @@ type Config struct {
 	DockerSocket string
 	// Timeout bounds the TCP connect and handshake (default 15s).
 	Timeout time.Duration
+	// Jump is the host to reach this one through (ssh -J; #99): a bastion, with its own address,
+	// user, keys and host key policy. Its KnownHosts and Timeout default to this Config's. nil
+	// connects directly.
+	Jump *Config
+}
+
+// withPort is addr with port 22 when it names none.
+func withPort(addr string) string {
+	if _, _, err := net.SplitHostPort(addr); err != nil {
+		return net.JoinHostPort(addr, "22")
+	}
+	return addr
 }
 
 // Dial connects to the host. operator is the machine berth runs on: it holds known_hosts and the
@@ -66,29 +78,73 @@ func Dial(ctx context.Context, cfg Config, operator *host.Host) (*host.Host, err
 	if cfg.KnownHosts == "" {
 		return nil, errors.New("ssh: a known_hosts file is required")
 	}
-	if cfg.User == "" {
-		return nil, errors.New("ssh: a user is required")
-	}
-	addr := cfg.Addr
-	if _, _, err := net.SplitHostPort(addr); err != nil {
-		addr = net.JoinHostPort(addr, "22")
-	}
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 15 * time.Second
 	}
 	if cfg.DockerSocket == "" {
 		cfg.DockerSocket = DefaultDockerSocket
 	}
+	addr := withPort(cfg.Addr)
 
+	var via *gossh.Client
+	closeVia := func() {}
+	if cfg.Jump != nil {
+		j := *cfg.Jump
+		if j.KnownHosts == "" {
+			j.KnownHosts = cfg.KnownHosts
+		}
+		if j.Timeout == 0 {
+			j.Timeout = cfg.Timeout
+		}
+		cfg.Jump = &j // as runTTY's ProxyCommand needs it
+		c, closeFn, err := connect(ctx, j, operator, nil)
+		if err != nil {
+			return nil, fmt.Errorf("ssh jump host %s@%s: %w", j.User, withPort(j.Addr), err)
+		}
+		via, closeVia = c, closeFn
+	}
+	client, closeClient, err := connect(ctx, cfg, operator, via)
+	if err != nil {
+		closeVia()
+		return nil, fmt.Errorf("ssh %s@%s: %w", cfg.User, addr, err)
+	}
+	sc, err := sftp.NewClient(client)
+	if err != nil {
+		closeClient()
+		closeVia()
+		return nil, fmt.Errorf("ssh %s@%s: sftp: %w", cfg.User, addr, err)
+	}
+
+	hostname, port, _ := net.SplitHostPort(addr)
+	ex := &execer{client: client, operator: operator, cfg: cfg, hostname: hostname, port: port}
+	d := docker{client: client, sock: cfg.DockerSocket}
+	closeFn := func() error {
+		defer closeVia()
+		defer closeClient()
+		return sc.Close()
+	}
+	name := "ssh://" + cfg.User + "@" + addr
+	h := host.New(name, &sftpFS{c: sc, ex: ex}, ex, d, host.ExecFacts{Exec: ex, Docker: d}, closeFn)
+	h.Unix = func(ctx context.Context, path string) (net.Conn, error) { return client.DialContext(ctx, "unix", path) }
+	return h, nil
+}
+
+// connect logs in to cfg's host, directly or through via (a jump host's connection), with cfg's
+// keys and host key policy. The func closes the connection and the agent's.
+func connect(ctx context.Context, cfg Config, operator *host.Host, via *gossh.Client) (*gossh.Client, func(), error) {
+	if cfg.User == "" {
+		return nil, nil, errors.New("a user is required")
+	}
+	addr := withPort(cfg.Addr)
 	auth, closeAgent, err := authMethods(cfg, operator.FS)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	hk := hostKeys{fs: operator.FS, path: cfg.KnownHosts, acceptNew: cfg.AcceptNewHostKey, expect: cfg.ExpectFingerprint}
 	known, err := hk.load()
 	if err != nil {
 		closeAgent()
-		return nil, err
+		return nil, nil, err
 	}
 	cc := &gossh.ClientConfig{
 		User:              cfg.User,
@@ -97,50 +153,48 @@ func Dial(ctx context.Context, cfg Config, operator *host.Host) (*host.Host, err
 		HostKeyAlgorithms: algorithms(known, addr),
 		Timeout:           cfg.Timeout,
 	}
-
-	client, err := dial(ctx, addr, cc)
+	client, err := dial(ctx, addr, cc, via)
 	if err != nil {
 		closeAgent()
-		return nil, fmt.Errorf("ssh %s@%s: %w", cfg.User, addr, err)
+		return nil, nil, err
 	}
-	sc, err := sftp.NewClient(client)
-	if err != nil {
-		_ = client.Close()
-		closeAgent()
-		return nil, fmt.Errorf("ssh %s@%s: sftp: %w", cfg.User, addr, err)
-	}
-
-	hostname, port, _ := net.SplitHostPort(addr)
-	ex := &execer{client: client, operator: operator, cfg: cfg, hostname: hostname, port: port}
-	d := docker{client: client, sock: cfg.DockerSocket}
-	closeFn := func() error {
-		defer closeAgent()
-		return errors.Join(sc.Close(), client.Close())
-	}
-	name := "ssh://" + cfg.User + "@" + addr
-	h := host.New(name, &sftpFS{c: sc, ex: ex}, ex, d, host.ExecFacts{Exec: ex, Docker: d}, closeFn)
-	h.Unix = func(ctx context.Context, path string) (net.Conn, error) { return client.DialContext(ctx, "unix", path) }
-	return h, nil
+	return client, func() { _ = client.Close(); closeAgent() }, nil
 }
 
-func dial(ctx context.Context, addr string, cc *gossh.ClientConfig) (*gossh.Client, error) {
-	d := net.Dialer{Timeout: cc.Timeout}
-	conn, err := d.DialContext(ctx, "tcp", addr)
+func dial(ctx context.Context, addr string, cc *gossh.ClientConfig, via *gossh.Client) (*gossh.Client, error) {
+	var conn net.Conn
+	var err error
+	if via != nil {
+		conn, err = via.DialContext(ctx, "tcp", addr) // a direct-tcpip channel from the jump host
+	} else {
+		d := net.Dialer{Timeout: cc.Timeout}
+		conn, err = d.DialContext(ctx, "tcp", addr)
+	}
 	if err != nil {
 		return nil, err
 	}
-	// Bound the handshake too; cleared once the connection is up.
+	// Bound the handshake too; cleared once the connection is up. A channel through a jump host
+	// takes no deadline, so a timer closes it instead.
 	deadline := time.Now().Add(cc.Timeout)
 	if dl, ok := ctx.Deadline(); ok && dl.Before(deadline) {
 		deadline = dl
 	}
-	_ = conn.SetDeadline(deadline)
+	var timer *time.Timer
+	if conn.SetDeadline(deadline) != nil {
+		timer = time.AfterFunc(time.Until(deadline), func() { _ = conn.Close() })
+	}
 	c, chans, reqs, err := gossh.NewClientConn(conn, addr, cc)
+	if timer != nil && !timer.Stop() && err == nil {
+		_ = c.Close()
+		err = errors.New("handshake timed out")
+	}
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
 	}
-	_ = conn.SetDeadline(time.Time{})
+	if timer == nil {
+		_ = conn.SetDeadline(time.Time{})
+	}
 	return gossh.NewClient(c, chans, reqs), nil
 }
 
@@ -226,6 +280,9 @@ func (e *execer) runTTY(ctx context.Context, c host.Cmd, line string) error {
 		"-o", "GlobalKnownHostsFile=/dev/null",
 		"-o", "StrictHostKeyChecking=yes",
 		"-p", e.port, "-l", e.cfg.User}
+	if e.cfg.Jump != nil {
+		args = append(args, "-o", "ProxyCommand="+ProxyCommand(*e.cfg.Jump))
+	}
 	for _, f := range e.cfg.IdentityFiles {
 		args = append(args, "-i", f)
 	}

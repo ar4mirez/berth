@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/ar4mirez/berth/internal/host"
+	sshhost "github.com/ar4mirez/berth/internal/host/ssh"
 	"github.com/ar4mirez/berth/internal/ops"
 )
 
@@ -48,7 +49,13 @@ func (a *App) Connect(ctx context.Context, o string) error {
 	args := []string{"ssh", "-N", "-p", p, "-i", e.Key,
 		"-o", "IdentitiesOnly=yes", "-o", "ExitOnForwardFailure=yes", "-o", "BatchMode=yes",
 		"-o", "UserKnownHostsFile=" + a.hostPaths().KnownHosts(), "-o", "StrictHostKeyChecking=yes",
-		"-L", "127.0.0.1:" + fwd(sp), "-L", "127.0.0.1:" + fwd(tp), e.User + "@" + h}
+		"-L", "127.0.0.1:" + fwd(sp), "-L", "127.0.0.1:" + fwd(tp)}
+	if ju, ja := e.JumpTarget(); ja != "" {
+		// Through its jump host, with berth's known_hosts and key there too (#99).
+		args = append(args, "-o", "ProxyCommand="+sshhost.ProxyCommand(sshhost.Config{
+			Addr: ja, User: ju, KnownHosts: a.hostPaths().KnownHosts(), IdentityFiles: []string{e.Key}}))
+	}
+	args = append(args, e.User+"@"+h)
 	sayf(a.Stdout, "Tunnel to %s on %s (Ctrl-C closes it):\n  SSH                ssh -p %s node@127.0.0.1\n  Browser terminal   http://127.0.0.1:%s   (password: %s password %s@%s)\n",
 		o, a.HostName, sp, tp, Tool, o, a.HostName)
 	return a.Operator.Exec.Run(ctx, host.Cmd{Args: args, TTY: true})

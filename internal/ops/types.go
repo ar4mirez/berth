@@ -100,6 +100,8 @@ type HostStatus struct {
 	Orgs *int `json:"orgs"`
 	// Error says what failed, if anything ("" otherwise).
 	Error string `json:"error"`
+	// Jump is the jump host it is reached through, as user@host:port ("" for none; #99).
+	Jump string `json:"jump"`
 }
 
 // Info is `berth info <org> --output json`: every way to connect.
@@ -140,7 +142,7 @@ type Info struct {
 type Tunnel struct {
 	// Connect is the argument for `berth connect` ("acme", or "acme@box1").
 	Connect string `json:"connect"`
-	// SSHTarget is user@host for doing it by hand with `ssh -N -L` ("" when unknown).
+	// SSHTarget is [-J jump ][-p port ]user@host for doing it by hand with `ssh -N -L` ("" when unknown).
 	SSHTarget string `json:"ssh_target"`
 }
 

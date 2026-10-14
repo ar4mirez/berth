@@ -1,0 +1,10 @@
+# A bastion: logins with a key, and TCP forwarding (what ssh -J and berth's jump host need).
+Port 22
+HostKey /etc/ssh/ssh_host_ed25519_key
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AuthorizedKeysFile .ssh/authorized_keys
+AllowTcpForwarding yes
+Subsystem sftp internal-sftp
+LogLevel VERBOSE

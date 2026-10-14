@@ -81,3 +81,9 @@ func hasKey(content []byte, key gossh.PublicKey) bool {
 	_, found := RemoveAuthorized(content, key)
 	return found
 }
+
+// JumpLine is berth's line for a host in its jump host's authorized_keys (#99): the key may only
+// forward to that host (addr, as host:port), not run anything there.
+func JumpLine(k Key, comment, addr string) string {
+	return `restrict,port-forwarding,permitopen="` + addr + `",command="false" ` + k.AuthorizedLine(comment)
+}

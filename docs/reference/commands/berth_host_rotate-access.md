@@ -15,7 +15,7 @@ replace berth's key on a host (the old one goes only once the new one works)
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_host_rotate-access/
 
 ```
-berth host rotate-access <name> [flags]
+berth host rotate-access <name> [--identity <key file for its jump host>] [flags]
 ```
 
 ### Examples

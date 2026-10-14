@@ -318,12 +318,15 @@ func hostCmd() *cobra.Command {
 	c := &cobra.Command{Use: "host", Short: "the hosts berth manages: this machine and others over SSH"}
 	c.AddCommand(
 		writes(&cobra.Command{
-			Use:   "add <name> <[user@]host[:port]> [--home <dir>] [--identity <key file>] [--fingerprint SHA256:…] [--accept-new-host-key]",
+			Use:   "add <name> <[user@]host[:port]> [--home <dir>] [--identity <key file>] [--fingerprint SHA256:…] [--accept-new-host-key] [--jump <[user@]host[:port]> [--jump-fingerprint SHA256:…]]",
 			Short: "register a host: pin its SSH key, check Docker, and give berth its own key there",
 			Long: "Connects with your own SSH access (ssh-agent, or --identity), pins the host's key in berth's known_hosts\n" +
 				"(asking you to confirm its fingerprint, or taking --fingerprint), checks Docker and compose, then adds a key\n" +
 				"of berth's own to the host's authorized_keys and records the host. --home is the state root there\n" +
-				"(default ~/.local/share/berth). Nothing on the host is started or restarted.",
+				"(default ~/.local/share/berth). Nothing on the host is started or restarted.\n\n" +
+				"--jump reaches the host through a jump host (bastion), as ssh -J does: its key is pinned the same way\n" +
+				"(or --jump-fingerprint), and berth's key goes in its authorized_keys too, allowed only to forward to\n" +
+				"this host. berth changes that line with your own access there (ssh-agent, or --identity).",
 			DisableFlagParsing: true,
 			RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostAdd(cmd.Context(), args) },
 		}),
@@ -334,7 +337,7 @@ func hostCmd() *cobra.Command {
 			RunE:  func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostLs(cmd.Context(), args) },
 		}),
 		writes(&cobra.Command{
-			Use:                "rm <name> [--force]",
+			Use:                "rm <name> [--force] [--identity <key file for its jump host>]",
 			Short:              "forget a host and revoke berth's key there (refused while it has orgs, unless --force)",
 			DisableFlagParsing: true,
 			RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostRm(cmd.Context(), args) },
@@ -370,7 +373,7 @@ func hostCmd() *cobra.Command {
 			RunE:               func(cmd *cobra.Command, args []string) error { return appFor(cmd).HostGuard(cmd.Context(), args) },
 		}),
 		writes(&cobra.Command{
-			Use:                "rotate-access <name>",
+			Use:                "rotate-access <name> [--identity <key file for its jump host>]",
 			Short:              "replace berth's key on a host (the old one goes only once the new one works)",
 			DisableFlagParsing: true,
 			RunE: func(cmd *cobra.Command, args []string) error {

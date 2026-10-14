@@ -15,7 +15,7 @@ forget a host and revoke berth's key there (refused while it has orgs, unless --
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_host_rm/
 
 ```
-berth host rm <name> [--force] [flags]
+berth host rm <name> [--force] [--identity <key file for its jump host>] [flags]
 ```
 
 ### Examples

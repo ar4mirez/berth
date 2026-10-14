@@ -55,6 +55,8 @@ type Entry struct {
 	Bind string `yaml:"bind,omitempty"`
 	// Provider is the cloud provider berth created the host at ("" for a host that was added; #52).
 	Provider string `yaml:"provider,omitempty"`
+	// Jump is the jump host (bastion) the host is reached through, as user@host:port ("": directly; #99).
+	Jump string `yaml:"jump,omitempty"`
 }
 
 // Address is user@host:port, as shown to the operator.
@@ -63,6 +65,15 @@ func (e Entry) Address() string {
 		return ""
 	}
 	return e.User + "@" + e.Addr
+}
+
+// JumpTarget is Jump split into its user and host:port ("", "" for none).
+func (e Entry) JumpTarget() (user, addr string) {
+	if e.Jump == "" {
+		return "", ""
+	}
+	user, addr, _ = ParseTarget(e.Jump, "")
+	return user, addr
 }
 
 // Registry is the hosts file.
@@ -136,6 +147,11 @@ func Load(fsys host.FS, p Paths) (*Registry, error) {
 		seen[e.Name] = true
 		if err := host.CheckEngine(e.Engine); err != nil {
 			return nil, fmt.Errorf("%s: host %q: %w", p.File(), e.Name, err)
+		}
+		if e.Jump != "" {
+			if _, _, err := ParseTarget(e.Jump, ""); err != nil {
+				return nil, fmt.Errorf("%s: host %q: jump %s: %w", p.File(), e.Name, e.Jump, err)
+			}
 		}
 		if e.Kind != KindSSH || e.User == "" || e.Addr == "" || !path.IsAbs(e.Home) || e.Key == "" {
 			return nil, fmt.Errorf("%s: host %q is incomplete (kind ssh, user, addr, an absolute home and key are required)", p.File(), e.Name)

@@ -804,6 +804,9 @@
                           "home": {
                             "type": "string"
                           },
+                          "jump": {
+                            "type": "string"
+                          },
                           "kind": {
                             "type": "string"
                           },
@@ -829,7 +832,8 @@
                           "engine",
                           "docker",
                           "orgs",
-                          "error"
+                          "error",
+                          "jump"
                         ],
                         "type": "object"
                       },
@@ -948,6 +952,14 @@
                       "type": "string"
                     },
                     "type": "array"
+                  },
+                  "jump": {
+                    "description": "a jump host (bastion) to reach it through, as ssh -J takes it: [user@]host[:port]",
+                    "type": "string"
+                  },
+                  "jump_fingerprint": {
+                    "description": "the jump host's SSH key fingerprint to expect (SHA256:…)",
+                    "type": "string"
                   },
                   "no_guard": {
                     "description": "don't install the host guard, which keeps org containers away from the host itself",

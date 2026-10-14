@@ -54,6 +54,14 @@ func TestHostCommandsOffline(t *testing.T) {
 		{"add: relative home", func(a *App) error { return a.HostAdd(ctx, []string{"box2", "h", "--home", "x"}) }, "absolute"},
 		{"add: fingerprint", func(a *App) error { return a.HostAdd(ctx, []string{"box2", "h", "--fingerprint", "MD5:x"}) }, "SHA256"},
 		{"add: twice", func(a *App) error { return a.HostAdd(ctx, []string{"box1", "h"}) }, "already registered"},
+		{"add: jump fingerprint", func(a *App) error {
+			return a.HostAdd(ctx, []string{"box2", "h", "--jump", "b", "--jump-fingerprint", "MD5:x"})
+		}, "--jump-fingerprint MD5:x: expected SHA256"},
+		{"add: jump fingerprint, no jump", func(a *App) error { return a.HostAdd(ctx, []string{"box2", "h", "--jump-fingerprint", "SHA256:x"}) }, "needs --jump"},
+		{"add: jump is the host", func(a *App) error { return a.HostAdd(ctx, []string{"box2", "op@h:22", "--jump", "h"}) }, "is the host itself"},
+		{"add: jump address", func(a *App) error { return a.HostAdd(ctx, []string{"box2", "h", "--jump", "b:x"}) }, "--jump b:x: "},
+		{"rm: identity without a file", func(a *App) error { return a.HostRm(ctx, []string{"box1", "--identity"}) }, "usage"},
+		{"rotate: identity without a file", func(a *App) error { return a.HostRotateAccess(ctx, []string{"box1", "--identity"}) }, "usage"},
 		{"rm: local", func(a *App) error { return a.HostRm(ctx, []string{"local"}) }, "this machine"},
 		{"rm: unknown", func(a *App) error { return a.HostRm(ctx, []string{"nope"}) }, "unknown host"},
 		{"rotate: unknown", func(a *App) error { return a.HostRotateAccess(ctx, []string{"nope"}) }, "unknown host"},
