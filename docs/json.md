@@ -235,9 +235,9 @@ shows the same case as `(listed but missing)`.
   "schema": "berth.hosts/v1",
   "hosts": [
     { "name": "local", "kind": "local", "address": "", "home": "/home/op/.local/share/berth",
-      "reachable": true, "engine": "docker", "docker": "27.3.1", "orgs": 3, "error": "" },
+      "reachable": true, "engine": "docker", "docker": "27.3.1", "orgs": 3, "error": "", "jump": "" },
     { "name": "box1", "kind": "ssh", "address": "ops@box1.example:22", "home": "/home/ops/.local/share/berth",
-      "reachable": false, "docker": "", "orgs": null, "error": "ssh ops@box1.example:22: dial tcp …: i/o timeout" }
+      "reachable": false, "docker": "", "orgs": null, "error": "ssh ops@box1.example:22: dial tcp …: i/o timeout", "jump": "" }
   ]
 }
 ```
@@ -245,6 +245,7 @@ shows the same case as `(listed but missing)`.
 - `local`, this machine, is always first.
 - `engine` is the host's container engine, `docker` or `podman`; `docker` holds that engine's version (#57).
 - `orgs` is `null` when it couldn't be counted. `error` says what failed, and is `""` otherwise.
+- `jump` is the jump host the host is reached through (`user@host:port`; #99), and `""` for none.
 - A host that can't be reached is still listed, and the exit code is 0.
 
 ## `berth.info/v1`: `info <org>`

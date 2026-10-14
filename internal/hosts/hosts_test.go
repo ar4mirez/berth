@@ -122,3 +122,26 @@ func TestAuthorizedKeys(t *testing.T) {
 		t.Error("found a removed key")
 	}
 }
+
+// TestJump: a jump host is recorded as user@host:port and checked on load, and berth's line there
+// may only forward to the host (#99).
+func TestJump(t *testing.T) {
+	e := Entry{Jump: "jump@bastion.example:2222"}
+	if u, a := e.JumpTarget(); u != "jump" || a != "bastion.example:2222" {
+		t.Errorf("JumpTarget: %q %q", u, a)
+	}
+	if u, a := (Entry{}).JumpTarget(); u != "" || a != "" {
+		t.Errorf("no jump: %q %q", u, a)
+	}
+	k, err := NewKey("berth:box")
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := JumpLine(k, "berth:box", "10.0.0.5:22")
+	if !strings.HasPrefix(line, `restrict,port-forwarding,permitopen="10.0.0.5:22",command="false" ssh-ed25519 `) || !strings.HasSuffix(line, " berth:box") {
+		t.Errorf("JumpLine: %s", line)
+	}
+	if out, found := RemoveAuthorized([]byte("other\n"+line+"\n"), k.Public); !found || string(out) != "other\n" {
+		t.Errorf("RemoveAuthorized of a jump line: %v %q", found, out)
+	}
+}

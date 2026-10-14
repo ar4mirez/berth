@@ -68,3 +68,17 @@ func TestRemoteCommandRejects(t *testing.T) {
 		}
 	}
 }
+
+// TestProxyCommand: the ProxyCommand for a jump host runs through a shell as ssh gives it, with
+// berth's known_hosts and keys for the jump host, and %h:%p as the only %-tokens (#99).
+func TestProxyCommand(t *testing.T) {
+	got := ProxyCommand(Config{Addr: "bastion.example:2222", User: "jump", KnownHosts: "/home/op/.config/ber th/known_hosts", IdentityFiles: []string{"/k/100%"}})
+	want := "ssh -o 'UserKnownHostsFile=/home/op/.config/ber th/known_hosts' -o GlobalKnownHostsFile=/dev/null -o StrictHostKeyChecking=yes " +
+		"-o BatchMode=yes -o IdentitiesOnly=yes -i /k/100%% -p 2222 -l jump -W %h:%p -- bastion.example"
+	if got != want {
+		t.Errorf("got  %s\nwant %s", got, want)
+	}
+	if got := ProxyCommand(Config{Addr: "bastion.example", User: "jump", KnownHosts: "/kh"}); !strings.Contains(got, "-p 22 -l jump") || strings.Contains(got, "IdentitiesOnly") {
+		t.Errorf("default port, the agent's keys: %s", got)
+	}
+}

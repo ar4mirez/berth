@@ -3,6 +3,7 @@ package ssh
 import (
 	"errors"
 	"fmt"
+	"net"
 	"regexp"
 	"strings"
 
@@ -59,4 +60,29 @@ func remoteCommand(c host.Cmd) (string, error) {
 		b.WriteString(" " + quote(a))
 	}
 	return b.String(), nil
+}
+
+// ProxyCommand is the ssh option that reaches a host through jump (#99), for the operator's ssh
+// binary: ssh -W from the jump host, checked against berth's known_hosts with berth's keys. Not
+// ssh -J: its hop takes none of the command line's -o and -i options, so it would check the jump
+// host against the operator's own known_hosts. jump.KnownHosts must be set.
+func ProxyCommand(jump Config) string {
+	hostname, port, _ := net.SplitHostPort(withPort(jump.Addr))
+	args := []string{"ssh",
+		"-o", "UserKnownHostsFile=" + jump.KnownHosts,
+		"-o", "GlobalKnownHostsFile=/dev/null",
+		"-o", "StrictHostKeyChecking=yes",
+		"-o", "BatchMode=yes"}
+	if len(jump.IdentityFiles) > 0 {
+		args = append(args, "-o", "IdentitiesOnly=yes")
+	}
+	for _, f := range jump.IdentityFiles {
+		args = append(args, "-i", f)
+	}
+	args = append(args, "-p", port, "-l", jump.User, "-W")
+	words := make([]string, 0, len(args)+3)
+	for _, a := range args {
+		words = append(words, quote(strings.ReplaceAll(a, "%", "%%"))) // ssh expands %-tokens in it
+	}
+	return strings.Join(append(words, "%h:%p", "--", quote(strings.ReplaceAll(hostname, "%", "%%"))), " ")
 }

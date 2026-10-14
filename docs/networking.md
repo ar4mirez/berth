@@ -95,5 +95,7 @@ berth reaches a registered host over SSH, at whatever address you gave `berth ho
 - an address on any other VPN;
 - a public address with key-only SSH.
 
-Tailscale isn't required. berth connects directly, so an SSH jump host (bastion) isn't supported yet (#99). Until
-then, reach such hosts over a VPN.
+- a private address that only an SSH jump host (bastion) can reach: `berth host add box1 ops@10.0.0.5 --jump
+  ops@bastion.example`. See [Through a jump host](hosts.md#through-a-jump-host).
+
+Tailscale isn't required.

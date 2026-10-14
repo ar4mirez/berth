@@ -217,7 +217,7 @@ func TestBerthAPI(t *testing.T) {
 		"schedule_run":     func() (any, error) { return c.ScheduleRun(ctx) },
 		"image_pull":       func() (any, error) { return c.ImagePull(ctx) },
 		"host_add": func() (any, error) {
-			return c.HostAdd(ctx, "Bad Name", "ops@t-box.example", "", nil, "", false, "", "", false)
+			return c.HostAdd(ctx, "Bad Name", "ops@t-box.example", "", nil, "", false, "", "", false, "", "")
 		},
 		"host_remove":        func() (any, error) { return c.HostRemove(ctx, "t-box", false) },
 		"host_rotate_access": func() (any, error) { return c.HostRotateAccess(ctx, "t-box") },

@@ -250,8 +250,8 @@ func (c *Client) ImagePull(ctx context.Context) (out mcpsrv.Done, err error) {
 }
 
 // HostAdd is POST /v1/hosts: Register another machine to run orgs on, over SSH: berth checks it, installs a key of its own there, and by default the host guard.
-func (c *Client) HostAdd(ctx context.Context, host string, address string, home string, identities []string, fingerprint string, acceptNewHostKey bool, engine string, bind string, noGuard bool) (out mcpsrv.Done, err error) {
-	return out, c.do(ctx, "POST", "/v1/hosts", nil, map[string]any{"host": host, "address": address, "home": home, "identities": identities, "fingerprint": fingerprint, "accept_new_host_key": acceptNewHostKey, "engine": engine, "bind": bind, "no_guard": noGuard}, &out)
+func (c *Client) HostAdd(ctx context.Context, host string, address string, home string, identities []string, fingerprint string, acceptNewHostKey bool, engine string, bind string, noGuard bool, jump string, jumpFingerprint string) (out mcpsrv.Done, err error) {
+	return out, c.do(ctx, "POST", "/v1/hosts", nil, map[string]any{"host": host, "address": address, "home": home, "identities": identities, "fingerprint": fingerprint, "accept_new_host_key": acceptNewHostKey, "engine": engine, "bind": bind, "no_guard": noGuard, "jump": jump, "jump_fingerprint": jumpFingerprint}, &out)
 }
 
 // HostRemove is DELETE /v1/hosts/{host}: Forget a registered host.

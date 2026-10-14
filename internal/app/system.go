@@ -141,6 +141,9 @@ func (a *App) Tunnel(ctx context.Context, o, _, _ string) *ops.Tunnel {
 	if a.HostName != "" {
 		if e, err := a.base().registered(a.HostName); err == nil {
 			t.SSHTarget = sshTarget(e.User, e.Addr)
+			if e.Jump != "" {
+				t.SSHTarget = "-J " + e.Jump + " " + t.SSHTarget // through its jump host (#99)
+			}
 		}
 		t.Connect = o + "@" + a.HostName
 	} else {

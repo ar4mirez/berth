@@ -32,10 +32,12 @@ type hostAddArgs struct {
 	Engine           string   `json:"engine,omitempty" jsonschema:"its container engine: docker (the default) or podman"`
 	Bind             string   `json:"bind,omitempty" jsonschema:"where its orgs' ports listen (berth's default when empty)"`
 	NoGuard          bool     `json:"no_guard,omitempty" jsonschema:"don't install the host guard, which keeps org containers away from the host itself"`
+	Jump             string   `json:"jump,omitempty" jsonschema:"a jump host (bastion) to reach it through, as ssh -J takes it: [user@]host[:port]"`
+	JumpFingerprint  string   `json:"jump_fingerprint,omitempty" jsonschema:"the jump host's SSH key fingerprint to expect (SHA256:…)"`
 }
 
 func (a hostAddArgs) auditArgs() map[string]any {
-	return map[string]any{"host": a.Host, "address": a.Address, "home": a.Home, "engine": a.Engine, "bind": a.Bind, "no_guard": a.NoGuard}
+	return map[string]any{"host": a.Host, "address": a.Address, "home": a.Home, "engine": a.Engine, "bind": a.Bind, "no_guard": a.NoGuard, "jump": a.Jump}
 }
 
 type hostRemoveArgs struct {
@@ -116,7 +118,7 @@ func (s *server) machineTools() {
 				return Done{}, errors.New("host and address are required")
 			}
 			args := []string{in.Host, in.Address}
-			for _, f := range [][2]string{{"--home", in.Home}, {"--fingerprint", in.Fingerprint}, {"--engine", in.Engine}, {"--bind", in.Bind}} {
+			for _, f := range [][2]string{{"--home", in.Home}, {"--fingerprint", in.Fingerprint}, {"--engine", in.Engine}, {"--bind", in.Bind}, {"--jump", in.Jump}, {"--jump-fingerprint", in.JumpFingerprint}} {
 				if f[1] != "" {
 					args = append(args, f[0], f[1])
 				}
@@ -124,7 +126,7 @@ func (s *server) machineTools() {
 			for _, id := range in.Identities {
 				args = append(args, "--identity", id)
 			}
-			for _, v := range append([]string{in.Host, in.Address, in.Home, in.Fingerprint, in.Engine, in.Bind}, in.Identities...) {
+			for _, v := range append([]string{in.Host, in.Address, in.Home, in.Fingerprint, in.Engine, in.Bind, in.Jump, in.JumpFingerprint}, in.Identities...) {
 				if err := flagLike("a value", v); err != nil {
 					return Done{}, err
 				}

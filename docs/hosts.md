@@ -41,6 +41,7 @@ berth ls                                      # this machine's orgs, then each h
 berth host add box1 ops@box1.example           # [user@]host[:port]; the user defaults to $USER, the port to 22
 berth host add box2 box2.example --engine podman   # the engine is detected (Docker, else Podman) unless given
 berth host add box3 ops@203.0.113.7 --bind localhost   # new orgs there bind to localhost: reach them with berth org connect
+berth host add box4 ops@10.0.0.5 --jump ops@bastion.example   # through a jump host (bastion), as ssh -J
 berth host ls                                  # every host: reachable, Docker version, number of orgs
 berth --output json host ls                    # the same, as berth.hosts/v1 (docs/json.md)
 berth host rotate-access box1                  # replace berth's key on box1
@@ -104,6 +105,41 @@ It then:
 
 It never stops or deletes anything on the host: its orgs keep running there. If the host was unreachable, berth
 reminds you to remove the `berth:<name>` line by hand.
+
+### Through a jump host
+
+A host that only a bastion can reach is added with `--jump [user@]bastion[:port]`, as `ssh -J` takes it:
+
+```bash
+berth host add box4 ops@10.0.0.5 --jump ops@bastion.example --identity ~/.ssh/id_ed25519
+```
+
+- **Both host keys are pinned** in berth's `known_hosts`, each confirmed the same way: the bastion's first. Without a
+  terminal, run it again with `--jump-fingerprint SHA256:…` for the bastion and `--fingerprint SHA256:…` for the
+  host. The host's key is pinned under its address as the bastion reaches it (`10.0.0.5`).
+- **berth's key goes on the bastion too**, in your user's `authorized_keys` there, limited to forwarding to that
+  one host:
+
+  ```
+  restrict,port-forwarding,permitopen="10.0.0.5:22",command="false" ssh-ed25519 AAAA… berth:box4
+  ```
+
+  With that key, berth can open a connection to the host through the bastion and do nothing else there: no shell, no
+  other destination. The bastion needs `AllowTcpForwarding yes` (OpenSSH's default) for that user.
+- **Everything goes through the bastion afterwards**: files, commands, the engine, `host ls`, and `org connect`'s
+  tunnel. Commands that need a terminal (`attach`, `fw edit`) run your `ssh` binary with a `ProxyCommand`, which
+  checks the bastion against berth's `known_hosts` with berth's key. `info` prints the manual tunnel command with
+  `-J`, for your own ssh to use.
+- **berth changes its line on the bastion with your own access there**, because its own key there can't log in.
+  `host add` does it with the access it connected with. `host rotate-access <name> --identity <file>` and
+  `host rm <name> --identity <file>` need it again (your ssh-agent works too). Without that access, `rotate-access`
+  refuses before changing anything, and `rm` tells you which line to remove by hand.
+- **`host ls`** shows the host as `ops@10.0.0.5:22 via ops@bastion.example:22`, and its JSON has `jump`.
+- `host rm` forgets the bastion's key once no other host goes through it.
+
+A private address can be the same behind two different bastions. berth pins each host key under the address alone,
+so two such hosts would share a `known_hosts` entry: give them different addresses (a name the bastion resolves, for
+example).
 
 ## Moving an org between hosts
 

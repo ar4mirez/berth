@@ -15,10 +15,14 @@ Connects with your own SSH access (ssh-agent, or --identity), pins the host's ke
 of berth's own to the host's authorized_keys and records the host. --home is the state root there
 (default ~/.local/share/berth). Nothing on the host is started or restarted.
 
+--jump reaches the host through a jump host (bastion), as ssh -J does: its key is pinned the same way
+(or --jump-fingerprint), and berth's key goes in its authorized_keys too, allowed only to forward to
+this host. berth changes that line with your own access there (ssh-agent, or --identity).
+
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_host_add/
 
 ```
-berth host add <name> <[user@]host[:port]> [--home <dir>] [--identity <key file>] [--fingerprint SHA256:…] [--accept-new-host-key] [flags]
+berth host add <name> <[user@]host[:port]> [--home <dir>] [--identity <key file>] [--fingerprint SHA256:…] [--accept-new-host-key] [--jump <[user@]host[:port]> [--jump-fingerprint SHA256:…]] [flags]
 ```
 
 ### Examples
