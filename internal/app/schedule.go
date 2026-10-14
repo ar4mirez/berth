@@ -18,7 +18,8 @@ const scheduleName = ops.ScheduleName
 var atHHMM = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
 
 // Schedule is `ccenv schedule [--at HH:MM] [--keep N] [-o dir] | status | run | off`: a nightly
-// `backup --all` through a systemd user timer, or cron where there is no systemd user manager.
+// `backup --all` through a systemd user timer, a launchd agent on macOS (schedule_launchd.go), or
+// cron where there is no systemd user manager.
 func (a *App) Schedule(ctx context.Context, args []string) error {
 	// --host <name> (#49): the schedule runs on that registered host, with recipients only.
 	if name, rest, err := splitHostFlag(args); err != nil {
@@ -74,6 +75,9 @@ func (a *App) Schedule(ctx context.Context, args []string) error {
 
 	switch action {
 	case "run":
+		if a.isFile(ops.ScheduleAgent(a)) {
+			return a.scheduleAgentRun(ctx)
+		}
 		if !hasTimer {
 			return fmt.Errorf("no systemd schedule to run (%s backup --all runs it by hand)", Tool)
 		}
@@ -83,6 +87,11 @@ func (a *App) Schedule(ctx context.Context, args []string) error {
 		sayf(a.Stdout, "Ran. See: %s schedule status\n", Tool)
 		return nil
 	case "off":
+		if a.isFile(ops.ScheduleAgent(a)) {
+			if err := a.scheduleAgentOff(ctx); err != nil {
+				return err
+			}
+		}
 		if hasTimer {
 			_ = a.quietRun(ctx, "systemctl", "--user", "disable", "--now", scheduleName+".timer")
 			_ = a.Host.FS.Remove(timer)
@@ -113,6 +122,11 @@ func (a *App) Schedule(ctx context.Context, args []string) error {
 	cmd := []string{self, "--home", a.State.Home.Path, "backup", "--all", "--keep", keep}
 	if out != "" {
 		cmd = append(cmd, "-o", out)
+	}
+	if launchd, err := a.scheduleLaunchd(ctx); err != nil {
+		return err
+	} else if launchd {
+		return a.scheduleAgentOn(ctx, at, keep, out, cmd, recips)
 	}
 	if recips != "" {
 		cmd = append([]string{"env", "BERTH_BACKUP_RECIPIENTS=" + recips}, cmd...)
@@ -197,6 +211,15 @@ func (a *App) scheduleStatus(ctx context.Context) error {
 		if sc.NoRuns {
 			fmt.Fprintln(a.Stdout, "(no runs yet)")
 		}
+	case "launchd":
+		sayf(a.Stdout, "%s\n", sc.TimerText)
+		for _, l := range sc.Runs {
+			fmt.Fprintln(a.Stdout, l)
+		}
+		if sc.NoRuns {
+			fmt.Fprintln(a.Stdout, "(no runs yet)")
+		}
+		sayf(a.Stdout, "log: %s\n", sc.Log)
 	case "cron":
 		if err != nil {
 			return err

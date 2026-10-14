@@ -50,7 +50,7 @@ func (c *Client) BackupCreate(ctx context.Context, orgs []string, all bool) (out
 	return out, c.do(ctx, "POST", "/v1/backups", nil, map[string]any{"orgs": orgs, "all": all}, &out)
 }
 
-// ScheduleStatus is GET /v1/schedule: The nightly backup schedule on this machine: a systemd timer and its last runs, or a crontab line.
+// ScheduleStatus is GET /v1/schedule: The nightly backup schedule on this machine: a systemd timer or a launchd agent and its last runs, or a crontab line.
 func (c *Client) ScheduleStatus(ctx context.Context) (out ops.Schedule, err error) {
 	return out, c.do(ctx, "GET", "/v1/schedule", nil, nil, &out)
 }
@@ -229,7 +229,7 @@ func (c *Client) PackagesBuild(ctx context.Context, org string) (out mcpsrv.Pack
 	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/packages/build", nil, nil, &out)
 }
 
-// ScheduleOn is POST /v1/schedule: Back up every org on this machine each night: a systemd user timer, or a crontab line where there is no systemd.
+// ScheduleOn is POST /v1/schedule: Back up every org on this machine each night: a systemd user timer, a launchd agent on macOS, or a crontab line where there is neither.
 func (c *Client) ScheduleOn(ctx context.Context, at string, keep int) (out mcpsrv.ScheduleChanged, err error) {
 	return out, c.do(ctx, "POST", "/v1/schedule", nil, map[string]any{"at": at, "keep": keep}, &out)
 }

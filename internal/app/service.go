@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/ar4mirez/berth/internal/host"
@@ -20,6 +21,8 @@ import (
 const (
 	serviceUnit  = "berth-serve.service"
 	serviceLabel = "dev.berth.serve"
+	// packagedUnit is the user unit the Linux packages install, not enabled (#63).
+	packagedUnit = "/usr/lib/systemd/user/" + serviceUnit
 )
 
 // serviceEnv are the variables the service is given when they are set where it is installed: a
@@ -66,32 +69,40 @@ func xmlEscape(s string) string {
 
 // launchdAgent is the agent's property list.
 func (a *App) launchdAgent(extra []string) string {
-	var args, env strings.Builder
-	for _, x := range a.serviceCommand(extra) {
-		args.WriteString("    <string>" + xmlEscape(x) + "</string>\n")
+	return a.launchdPlistFor(serviceLabel, "Written by berth system service install. Remove it with: berth system service uninstall",
+		a.serviceCommand(extra), nil, "  <key>RunAtLoad</key><true/>\n  <key>KeepAlive</key><true/>\n", a.launchdLog())
+}
+
+// launchdPlistFor is a launchd agent's property list: label runs args, with serviceEnv and env,
+// when says when (its keys, as XML), and its output goes to log.
+func (a *App) launchdPlistFor(label, comment string, args []string, env [][2]string, when, log string) string {
+	var argv, vars strings.Builder
+	for _, x := range args {
+		argv.WriteString("    <string>" + xmlEscape(x) + "</string>\n")
 	}
 	for _, k := range serviceEnv {
 		if v := a.Getenv(k); v != "" {
-			env.WriteString("    <key>" + k + "</key><string>" + xmlEscape(v) + "</string>\n")
+			env = append([][2]string{{k, v}}, env...)
 		}
 	}
-	log := xmlEscape(a.launchdLog())
+	slices.SortStableFunc(env, func(x, y [2]string) int { return slices.Index(serviceEnv, x[0]) - slices.Index(serviceEnv, y[0]) })
+	for _, kv := range env {
+		vars.WriteString("    <key>" + kv[0] + "</key><string>" + xmlEscape(kv[1]) + "</string>\n")
+	}
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Written by berth system service install. Remove it with: berth system service uninstall -->
+<!-- ` + comment + ` -->
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>` + serviceLabel + `</string>
+  <key>Label</key><string>` + label + `</string>
   <key>ProgramArguments</key>
   <array>
-` + args.String() + `  </array>
+` + argv.String() + `  </array>
   <key>EnvironmentVariables</key>
   <dict>
-` + env.String() + `  </dict>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>` + log + `</string>
-  <key>StandardErrorPath</key><string>` + log + `</string>
+` + vars.String() + `  </dict>
+` + when + `  <key>StandardOutPath</key><string>` + xmlEscape(log) + `</string>
+  <key>StandardErrorPath</key><string>` + xmlEscape(log) + `</string>
 </dict>
 </plist>
 `
@@ -120,20 +131,28 @@ func (a *App) serviceManager(ctx context.Context) (string, error) {
 
 // launchdTarget is the agent in this user's GUI domain.
 func (a *App) launchdTarget(ctx context.Context) (domain, target string) {
+	return a.launchdTargetFor(ctx, serviceLabel)
+}
+
+// launchdTargetFor is the agent label in this user's GUI domain.
+func (a *App) launchdTargetFor(ctx context.Context, label string) (domain, target string) {
 	uid, _ := a.capture(ctx, true, "id", "-u")
 	domain = "gui/" + strings.TrimSpace(uid)
-	return domain, domain + "/" + serviceLabel
+	return domain, domain + "/" + label
 }
 
 // Service is `berth system service install [--listen ADDR] | uninstall | status | logs [-f]`.
 func (a *App) Service(ctx context.Context, args []string) error {
-	usage := &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: fmt.Sprintf("usage: %s service install [--listen ADDR] | uninstall | status | logs [-f]", Tool)}
+	usage := &ops.Error{Kind: ops.KindUsage, Code: 1, Msg: fmt.Sprintf("usage: %s service install [--listen ADDR] | uninstall | status | logs [-f], each with --system for the whole machine's", Tool)}
 	if len(args) == 0 {
 		return usage
 	}
 	verb, rest := args[0], args[1:]
 	if a.HostName != "" {
 		return fmt.Errorf("a service is installed on the machine %s runs on: run this there", Tool)
+	}
+	if slices.Contains(rest, "--system") {
+		return a.systemService(ctx, verb, slices.DeleteFunc(slices.Clone(rest), func(s string) bool { return s == "--system" }), usage)
 	}
 	mgr, err := a.serviceManager(ctx)
 	if err != nil {
@@ -235,6 +254,12 @@ func (a *App) serviceUninstall(ctx context.Context, mgr string) error {
 	if mgr == "launchd" {
 		file = a.launchdPlist()
 	}
+	if mgr == "systemd" && !a.isFile(file) && a.isFile(packagedUnit) {
+		// The package's own unit stays with the package: it is only stopped and disabled.
+		_ = a.quietRun(ctx, "systemctl", "--user", "disable", "--now", serviceUnit)
+		sayf(a.Stdout, "Stopped and disabled %s; the package keeps the file.\n", packagedUnit)
+		return nil
+	}
 	if !a.isFile(file) {
 		sayf(a.Stdout, "No service is installed (%s isn't there).\n", file)
 		return nil
@@ -281,14 +306,22 @@ func (a *App) serviceStatus(ctx context.Context, mgr string) error {
 		}
 		return nil
 	}
-	if !a.isFile(a.systemdUnitFile()) {
-		sayf(a.Stdout, "not installed (%s system service install)\n", Tool)
+	unit := a.systemdUnitFile()
+	if !a.isFile(unit) && a.isFile(packagedUnit) {
+		unit = packagedUnit // the package's, enabled by hand (systemctl --user enable --now berth-serve)
+	}
+	if !a.isFile(unit) {
+		if a.isFile(systemUnitFile()) {
+			sayf(a.Stdout, "not installed for your user; the whole machine's is: %s system service status --system\n", Tool)
+		} else {
+			sayf(a.Stdout, "not installed (%s system service install)\n", Tool)
+		}
 		return &Exit{Code: 3}
 	}
 	active, _ := a.capture(ctx, true, "systemctl", "--user", "is-active", serviceUnit)
 	enabled, _ := a.capture(ctx, true, "systemctl", "--user", "is-enabled", serviceUnit)
 	active, enabled = strings.TrimSpace(active), strings.TrimSpace(enabled)
-	sayf(a.Stdout, "%s (systemd, your user): %s, %s\n  unit   %s\n", serviceUnit, active, enabled, a.systemdUnitFile())
+	sayf(a.Stdout, "%s (systemd, your user): %s, %s\n  unit   %s\n", serviceUnit, active, enabled, unit)
 	a.sayLinger(ctx)
 	if active != "active" {
 		return &Exit{Code: 3}
@@ -310,6 +343,11 @@ func (a *App) serviceLogs(ctx context.Context, mgr string, follow bool) error {
 			argv = append(argv, "-f")
 		}
 	}
+	return a.runLogs(ctx, argv)
+}
+
+// runLogs runs argv (journalctl, tail) onto stdout; a failure says what it printed.
+func (a *App) runLogs(ctx context.Context, argv []string) error {
 	var errb bytes.Buffer
 	if err := a.Host.Exec.Run(ctx, host.Cmd{Args: argv, Stdout: a.Stdout, Stderr: &errb}); err != nil {
 		return fmt.Errorf("%s: %w %s", argv[0], err, strings.TrimSpace(errb.String()))

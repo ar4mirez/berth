@@ -1,6 +1,7 @@
 package parity
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -108,5 +109,28 @@ func TestBerthService(t *testing.T) {
 	}
 	if r := svc("upstart", nil, nil, "status"); r.Exit != 1 || !strings.Contains(r.Stderr, "launchd or systemd") {
 		t.Errorf("an unknown manager: exit %d %s", r.Exit, r.Stderr)
+	}
+
+	// --system (#63): a unit for the whole machine needs root, and systemd.
+	if os.Geteuid() != 0 {
+		r := svc("systemd", nil, nil, "install", "--system")
+		if r.Exit != 1 || !strings.Contains(r.Stderr, "needs root") || !strings.Contains(r.Stderr, "sudo") || strings.Contains(calls(r), "systemctl") {
+			t.Errorf("install --system, not root: exit %d %s\n%s", r.Exit, r.Stderr, calls(r))
+		}
+	}
+	if r := svc("launchd", nil, nil, "install", "--system"); r.Exit != 1 || !strings.Contains(r.Stderr, "--system is for systemd on Linux") {
+		t.Errorf("install --system on launchd: exit %d %s", r.Exit, r.Stderr)
+	}
+	if r := svc("systemd", nil, nil, "status", "--system"); r.Exit != 3 || !strings.Contains(r.Stdout, "not installed (sudo <tool> system service install --system)") {
+		t.Errorf("status --system, not installed: exit %d %s", r.Exit, r.Stdout)
+	}
+	if r := svc("systemd", nil, nil, "uninstall", "--system"); r.Exit != 0 || !strings.Contains(r.Stdout, "No system service is installed") || strings.Contains(calls(r), "disable") {
+		t.Errorf("uninstall --system, not installed: exit %d %s", r.Exit, r.Stdout)
+	}
+	if r := svc("systemd", nil, installed, "logs", "--system"); !strings.Contains(calls(r), `journalctl "-u" "berth-serve.service" "-n" "100" "--no-pager"`) {
+		t.Errorf("logs --system:\n%s", calls(r))
+	}
+	if r := svc("systemd", nil, nil, "install", "--system", "extra"); r.Exit != 1 || !strings.Contains(r.Stderr, "usage:") {
+		t.Errorf("install --system extra: exit %d %s", r.Exit, r.Stderr)
 	}
 }

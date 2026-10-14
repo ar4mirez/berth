@@ -14,6 +14,9 @@ Installs `berth serve` (the API, docs/api.md) as a service of your user: a syste
 Linux, a launchd agent on macOS. It starts now and at each login, restarts if it stops, and runs
 berth through the path you ran this as, so an upgrade keeps it working.
 
+--system (Linux, with sudo) installs it for the whole machine instead: a system unit that starts at
+boot and runs as the account that ran sudo, with that account's state root and config.
+
 With it running, `berth --via-daemon` and MCP over HTTP have a server to talk to, and so does a
 berth elsewhere that has this machine as a registered host.
 
@@ -44,7 +47,7 @@ Docs: https://ar4mirez.github.io/berth/reference/commands/berth_system_service/
 ### SEE ALSO
 
 * [berth system](berth_system.md)	 - berth itself: install, upgrade, its image, shell completion
-* [berth system service install](berth_system_service_install.md)	 - install and start it (a systemd user unit, or a launchd agent)
+* [berth system service install](berth_system_service_install.md)	 - install and start it (a systemd user unit, or a launchd agent; --system: a unit for the whole machine)
 * [berth system service logs](berth_system_service_logs.md)	 - its last log lines (-f: follow)
 * [berth system service status](berth_system_service_status.md)	 - whether it is installed and running
 * [berth system service uninstall](berth_system_service_uninstall.md)	 - stop it and remove it

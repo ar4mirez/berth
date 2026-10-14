@@ -210,7 +210,7 @@ func (s *server) tools() {
 			}
 			return ops.GetPackages(ctx, b, o)
 		})
-	add(s, "schedule_status", "schedule", "status", "The nightly backup schedule on this machine: a systemd timer and its last runs, or a crontab line.",
+	add(s, "schedule_status", "schedule", "status", "The nightly backup schedule on this machine: a systemd timer or a launchd agent and its last runs, or a crontab line.",
 		func(ctx context.Context, c *call, _ noArgs) (ops.Schedule, error) { return ops.GetSchedule(ctx, c.app) })
 	// Listing backups has no command of its own: it reads the backups directory.
 	addQuery(s, "backups_list", "The backup files on this machine, newest first: org, when, size and how each is encrypted.",

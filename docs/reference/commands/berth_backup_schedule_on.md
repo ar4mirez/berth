@@ -43,5 +43,5 @@ berth backup schedule on [--at HH:MM] [--keep N] [-o dir] [--host <name>] [flags
 
 ### SEE ALSO
 
-* [berth backup schedule](berth_backup_schedule.md)	 - nightly backups of every org (a systemd user timer, or cron)
+* [berth backup schedule](berth_backup_schedule.md)	 - nightly backups of every org (a systemd user timer, a launchd agent on macOS, or cron)
 

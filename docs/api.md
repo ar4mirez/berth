@@ -37,6 +37,23 @@ It installs `berth serve` as a service of your user: a **systemd user unit** (`b
 - `berth system service install --listen 127.0.0.1:8443` has it serve [TCP](#over-the-network-tls-and-tokens) too.
 - `status` ends with 0 when it is running, and 3 when it isn't or isn't installed.
 
+**For the whole machine (Linux):** `sudo berth system service install --system` installs
+`/etc/systemd/system/berth-serve.service`. It starts at boot, with no login and no linger. It runs as the account
+that ran `sudo`, with that account's home, so it serves the state root and config that account's commands use.
+- It listens at `~/.config/berth/berth.sock`, because a system service has no `$XDG_RUNTIME_DIR`. That account's
+  commands look there when nothing listens in `$XDG_RUNTIME_DIR`.
+- `berth system service status --system` and `logs --system` show it. `sudo berth system service uninstall
+  --system` removes it.
+- Run `sudo` with berth's full path if `~/.local/bin` isn't on root's `PATH`, so the unit runs that link:
+  `sudo ~/.local/bin/berth system service install --system`.
+- It doesn't take a state root other than the default (`BERTH_HOME` in your shell). Add one with
+  `systemctl edit berth-serve` (`Environment=BERTH_HOME=…`).
+- Don't install it alongside your user's unit. The install warns when your user has one.
+
+**From a package (Linux):** the `.deb`, `.rpm` and Arch packages install `/usr/lib/systemd/user/berth-serve.service`
+(berth serve from `/usr/bin`), enabled for no one. `systemctl --user enable --now berth-serve` turns it on for your
+user. `berth system service install` writes your own unit in `~/.config/systemd/user`, which takes its place.
+
 With it running, `berth --via-daemon`, MCP over HTTP, and a berth elsewhere that has this machine as a
 [registered host](hosts.md#a-host-that-runs-berth-serve) all have a server to talk to.
 
@@ -121,7 +138,7 @@ others take a JSON body.
 | `GET /v1/accounts` | Which Claude account and GitHub account each org is signed in to | read | `berth whoami` |
 | `GET /v1/backups` | The backup files on this machine, newest first: org, when, size and how each is encrypted | read | `berth ` |
 | `POST /v1/backups` | Take an encrypted backup of orgs on this machine, into the backups directory | write | `berth backup` |
-| `GET /v1/schedule` | The nightly backup schedule on this machine: a systemd timer and its last runs, or a crontab line | read | `berth schedule status` |
+| `GET /v1/schedule` | The nightly backup schedule on this machine: a systemd timer or a launchd agent and its last runs, or a crontab line | read | `berth schedule status` |
 | `GET /v1/orgs/{org}` | An org's connection sheet: its state, address and ports, the claude.ai/code link, and its git public key | read | `berth info` |
 | `GET /v1/orgs/{org}/remote` | Remote Control in a running org: on, login-needed, blocked-by-org or restarting, with its link and capacity when on | read | `berth remote status` |
 | `GET /v1/orgs/{org}/logs` | The last lines of a running org's container log (startup, firewall, Remote Control) | read | `berth logs` |
