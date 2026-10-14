@@ -1,6 +1,6 @@
 # PRD: replace `docker compose` with the Engine API (#43)
 
-Status: **phases 1 and 2 done** (the API path is opt-in); phases 3 and 4 next · Issue:
+Status: **phases 1-3 done** (the API path is opt-in); phase 4 next · Issue:
 [#43](https://github.com/ar4mirez/berth/issues/43) · Restarts orgs: no, by design (the next ordinary restart uses the
 new path)
 
@@ -131,6 +131,14 @@ the compose plugin.
        over SSH. It checks that the API made the container.
 3. **The parity harness on the API path:** an engine fake that records requests as calls the way `fakebin` records
    argv, and the scenarios moved over. This is most of the work.
+   - **Done, without moving the scenarios.** The comparison with ccenv is a comparison with compose, so it stays on
+     compose: the harness pins `BERTH_ENGINE_API=0`, as it pins `BERTH_SERVICE_MANAGER`.
+   - `TestBerthEngineAPIPath` replays, on the API path, every ported scenario in which berth runs an org's compose
+     `up`, `down` or `logs`. That's 18 today; the test fails below 15. Each replay runs against a fake engine on
+     a unix socket, which records its requests.
+   - The output, exit code and files must be the same. The calls must be the same except the compose ones, which
+     must have become the API requests that do the same. compose `up --build` must have become one `docker build`.
+   - Scenarios that fake compose's own answers (a port taken, a log) are left out: they test compose's side.
 4. **On by default.** compose then stays only for `BERTH_ENGINE_API=0`, for one release, and `host add` stops
    requiring the compose plugin.
 

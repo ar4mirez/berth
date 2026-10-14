@@ -233,8 +233,10 @@ func BerthUnowned(bin string) Tool {
 		},
 		// ccenv's command line (#140): what this suite compares with ccenv's.
 		// BERTH_SERVICE_MANAGER=systemd: ccenv's systemd-or-cron schedule, on a Mac too (#63).
+		// BERTH_ENGINE_API=0: ccenv's compose, whatever the default (#43; TestBerthEngineAPIPath
+		// replays the scenarios on the API path).
 		Env: func(string) []string {
-			return []string{"PARITY_SCHEDULE=berth-backup", "BERTH_SPELLINGS=ccenv", "BERTH_SERVICE_MANAGER=systemd"}
+			return []string{"PARITY_SCHEDULE=berth-backup", "BERTH_SPELLINGS=ccenv", "BERTH_SERVICE_MANAGER=systemd", "BERTH_ENGINE_API=0"}
 		},
 		Replace: [][2]string{{bin, "<SELF>"}},
 	}
