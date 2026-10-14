@@ -87,6 +87,16 @@ type Changed struct {
 	Output string `json:"output"`
 }
 
+// Recreated is the result of org_up and org_restart: Changed, and the image the new container runs.
+type Recreated struct {
+	Org string `json:"org"`
+	// Output is what the command line would have printed.
+	Output string `json:"output"`
+	// Image is the image the container was recreated on, as docker inspect reports it ("" if it
+	// couldn't tell).
+	Image string `json:"image"`
+}
+
 // FirewallChanged is the result of firewall_allow and firewall_deny.
 type FirewallChanged struct {
 	Output string `json:"output"`
@@ -284,12 +294,12 @@ func (s *server) tools() {
 
 	// --- restarting (--allow-restarts, and confirm) --------------------------------------------
 	add(s, "org_up", "up", "", "Start an org: gets its image if needed, then recreates its container.",
-		func(ctx context.Context, c *call, in lifecycleArgs) (Changed, error) {
-			return c.lifecycle(ctx, in, func(ctx context.Context, a lifecycleApp, o string) error { return a.Up(ctx, o) })
+		func(ctx context.Context, c *call, in lifecycleArgs) (Recreated, error) {
+			return c.recreate(ctx, in, func(ctx context.Context, a lifecycleApp, o string) error { return a.Up(ctx, o) })
 		})
 	add(s, "org_restart", "restart", "", "Restart an org: recreates its container, applying pending changes (a new image, packages, variables).",
-		func(ctx context.Context, c *call, in lifecycleArgs) (Changed, error) {
-			return c.lifecycle(ctx, in, func(ctx context.Context, a lifecycleApp, o string) error { return a.Restart(ctx, o) })
+		func(ctx context.Context, c *call, in lifecycleArgs) (Recreated, error) {
+			return c.recreate(ctx, in, func(ctx context.Context, a lifecycleApp, o string) error { return a.Restart(ctx, o) })
 		})
 	add(s, "org_down", "down", "", "Stop an org: stops and removes its container. Its files stay.",
 		func(ctx context.Context, c *call, in lifecycleArgs) (Changed, error) {
@@ -311,6 +321,18 @@ func (c *call) lifecycle(ctx context.Context, in lifecycleArgs, do func(context.
 	}
 	err = do(ctx, b, o)
 	return Changed{Org: in.Org, Output: c.output()}, err
+}
+
+// recreate is lifecycle for up and restart, with the image the new container runs (#186).
+func (c *call) recreate(ctx context.Context, in lifecycleArgs, do func(context.Context, lifecycleApp, string) error) (Recreated, error) {
+	b, o, err := c.at(ctx, in.Org)
+	if err != nil {
+		return Recreated{}, err
+	}
+	if err := do(ctx, b, o); err != nil {
+		return Recreated{Org: in.Org, Output: c.output()}, err
+	}
+	return Recreated{Org: in.Org, Output: c.output(), Image: b.ContainerImage(ctx, o)}, nil
 }
 
 func (c *call) fwEdit(ctx context.Context, verb string, in fwEditArgs) (FirewallChanged, error) {

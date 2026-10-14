@@ -25,7 +25,10 @@ It installs `berth serve` as a service of your user: a **systemd user unit** (`b
 **launchd agent** (`dev.berth.serve`) on macOS. It starts at once and at each login, and is restarted if it stops.
 
 - **It survives upgrades**: the unit runs berth through the path you ran the install as (the link on your `PATH`),
-  not a versioned file.
+  not a versioned file. A server that is running keeps its version until it is restarted, though. After
+  `berth system upgrade`, it refuses every change, so it can't put an org back on the older release's image. Reads
+  still work. Restart it with `systemctl --user restart berth-serve` or
+  `launchctl kickstart -k gui/$(id -u)/dev.berth.serve`.
 - **On Linux it lives with your login session.** Without lingering, a user unit stops at your last logout; the
   install says so, and how to change it: `loginctl enable-linger <you>`, which also starts it at boot.
 - **It is given the few variables berth needs** when they are set where you install it (`DOCKER_HOST`,
