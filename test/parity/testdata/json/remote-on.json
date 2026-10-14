@@ -3,5 +3,7 @@
   "org": "acme",
   "state": "on",
   "url": "https://claude.ai/code?environment=env_PARITY01",
-  "capacity": "Capacity: 1/8 sessions"
+  "capacity": "Capacity: 1/8 sessions",
+  "environment": "env_PARITY01",
+  "pointer_environment": ""
 }

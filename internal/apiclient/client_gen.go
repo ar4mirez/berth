@@ -185,8 +185,8 @@ func (c *Client) PackagesRemove(ctx context.Context, org string, entries []strin
 }
 
 // RemoteRestart is POST /v1/orgs/{org}/remote/restart: Restart Remote Control inside a running org: the service, not the container.
-func (c *Client) RemoteRestart(ctx context.Context, org string) (out mcpsrv.Changed, err error) {
-	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/remote/restart", nil, nil, &out)
+func (c *Client) RemoteRestart(ctx context.Context, org string, fresh bool) (out mcpsrv.Changed, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/remote/restart", nil, map[string]any{"fresh": fresh}, &out)
 }
 
 // RepoAudit is GET /v1/orgs/{org}/repos/audit: An org's workspace checked against its registered repos: the policy, what isn't registered, and what is in quarantine.

@@ -40,6 +40,6 @@ Docs: https://ar4mirez.github.io/berth/reference/commands/berth_account_remote/
 
 * [berth account](berth_account.md)	 - sign-in: Claude, Remote Control, GitHub
 * [berth account remote logs](berth_account_remote_logs.md)	 - follow the service's log
-* [berth account remote restart](berth_account_remote_restart.md)	 - restart the service (the container keeps running)
+* [berth account remote restart](berth_account_remote_restart.md)	 - restart the service (the container keeps running); --fresh drops the environment it reuses
 * [berth account remote status](berth_account_remote_status.md)	 - whether Remote Control is running
 

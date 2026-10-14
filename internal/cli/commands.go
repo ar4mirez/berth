@@ -598,10 +598,14 @@ func addCommands(root *cobra.Command) {
 			}),
 		}),
 		reads(&cobra.Command{
-			Use: "remote <org> [status|logs|restart]", Short: "the Remote Control service", Args: cobra.ArbitraryArgs,
+			Use: "remote <org> [status|logs|restart]", Short: "the Remote Control service", Args: cobra.ArbitraryArgs, DisableFlagParsing: true,
 			ValidArgsFunction: completeArgs(orgArg, []string{"status", "logs", "restart"}),
 			RunE: onOrgV(nthArg(0), []string{"status", "logs", "restart"}, func(a *app.App, cmd *cobra.Command, args []string) error {
-				return a.Remote(cmd.Context(), arg(args, 0), arg(args, 1))
+				var flags []string
+				if len(args) > 2 {
+					flags = args[2:]
+				}
+				return a.Remote(cmd.Context(), arg(args, 0), arg(args, 1), flags...)
 			}),
 		}),
 		// The sign-in commands parse their arguments as ccenv does (--paste/--no-restart anywhere for

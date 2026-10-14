@@ -375,7 +375,7 @@ func layout(root *cobra.Command) {
 	rc := t.group(acct, "remote", "the Remote Control service in an org", "berth account remote status acme", "berth account remote restart acme")
 	t.verb(rc, "remote", "status", "status <org>", "whether Remote Control is running", orgVerb("status", 0), org1, "berth account remote status acme")
 	t.verb(rc, "remote", "logs", "logs <org>", "follow the service's log", orgVerb("logs", 0), org1, "berth account remote logs acme")
-	t.verb(rc, "remote", "restart", "restart <org>", "restart the service (the container keeps running)", orgVerb("restart", 0), org1, "berth account remote restart acme")
+	t.verb(rc, "remote", "restart", "restart <org> [--fresh]", "restart the service (the container keeps running); --fresh drops the environment it reuses", orgVerb("restart", 0), org1, "berth account remote restart acme", "berth account remote restart acme --fresh")
 
 	// backup
 	bk := t.group(root, "backup", "backups: create, restore, schedule, the key", "berth backup create acme", "berth backup create --all --keep 14",

@@ -52,3 +52,14 @@ const (
 	RemoteControlCapacity = "Capacity"
 	RemoteControlStarting = "starting remote-control" // rc-supervisor.sh logs it before each attempt
 )
+
+// Remote Control's own process and files, which belong to Claude Code (#187).
+const (
+	// RemoteControlProcess matches `claude remote-control` itself (pgrep/pkill -f), and not the
+	// runuser that rc-supervisor.sh starts it with: a runuser that is killed returns before Claude
+	// has exited, and the supervisor would start a second one beside it.
+	RemoteControlProcess = "^claude remote-control"
+	// BridgePointer is where `claude remote-control`, run in /workspace, records the environment and
+	// session it serves (and its pid), and reuses them at its next start.
+	BridgePointer = ClaudeDir + "/projects/-workspace/bridge-pointer.json"
+)

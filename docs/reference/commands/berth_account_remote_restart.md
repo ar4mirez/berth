@@ -6,22 +6,23 @@ title: berth account remote restart
 
 ## berth account remote restart
 
-restart the service (the container keeps running)
+restart the service (the container keeps running); --fresh drops the environment it reuses
 
 ### Synopsis
 
-restart the service (the container keeps running)
+restart the service (the container keeps running); --fresh drops the environment it reuses
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_account_remote_restart/
 
 ```
-berth account remote restart <org> [flags]
+berth account remote restart <org> [--fresh] [flags]
 ```
 
 ### Examples
 
 ```
   berth account remote restart acme
+  berth account remote restart acme --fresh
 ```
 
 ### Options

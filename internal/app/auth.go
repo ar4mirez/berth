@@ -187,11 +187,14 @@ func (a *App) Login(ctx context.Context, o string) error {
 
 // pkillRemoteControl is `docker exec claude-$o pkill -f "claude remote-control" 2>/dev/null || true`,
 // and then berth asks the supervisor to try again now (#7; PARITY.md): during its hour-long wait
-// for a Claude organization that has Remote Control turned off, there is no process to kill.
+// for a Claude organization that has Remote Control turned off, there is no process to kill. It
+// asks once the one it stopped has exited: one that still serves the folder makes the next fail
+// with "This folder is already served" for minutes (#187).
 func (a *App) pkillRemoteControl(ctx context.Context, o string) {
 	q := *a
 	q.Stderr = io.Discard
 	_ = q.passthrough(ctx, false, "docker", "exec", "claude-"+o, "pkill", "-f", "claude remote-control")
+	a.waitRemoteStopped(ctx, o)
 	a.retryRemoteControl(ctx, o)
 }
 
@@ -209,31 +212,85 @@ func (a *App) remoteStarts(ctx context.Context, o string) int {
 	return n
 }
 
-// remoteRestart is `ccenv remote <org> restart`, made to work (#7; PARITY.md). ccenv only kills the
-// service, which does nothing while the supervisor waits out a blocked-by-policy hour. berth also
-// asks the supervisor to try now, and then checks that it did: a restart that restarted nothing
-// says so, and why.
-func (a *App) remoteRestart(ctx context.Context, o string) error {
+// How long, in seconds, a Remote Control restart waits for the one it stopped to exit (it closes
+// its sessions' connections first), and then for the supervisor to start the next.
+const (
+	remoteStopWait  = 60
+	remoteStartWait = 30
+)
+
+// remoteLeft is the pids of the `claude remote-control` still running in org o ("" for none).
+func (a *App) remoteLeft(ctx context.Context, o string) string {
+	out, _ := a.capture(ctx, true, "docker", "exec", "claude-"+o, "sh", "-c", "pgrep -f '"+contract.RemoteControlProcess+"' || true")
+	return strings.TrimSpace(out)
+}
+
+// waitRemoteStopped waits until no `claude remote-control` is left in org o. One still there after
+// remoteStopWait seconds is killed.
+func (a *App) waitRemoteStopped(ctx context.Context, o string) {
+	for i := 0; a.remoteLeft(ctx, o) != ""; i++ {
+		if i == remoteStopWait {
+			sayf(a.Stderr, "%s: Remote Control in %s didn't exit within %d seconds; killing it\n", Tool, o, remoteStopWait)
+			_ = a.quietRun(ctx, "docker", "exec", "claude-"+o, "pkill", "-KILL", "-f", contract.RemoteControlProcess)
+			_ = a.passthrough(ctx, false, "sleep", "1")
+			return
+		}
+		_ = a.passthrough(ctx, false, "sleep", "1")
+	}
+}
+
+// remoteRestart is `ccenv remote <org> restart`, made to work (#7, #187; PARITY.md). ccenv only
+// kills the service, which does nothing while the supervisor waits out a blocked-by-policy hour.
+// berth stops `claude remote-control` itself, not the runuser it runs under, waits until it has
+// exited, and only then asks the supervisor to start it: exactly one starts. Then it checks that
+// one did: a restart that restarted nothing says so, and why. fresh (--fresh) moves its
+// bridge-pointer.json aside first, so it registers a new environment.
+func (a *App) remoteRestart(ctx context.Context, o string, fresh bool) error {
 	if a.env(o, "REMOTE_CONTROL") == "0" {
 		return &ops.Error{Kind: ops.KindState, Code: 1, Msg: "Remote Control is off for " + o + " (REMOTE_CONTROL=0 in its org.env)",
 			Hint: "set REMOTE_CONTROL=1, then " + Tool + " restart " + o}
 	}
 	before := a.remoteStarts(ctx, o)
-	_ = a.passthrough(ctx, false, "docker", "exec", "claude-"+o, "pkill", "-f", "claude remote-control") // || true
-	a.retryRemoteControl(ctx, o)
+	_ = a.passthrough(ctx, false, "docker", "exec", "claude-"+o, "pkill", "-f", contract.RemoteControlProcess) // || true
 	fmt.Fprintln(a.Stdout, "Restarting; back in ~5s.")
-	for i := 0; i < 10; i++ {
+	a.waitRemoteStopped(ctx, o)
+	var dropped error
+	if fresh {
+		dropped = a.dropBridgePointer(ctx, o)
+	}
+	a.retryRemoteControl(ctx, o)
+	for i := 0; i < remoteStartWait; i++ {
 		_ = a.passthrough(ctx, false, "sleep", "1")
 		if a.remoteStarts(ctx, o) > before {
-			return nil
+			return dropped
 		}
 	}
 	if !ops.RemoteLoggedIn(ctx, a, o) {
 		return &ops.Error{Kind: ops.KindState, Code: 1, Msg: "Remote Control didn't start in " + o + ": it has no login", Hint: Tool + " login " + o}
 	}
 	return &ops.Error{Kind: ops.KindState, Code: 1,
-		Msg:  "Remote Control didn't start again in " + o + " within 10 seconds",
-		Hint: "see " + Tool + " remote " + o + " logs; a container started by an older berth can't be asked to retry, and " + Tool + " restart " + o + " recreates it"}
+		Msg:  fmt.Sprintf("Remote Control didn't start again in %s within %d seconds", o, remoteStartWait),
+		Hint: "see " + Tool + " remote " + o + " logs; " + Tool + " restart " + o + " recreates the container"}
+}
+
+// dropBridgePointer moves Remote Control's bridge-pointer.json aside, with the time in its name, so
+// that its next start registers a new environment instead of reusing the one the file names: the
+// way out of an environment claude.ai keeps showing offline (#187). Remote Control isn't running.
+func (a *App) dropBridgePointer(ctx context.Context, o string) error {
+	env := ops.PointerEnvironment(ctx, a, o)
+	moved, err := a.capture(ctx, false, "docker", "exec", "-u", "node", "claude-"+o, "sh", "-c",
+		`p=`+contract.BridgePointer+`; [ -e "$p" ] || exit 0; s="$p.stale-$(date -u +%Y%m%dT%H%M%SZ)"; mv "$p" "$s" && echo "$s"`)
+	switch {
+	case err != nil:
+		return &ops.Error{Kind: ops.KindCommand, Code: 1, Msg: "couldn't move " + contract.BridgePointer + " aside in " + o + ": Remote Control starts with the environment it had", Err: err}
+	case moved == "":
+		sayf(a.Stdout, "No %s: Remote Control registers a new environment.\n", contract.BridgePointer)
+	case env != "":
+		sayf(a.Stdout, "Moved %s aside to %s: Remote Control registers a new environment instead of %s.\n", contract.BridgePointer, path.Base(moved), env)
+	default:
+		sayf(a.Stdout, "Moved %s aside to %s: Remote Control registers a new environment.\n", contract.BridgePointer, path.Base(moved))
+	}
+	return nil
 }
 
 // rcAccount is rc_account: "<orgId> <email> [<orgName>]" of the org's full login, or "".

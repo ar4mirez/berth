@@ -203,7 +203,7 @@ func TestBerthAPI(t *testing.T) {
 		"package_presets":  func() (any, error) { return c.PackagePresets(ctx) },
 		"packages_add":     func() (any, error) { return c.PackagesAdd(ctx, "acme", []string{"jq"}, true) },
 		"packages_remove":  func() (any, error) { return c.PackagesRemove(ctx, "acme", []string{"jq"}, true) },
-		"remote_restart":   func() (any, error) { return c.RemoteRestart(ctx, "acme") },
+		"remote_restart":   func() (any, error) { return c.RemoteRestart(ctx, "acme", false) },
 		"repo_audit":       func() (any, error) { return c.RepoAudit(ctx, "acme") },
 		"repo_adopt":       func() (any, error) { return c.RepoAdopt(ctx, "acme", []string{"stray"}, false) },
 		"repo_new":         func() (any, error) { return c.RepoNew(ctx, "acme", "gadget", true, "", "", false, "") },
@@ -407,7 +407,7 @@ func TestBerthAPI(t *testing.T) {
 	audit := strings.Join(auditLines(t, res), "\n")
 	for _, w := range []string{`firewall_allow|ok|{"entries":["files.example.com"],"org":"acme"}`, `repo_remove|ok|{"dir":"app","org":"acme"}`, `org_restart|ok|{"org":"acme"}`, `backup_create|ok|`,
 		`org_create|ok|{"email":"ada@example.com","name":"Ada Lovelace","org":"t-new"}`, `org_destroy|ok|{"keep_backups":false,"org":"t-new"}`, `firewall_off|ok|{"org":"acme"}`,
-		`packages_add|ok|{"entries":["jq"],"no_build":true,"org":"acme"}`, `remote_restart|ok|{"org":"acme"}`, `repo_sync|ok|{"org":"acme"}`,
+		`packages_add|ok|{"entries":["jq"],"no_build":true,"org":"acme"}`, `remote_restart|ok|{"fresh":false,"org":"acme"}`, `repo_sync|ok|{"org":"acme"}`,
 		`org_run|ok|{"org":"acme"}`, `host_remove|failed|{"force":false,"host":"t-box"}`, `env_migrate|ok|{"no_backup":true,"org":"acme"}`} {
 		if !strings.Contains(audit, w) {
 			t.Errorf("the audit log lacks %s:\n%s", w, audit)

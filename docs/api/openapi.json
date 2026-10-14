@@ -5901,7 +5901,13 @@
                     "capacity": {
                       "type": "string"
                     },
+                    "environment": {
+                      "type": "string"
+                    },
                     "org": {
+                      "type": "string"
+                    },
+                    "pointer_environment": {
                       "type": "string"
                     },
                     "schema": {
@@ -5919,7 +5925,9 @@
                     "org",
                     "state",
                     "url",
-                    "capacity"
+                    "capacity",
+                    "environment",
+                    "pointer_environment"
                   ],
                   "type": "object"
                 }
@@ -6098,6 +6106,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "fresh": {
+                    "description": "move Remote Control's bridge-pointer.json aside first, so it registers a new environment instead of reusing the last one: for an environment the Claude app keeps showing offline",
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
         "responses": {
           "200": {
             "content": {
