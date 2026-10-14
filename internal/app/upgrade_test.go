@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -12,6 +13,7 @@ import (
 	"github.com/ar4mirez/berth/internal/config"
 	"github.com/ar4mirez/berth/internal/host/local"
 	"github.com/ar4mirez/berth/internal/upgrade/upgradetest"
+	"github.com/ar4mirez/berth/internal/version"
 )
 
 // fakeBerth is a stand-in binary: it reports its version, its image tag, and links itself on install.
@@ -127,5 +129,52 @@ func TestPackageManager(t *testing.T) {
 		if got, _ := PackageManager(self); got != want {
 			t.Errorf("%s: %q, want %q", self, got, want)
 		}
+	}
+}
+
+// TestSuperseded: a berth whose link now runs another version knows it (#186), whether the link is
+// a symlink or Self itself; a link that runs this version, or that's gone, isn't one.
+func TestSuperseded(t *testing.T) {
+	ctx := context.Background()
+	defer func(v, c, d, i string) { version.Version, version.Commit, version.Date, version.Image = v, c, d, i }(version.Version, version.Commit, version.Date, version.Image)
+	version.Version, version.Commit, version.Date, version.Image = "0.2.0", "x", "y", ""
+	dir := t.TempDir()
+	cur, next, link := filepath.Join(dir, "0.2.0", "berth"), filepath.Join(dir, "9.9.9", "berth"), filepath.Join(dir, "bin", "berth")
+	for p, v := range map[string]string{cur: "0.2.0", next: "9.9.9"} {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, fakeBerth(v, "x"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	a := New(config.State{Home: config.Home{Path: filepath.Join(dir, "state")}}, local.New(), nil, io.Discard, io.Discard, func(string) string { return "" })
+	a.Self, a.Invoked = cur, link
+
+	if got := a.Superseded(ctx); got != "" {
+		t.Errorf("no link: %q", got)
+	}
+	if err := os.Symlink(cur, link); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.Superseded(ctx); got != "" {
+		t.Errorf("link to this version: %q", got)
+	}
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(next, link); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.Superseded(ctx); got != "9.9.9" {
+		t.Errorf("link moved to 9.9.9: %q", got)
+	}
+	// Where os.Executable keeps the symlink (macOS), Self is the link.
+	a.Self = link
+	if got := a.Superseded(ctx); got != "9.9.9" {
+		t.Errorf("Self is the moved link: %q", got)
 	}
 }

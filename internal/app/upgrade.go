@@ -184,3 +184,34 @@ func (a *App) ImageTag() error {
 	fmt.Fprintln(a.Stdout, img.Tag)
 	return nil
 }
+
+// Superseded is the version the berth link now runs, when that isn't this process's own: a
+// long-running berth (mcp, serve, ui, tui) started before `berth upgrade` moved the link, so what
+// it recreates would run on its own, older image (#186). "" when they're the same, or when the
+// link can't be run to ask. It asks the link even when that is Self: where os.Executable keeps the
+// symlink (macOS), Self is the link too, and no longer the binary this process runs.
+func (a *App) Superseded(ctx context.Context) string {
+	if a.Invoked == "" {
+		return ""
+	}
+	out, err := a.capture(ctx, true, a.Invoked, "--version")
+	if err != nil || out == "" || strings.Contains(out, " "+version.String()) {
+		return ""
+	}
+	line, _, _ := strings.Cut(out, "\n")
+	f := strings.Fields(strings.TrimPrefix(strings.TrimPrefix(line, Tool+" "), "version "))
+	if len(f) == 0 {
+		return ""
+	}
+	return f[0]
+}
+
+// ContainerImage is the image org o's container runs: `docker inspect -f '{{.Config.Image}}'
+// claude-<org>`. "" when there is no container.
+func (a *App) ContainerImage(ctx context.Context, o string) string {
+	img, err := a.capture(ctx, true, "docker", "inspect", "-f", "{{.Config.Image}}", "claude-"+o)
+	if err != nil {
+		return ""
+	}
+	return img
+}

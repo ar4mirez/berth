@@ -224,6 +224,10 @@ func register[In, Out any](s *server, spec Spec, description string, h func(ctx 
 			record("refused", err)
 			return zero, err
 		}
+		if err := Superseded(ctx, c.app, spec.Cmd, op, s.opts.Version); err != nil {
+			record("refused", err)
+			return zero, err
+		}
 		out, err := h(ctx, c, in)
 		if err != nil {
 			// The message as the command line prints it, with its hint, and what was printed before it.
@@ -313,6 +317,27 @@ func allowed(name string, op ops.Op, in any, by Caller) error {
 			"Tell the user; they can run it themselves, or restart the server with: berth mcp --allow-writes", name)
 	}
 	return nil
+}
+
+// selfOps are the operations on berth itself, which a superseded server still runs: an upgrade,
+// or a rollback.
+var selfOps = map[string]bool{"upgrade": true}
+
+// Superseded refuses a write when berth was upgraded after this server started (#186). The server
+// still runs the binary it started with, so what it recreated or built would be on that release's
+// image, and it would put that release's compose.yml and image/ back in the state root. cmd is the
+// operation's name in ops.Catalog; running is the server's own version.
+func Superseded(ctx context.Context, a *app.App, cmd string, op ops.Op, running string) error {
+	if op.Access != ops.Write || selfOps[cmd] {
+		return nil
+	}
+	v := a.Superseded(ctx)
+	if v == "" {
+		return nil
+	}
+	return &ops.Error{Kind: ops.KindRefused, Code: 1,
+		Msg:  fmt.Sprintf("berth was upgraded to %s after this server started, and the server still runs %s: what it changed would be on the older release's image: refused", v, running),
+		Hint: "restart the server, then try again: reconnect the MCP server, or restart berth serve, berth ui or berth tui"}
 }
 
 // refused is a caller asking for more than it may do.

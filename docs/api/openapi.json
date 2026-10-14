@@ -7453,6 +7453,9 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "image": {
+                      "type": "string"
+                    },
                     "org": {
                       "type": "string"
                     },
@@ -7462,7 +7465,8 @@
                   },
                   "required": [
                     "org",
-                    "output"
+                    "output",
+                    "image"
                   ],
                   "type": "object"
                 }
@@ -7856,6 +7860,9 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "image": {
+                      "type": "string"
+                    },
                     "org": {
                       "type": "string"
                     },
@@ -7865,7 +7872,8 @@
                   },
                   "required": [
                     "org",
-                    "output"
+                    "output",
+                    "image"
                   ],
                   "type": "object"
                 }

@@ -125,12 +125,12 @@ func (c *Client) PackagesList(ctx context.Context, org string) (out ops.Packages
 }
 
 // OrgUp is POST /v1/orgs/{org}/up: Start an org: gets its image if needed, then recreates its container.
-func (c *Client) OrgUp(ctx context.Context, org string, confirm string) (out mcpsrv.Changed, err error) {
+func (c *Client) OrgUp(ctx context.Context, org string, confirm string) (out mcpsrv.Recreated, err error) {
 	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/up", nil, map[string]any{"confirm": confirm}, &out)
 }
 
 // OrgRestart is POST /v1/orgs/{org}/restart: Restart an org: recreates its container, applying pending changes (a new image, packages, variables).
-func (c *Client) OrgRestart(ctx context.Context, org string, confirm string) (out mcpsrv.Changed, err error) {
+func (c *Client) OrgRestart(ctx context.Context, org string, confirm string) (out mcpsrv.Recreated, err error) {
 	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/restart", nil, map[string]any{"confirm": confirm}, &out)
 }
 

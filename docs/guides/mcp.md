@@ -54,6 +54,10 @@ uses to refuse writes under `--read-only`.
   show only as present or absent.
 - **`berth --read-only mcp`** refuses every write at a second level, whatever the flags; with `--allow-writes` it
   doesn't start.
+- **After `berth system upgrade`, reconnect the server.** A running server keeps the version it started with, and
+  would put the orgs it restarts on that release's image. So it refuses every change, says which version is now
+  installed, and keeps answering reads. Reconnect it from your MCP client (`/mcp` in Claude Code) to start the new
+  version. `org_up` and `org_restart` return the image the container now runs as `image`.
 
 ## The tools
 

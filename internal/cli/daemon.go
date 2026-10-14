@@ -15,6 +15,7 @@ import (
 	"github.com/ar4mirez/berth/internal/config"
 	"github.com/ar4mirez/berth/internal/mcpsrv"
 	"github.com/ar4mirez/berth/internal/ops"
+	"github.com/ar4mirez/berth/internal/version"
 )
 
 // `berth --via-daemon <command>` (#62) sends the command to a running `berth serve` over its
@@ -103,6 +104,10 @@ func runFor(st config.State) func(ctx context.Context, by mcpsrv.Caller, args []
 		case op.Access == ops.Write && !by.Writes:
 			audit("refused")
 			return refuse(strings.TrimSpace(name+" "+sub) + " changes things, and this caller may only read: refused")
+		}
+		if err := mcpsrv.Superseded(ctx, appMaker(st)(io.Discard, io.Discard), name, op, version.Version); err != nil {
+			audit("refused")
+			return refuse(err.Error())
 		}
 		full := []string{"--home", st.Home.Path}
 		if st.ReadOnly {

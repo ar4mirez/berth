@@ -3,6 +3,8 @@ package parity
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -484,3 +486,66 @@ func TestBerthMCPBackup(t *testing.T) {
 
 // auditVia is the interface the last audit entry read came through.
 var auditVia string
+
+// TestBerthMCPSuperseded: a server started before berth was upgraded refuses what it would do on
+// the older release's image, and says to restart it; it still reads, and a restart it may do says
+// which image the container runs (#186).
+func TestBerthMCPSuperseded(t *testing.T) {
+	sess, err := env.Start(t.TempDir(), allCalls(), Scenario{Args: []string{"mcp", "--allow-restarts"}, Files: jsonRepos,
+		Rules: append([]Rule{{Bin: "docker", Match: `^inspect -f \{\{\.Config\.Image\}\} claude-acme$`, Stdout: "berth/claude-env:0123456789ab\n"}}, mcpRules...)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The server runs through a link, as ~/.local/bin/berth is.
+	dir := t.TempDir()
+	link, next := filepath.Join(dir, "berth"), filepath.Join(dir, "next")
+	if err := os.Symlink(berthBin, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(next, []byte("#!/bin/sh\necho 'berth version 9.9.9 (commit x, built y)'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sess.Cmd.Path, sess.Cmd.Args[0] = link, link
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	t.Cleanup(cancel)
+	cs, err := mcp.NewClient(&mcp.Implementation{Name: "berth-superseded", Version: "0"}, nil).
+		Connect(ctx, &mcp.CommandTransport{Command: sess.Cmd, TerminateDuration: time.Second}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cs.Close() })
+
+	restart := map[string]any{"org": "acme", "confirm": "acme"}
+	if s, text, isErr := callTool(t, cs, "org_restart", restart); isErr || !strings.Contains(s, `"image":"berth/claude-env:0123456789ab"`) {
+		t.Errorf("org_restart before the upgrade: isError %v, %s %s", isErr, s, text)
+	}
+	// berth system upgrade moves the link.
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(next, link); err != nil {
+		t.Fatal(err)
+	}
+	r, err := sess.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := len(r.Calls)
+	for name, args := range map[string]map[string]any{"org_restart": restart, "firewall_allow": {"org": "acme", "entries": []string{"files.example.com"}}} {
+		if _, text, isErr := callTool(t, cs, name, args); !isErr || !strings.Contains(text, "upgraded to 9.9.9") || !strings.Contains(text, "reconnect the MCP server") {
+			t.Errorf("%s after the upgrade: isError %v, %q", name, isErr, text)
+		}
+	}
+	if _, text, isErr := callTool(t, cs, "orgs_list", map[string]any{}); isErr {
+		t.Errorf("orgs_list after the upgrade: %s", text)
+	}
+	if r, err = sess.Snapshot(); err != nil {
+		t.Fatal(err)
+	}
+	if hasCall(Result{Calls: r.Calls[before:]}, `"compose"`) {
+		t.Errorf("a superseded server ran compose:\n%s", strings.Join(r.Calls[before:], "\n"))
+	}
+	if audit := strings.Join(auditLines(t, r), "\n"); !strings.Contains(audit, `org_restart|refused|{"org":"acme"}`) {
+		t.Errorf("the audit log lacks the refusal:\n%s", audit)
+	}
+}
