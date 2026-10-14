@@ -182,7 +182,7 @@ func (s *server) tools() {
 			if err != nil {
 				return ops.Repos{}, err
 			}
-			return ops.GetRepos(ctx, b, o)
+			return ops.ListRepos(ctx, b, o)
 		})
 	add(s, "env_list", "env", "ls", "The names of an org's custom environment variables. Values are never returned.",
 		func(ctx context.Context, c *call, in orgArg) (ops.Env, error) {

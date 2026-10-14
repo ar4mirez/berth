@@ -2,6 +2,7 @@ package ops
 
 import (
 	"context"
+	"errors"
 	"path"
 	"sort"
 	"strconv"
@@ -73,6 +74,20 @@ func GetRepos(ctx context.Context, s System, org string) (Repos, error) {
 	return out, err
 }
 
+// ErrNeverStarted is the cause of the audit's failure for an org with no quarantine folder yet.
+var ErrNeverStarted = errors.New("the org has never started")
+
+// ListRepos is GetRepos for an interface that shows a list (the API, MCP, the dashboards). An org
+// that has never started has repos registered and nothing in quarantine, which is not a failure
+// there: `repo ls` ends with exit 2 only because ccenv's `ls` of the missing folder does.
+func ListRepos(ctx context.Context, s System, org string) (Repos, error) {
+	out, err := GetRepos(ctx, s, org)
+	if errors.Is(err, ErrNeverStarted) {
+		return out, nil
+	}
+	return out, err
+}
+
 // repoDirty is
 //
 //	read -r cur n < <(docker exec -u node -w /workspace/<dir> … sh -c '…' 2>/dev/null || echo "? ?")
@@ -124,7 +139,9 @@ func audit(s System, org string, entries []repopolicy.Entry) (RepoAudit, error) 
 	// end the command here with exit 2, before anything below is printed.
 	names, err := s.DirNames(a.QuarantineDir)
 	if err != nil {
-		return a, quiet(KindState, 2, Tool+" up "+org, "%s has no quarantine folder yet: it has never started", org)
+		e := quiet(KindState, 2, Tool+" up "+org, "%s has no quarantine folder yet: it has never started", org)
+		e.Err = ErrNeverStarted
+		return a, e
 	}
 	for _, n := range names { // ls: no hidden entries, sorted
 		if !strings.HasPrefix(n, ".") {

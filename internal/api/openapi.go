@@ -164,7 +164,7 @@ func openAPI() map[string]any {
 		"responses": map[string]any{"200": map[string]any{"description": "Taken."}, "404": errResp("No such terminal: it ended.")}})
 	return map[string]any{
 		"openapi": "3.1.0",
-		"info": map[string]any{"title": "berth", "version": Version, "license": map[string]any{"name": "MIT"},
+		"info": map[string]any{"title": "berth", "version": Version, "license": map[string]any{"name": "Apache-2.0", "identifier": "Apache-2.0"},
 			"description": "berth's API, served by `berth serve`. Each endpoint is one of berth's operations, with the rules the command line has: " +
 				"an operation that changes something needs a caller that may write; one that restarts a container needs a caller that may restart, " +
 				"and the org's name again as `confirm`. Secret values are never returned. Errors are berth.error/v1 documents."},
