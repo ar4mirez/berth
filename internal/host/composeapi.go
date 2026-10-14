@@ -4,7 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -246,8 +249,12 @@ func (s OrgSpec) createBody(orgEnv [][2]string, file string) (map[string]any, er
 		}
 		binds = append(binds, b)
 	}
+	caps := make([]string, 0, len(s.CapAdd))
+	for _, c := range s.CapAdd {
+		caps = append(caps, "CAP_"+strings.TrimPrefix(c, "CAP_")) // as compose sends them
+	}
 	host := map[string]any{
-		"Binds": binds, "PortBindings": bindings, "CapAdd": s.CapAdd,
+		"Binds": binds, "PortBindings": bindings, "CapAdd": caps,
 		"RestartPolicy": map[string]any{"Name": s.Restart}, "Memory": mem, "NanoCpus": int64(cpus * 1e9),
 		"Init": s.Init, "NetworkMode": s.network(),
 	}
@@ -264,6 +271,15 @@ func (s OrgSpec) createBody(orgEnv [][2]string, file string) (map[string]any, er
 	if s.User != "" {
 		body["User"] = s.User
 	}
+	// compose counts a container as its own only with a config hash (to stop, remove or recreate
+	// it). This is a hash of what was asked for, not compose's own, so compose's plain `up` makes
+	// the container again, as it does whenever its configuration changed.
+	b, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	sum := sha256.Sum256(b)
+	body["Labels"].(map[string]string)["com.docker.compose.config-hash"] = hex.EncodeToString(sum[:])
 	return body, nil
 }
 

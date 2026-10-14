@@ -162,7 +162,7 @@ func TestComposeThroughEngineAPI(t *testing.T) {
 		`"com.docker.compose.project":"claude-acme"`, `"com.docker.compose.service":"claude"`, `"com.docker.compose.oneoff":"False"`,
 		`"Binds":["/s/orgs/acme/workspace:/workspace:rw",`, `"/s/orgs/acme/ssh:/opt/claude-secrets/ssh:ro"`,
 		`"PortBindings":{"2222/tcp":[{"HostIp":"127.0.0.1","HostPort":"2201"}],"7681/tcp":[{"HostIp":"127.0.0.1","HostPort":"7601"}]}`,
-		`"CapAdd":["NET_ADMIN","NET_RAW"]`, `"RestartPolicy":{"Name":"unless-stopped"}`, `"Memory":268435456`, `"NanoCpus":500000000`,
+		`"CapAdd":["CAP_NET_ADMIN","CAP_NET_RAW"]`, `"com.docker.compose.config-hash":"`, `"RestartPolicy":{"Name":"unless-stopped"}`, `"Memory":268435456`, `"NanoCpus":500000000`,
 		`"Init":false`, `"NetworkMode":"claude-acme_default"`, `"Aliases":["claude","claude-acme"]`,
 	} {
 		if !strings.Contains(string(b), want) {
