@@ -66,8 +66,8 @@ it.
 ### "This folder is already served" after a restart
 
 The log shows `Error: This folder is already served by a terminal claude remote-control on this device`, over and over
-for a few minutes. A new Remote Control was started while the old one was still exiting. Releases before 0.12.6 did
-this on every `remote restart`. It settles once the old one has exited. Since 0.12.6, berth and the container's
+for a few minutes. A new Remote Control was started while the old one was still exiting. Releases before 0.13.0 did
+this on every `remote restart`. It settles once the old one has exited. Since 0.13.0, berth and the container's
 supervisor both wait for the old one to exit before starting the next. The supervisor's part reaches an org only
 when its container is recreated (`berth restart acme`).
 
