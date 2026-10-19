@@ -1,34 +1,31 @@
 # Container environment
 
-You are running inside an isolated per-organization container. Repos live in `/workspace`.
+You are running inside an isolated per-organization container managed by berth. Repos live in `/workspace`. The org name is in `/etc/claude-env/org`; use it wherever a command below says `<org>`. Commands marked "on the host" can't run in here: tell the user the exact command to run.
 
 ## Allowed repos
-Only the repos registered for this org may be used. They are the folders listed in `/config/repos.txt`, set up by the
-user with `berth repo add`. This is enforced: cloning, adding remotes, and reading or editing other folders under
-`/workspace` are blocked, and git can only fetch from or push to registered repos. Anything else placed in `/workspace`
-is moved out automatically. If a task needs another repo, stop and ask the user to run
-`berth repo add <org> <owner/repo>` on the host (the org name is in `/etc/claude-env/org`). Don't look for workarounds.
+- Only the repos listed in `/config/repos.txt` may be used. This is enforced: cloning, adding remotes, and reading or editing other folders under `/workspace` are blocked, git only fetches from and pushes to registered repos, and anything else placed in `/workspace` is moved out.
+- If a task needs another repo, stop and ask the user to run on the host: `berth repo add <org> <owner/repo>`. Don't look for workarounds.
 
 ## Installing software
-Use **mise** for language toolchains and CLIs. Don't use apt (you have no root) or curl-pipe installers.
-- Global (all repos in this org): `mise use -g go@latest`, `mise use -g python@3.13 uv@latest`, `mise use -g rust@stable`, `mise use -g ruby@3`, `mise use -g node@lts`
-- Per repo: `mise use go@1.23` writes a `mise.toml` in the current repo, and an existing `mise.toml`/`.tool-versions` is honored (`mise install`)
-- Other CLIs: `mise use -g aqua:cli/cli`, `mise use -g github:owner/repo`, `mise use -g npm:pkg`, `mise use -g pipx:pkg`
-- Python: prefer `uv` (`uv venv`, `uv pip install`, `uv run`) over bare pip
-- Tools are on PATH right away through mise shims, and they persist across container restarts.
-- **System libraries** (a browser's shared libraries, `libpq-dev`, fonts) can't be installed from in here. If a tool
-  fails for a missing library (`error while loading shared libraries`, Playwright's "Host system is missing
-  dependencies"), tell the user which Debian packages it needs and ask them to run on the host
-  `berth pkg add <org> <package>...` and then `berth restart <org>`. For Playwright's Chromium there is a preset:
-  `berth pkg add <org> @playwright-chromium`. The packages installed that way are listed in `/config/packages.txt`.
+- Use **mise** for language toolchains and CLIs. Don't use apt (you have no root) or curl-pipe installers. Tools are on PATH right away through mise shims and persist across restarts.
+  - Global (every repo in this org): `mise use -g go@latest`, `mise use -g python@3.13 uv@latest`, `mise use -g rust@stable`, `mise use -g ruby@3`, `mise use -g node@lts`
+  - Per repo: `mise use go@1.23` writes the repo's `mise.toml`. An existing `mise.toml` or `.tool-versions` is honored (`mise install`).
+  - Other CLIs: `mise use -g aqua:cli/cli`, `mise use -g github:owner/repo`, `mise use -g npm:pkg`, `mise use -g pipx:pkg`
+  - Python: prefer `uv` (`uv venv`, `uv pip install`, `uv run`) over bare pip.
+- **System libraries** (shared libraries, `libpq-dev`, fonts) can't be installed from in here. If a tool fails for a missing library (`error while loading shared libraries`, Playwright's "Host system is missing dependencies"), name the Debian packages it needs and ask the user to run on the host: `berth pkg add <org> <package>...` then `berth restart <org>`. Playwright's Chromium has a preset: `@playwright-chromium`. Installed packages are listed in `/config/packages.txt`.
 
 ## Secrets
-If a task needs an API key or another secret this org doesn't have, don't ask for it in the conversation. Ask the user
-to run `berth-secret-drop KEY` in this org's terminal (it reads the value hidden), then `berth env accept <org>` on the
-host. The variable is there after the org's next restart.
+Never ask for a secret in the conversation. If a task needs an API key the org doesn't have, ask the user to run `berth-secret-drop KEY` in this org's terminal (it reads the value hidden), then on the host `berth env accept <org>`. The variable is set after the org's next restart.
 
 ## Network
-Outbound traffic goes through an allowlist firewall. If a download or API call fails with a connection error or
-"Connection refused"/"administratively prohibited", it is probably blocked. Don't try to work around it. Instead, tell the user
-the exact host(s) and ask them to run on the host: `berth fw allow <org> <host>` (the org name is in `/etc/claude-env/org`).
-Presets exist for common ecosystems (`@python @go @rust @ruby @node @docker ...`).
+Outbound traffic goes through an allowlist firewall. A connection error, "Connection refused" or "administratively prohibited" usually means the host is blocked. Don't work around it: name the exact host(s) and ask the user to run on the host `berth fw allow <org> <host>`. Presets exist for common ecosystems (`@python @go @rust @ruby @node @docker ...`).
+
+## General guidelines
+- Never use the em dash "—". Use a plain dash "-" instead, or rephrase.
+- When writing commit messages or pull request descriptions, NEVER auto-add your attribution (no "Co-Authored-By" trailer, no "Generated with" line).
+- Never manually modify `CHANGELOG.md` or any other file generated by release tooling. The release process produces them.
+- When writing or substantially editing long Markdown, don't hard-wrap lines: write each paragraph or list item on one line. Preserve normal Markdown structure (headings, lists, code blocks, tables).
+- When making technical decisions, don't give much weight to how much work an option takes. Prefer quality, simplicity, robustness and scalability.
+- When fixing a bug, always start by reproducing it, ideally with a failing test, before changing code. This makes sure you find the real problem, so your fix addresses the cause and not a symptom.
+- When testing a product end to end, be picky about the details. If something clearly looks off, even if it isn't related to your task, point it out.
+- Apply the same high standard to engineering excellence (flaky tests, misleading errors, dead code, unsafe defaults). If you see a problem, even one not caused by your change, fix it when it's small and safe, and otherwise flag it to the user.

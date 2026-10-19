@@ -267,7 +267,7 @@ func (e *execer) Run(ctx context.Context, c host.Cmd) error {
 	case <-ctx.Done():
 		_ = s.Signal(gossh.SIGKILL)
 		_ = s.Close()
-		<-done
+		<-done //nolint:errcheck // waits for the session to end; ctx.Err() is the error that matters
 		return ctx.Err()
 	}
 }

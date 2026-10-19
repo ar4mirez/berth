@@ -1,5 +1,6 @@
 {
   "model": "opus",
+  "attribution": { "commit": "", "pr": "" },
   "permissions": { "defaultMode": "bypassPermissions" },
   "skipDangerousModePermissionPrompt": true,
   "hooks": {

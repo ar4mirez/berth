@@ -73,11 +73,15 @@ COPY sshd_config /etc/ssh/sshd_config.d/claude-env.conf
 COPY tmux.conf /etc/tmux.conf
 COPY init-firewall.sh entrypoint.sh rc-supervisor.sh /usr/local/bin/
 COPY bashrc.sh /etc/profile.d/claude-env.sh
-# Enforced for every session (incl. ones spawned from claude.ai): latest Opus, no permission prompts.
+# Enforced for every session (incl. ones spawned from claude.ai): latest Opus, no permission prompts, no attribution.
 COPY managed-settings.json /etc/claude-code/managed-settings.json
-# Org-independent instructions every session loads (how to install tools, firewall, layout).
+# Org-independent instructions every session loads (how to install tools, firewall, layout, general rules).
+# AGENTS.md links to the same file, so other agents get the same rules (Codex reads ~/.codex/AGENTS.md).
 COPY CLAUDE.md /etc/claude-code/CLAUDE.md
 RUN chmod +x /usr/local/bin/*.sh \
+    && ln -s CLAUDE.md /etc/claude-code/AGENTS.md \
+    && install -d -o node -g node /home/node/.codex && ln -s /etc/claude-code/AGENTS.md /home/node/.codex/AGENTS.md \
+    && chown -h node:node /home/node/.codex/AGENTS.md \
     && sed -i '1i . /etc/profile.d/claude-env.sh  # before the non-interactive early return' /home/node/.bashrc
 
 # Repo allowlist. The org's git key is mounted under a root-only dir; `node` reaches GitHub only through
