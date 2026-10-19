@@ -81,6 +81,7 @@ COPY CLAUDE.md /etc/claude-code/CLAUDE.md
 RUN chmod +x /usr/local/bin/*.sh \
     && ln -s CLAUDE.md /etc/claude-code/AGENTS.md \
     && install -d -o node -g node /home/node/.codex && ln -s /etc/claude-code/AGENTS.md /home/node/.codex/AGENTS.md \
+    && chown -h node:node /home/node/.codex/AGENTS.md \
     && sed -i '1i . /etc/profile.d/claude-env.sh  # before the non-interactive early return' /home/node/.bashrc
 
 # Repo allowlist. The org's git key is mounted under a root-only dir; `node` reaches GitHub only through
