@@ -84,6 +84,10 @@ func startPodmanTarget(t *testing.T) *sshTarget {
 		if t.Failed() {
 			out, _ := exec.Command("docker", "logs", "--tail", "20", name).CombinedOutput()
 			t.Logf("fixture logs:\n%s", out)
+			// Who owns what, for a failure in the rootless engine (its network process, its cgroups).
+			out, _ = exec.Command("docker", "exec", name, "sh", "-c",
+				`podman version --format '{{.Client.Version}}'; ps -eo pid,ppid,user,uid,args; for p in $(pgrep -f 'pasta|slirp4netns|rootlessport|catatonit'); do echo "== $p $(readlink /proc/$p/ns/user) $(cat /proc/$p/cgroup)"; done; ls -ld /sys/fs/cgroup/*/`).CombinedOutput()
+			t.Logf("fixture processes:\n%s", out)
 		}
 		_ = exec.Command("docker", "rm", "-f", "-v", name).Run()
 	})
