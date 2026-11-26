@@ -3,6 +3,16 @@
 # (a rootless one), start each one's API socket, which compose and the host guard talk to, then sshd.
 set -eu
 ssh-keygen -A >/dev/null
+# cgroup v2 delegation for the rootless Podman (#153): crun refuses an org's limits (memory, cpus,
+# pids) when the user can't create cgroups. As DinD does: move every process out of this
+# namespace's root cgroup into init/, enable the controllers below the root, and hand the root to
+# podman, so its containers get cgroups of their own. Rootful Podman (root) is unaffected.
+if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
+  mkdir -p /sys/fs/cgroup/init
+  xargs -rn1 < /sys/fs/cgroup/cgroup.procs > /sys/fs/cgroup/init/cgroup.procs 2>/dev/null || :
+  sed -e 's/ / +/g' -e 's/^/+/' < /sys/fs/cgroup/cgroup.controllers > /sys/fs/cgroup/cgroup.subtree_control
+  chown podman:podman /sys/fs/cgroup /sys/fs/cgroup/cgroup.procs /sys/fs/cgroup/cgroup.subtree_control /sys/fs/cgroup/cgroup.threads
+fi
 mkdir -p /run/podman /run/sshd
 for home in /root /home/podman; do
   mkdir -p "$home/.ssh"

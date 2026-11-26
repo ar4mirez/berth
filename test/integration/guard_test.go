@@ -46,7 +46,19 @@ func TestHostGuardPodmanRootless(t *testing.T) {
 	if os.Getenv("BERTH_BIN") == "" {
 		t.Skip("BERTH_BIN not set (the integration workflow builds berth and sets it)")
 	}
-	hostGuard(t, startPodmanTarget(t), "berth-t-podman", "podman", "podman")
+	target := startPodmanTarget(t)
+	// The guard only matters if the org starts, and a rootless org starts only with delegated cgroup
+	// controllers (the fixture's entrypoint delegates them). Say so by name rather than fail later
+	// on crun's "cannot set limits without cgroups", or pass without running.
+	ctl, err := exec.Command("docker", "exec", "-u", "podman", "-w", "/tmp", "berth-t-podman", "podman", "info", "--format", "{{.Host.CgroupControllers}}").CombinedOutput()
+	if err != nil {
+		t.Fatalf("podman info as podman: %v\n%s", err, ctl)
+	}
+	t.Logf("rootless Podman's cgroup controllers: %s", strings.TrimSpace(string(ctl)))
+	if !strings.Contains(string(ctl), "memory") || !strings.Contains(string(ctl), "pids") {
+		t.Skipf("SKIP no-cgroup-delegation: this runner gives rootless Podman no memory/pids cgroup controllers (%s), so the org can't start with its limits", strings.TrimSpace(string(ctl)))
+	}
+	hostGuard(t, target, "berth-t-podman", "podman", "podman")
 }
 
 // startPodmanTarget is the sshd + rootful Podman fixture.
@@ -65,7 +77,8 @@ func startPodmanTarget(t *testing.T) *sshTarget {
 	docker(t, "build", "-q", "-t", img, "testdata/sshd-podman")
 	_ = exec.Command("docker", "rm", "-f", "-v", name).Run()
 	// Podman's storage on a volume: overlay can't sit on the container's own overlay filesystem.
-	docker(t, "run", "-d", "--privileged", "--name", name, "-v", "/var/lib/containers",
+	// A cgroup namespace of its own: the entrypoint delegates that tree to the rootless Podman.
+	docker(t, "run", "-d", "--privileged", "--cgroupns=private", "--name", name, "-v", "/var/lib/containers",
 		"-e", "AUTHORIZED_KEY="+strings.TrimSpace(string(gossh.MarshalAuthorizedKey(signer.PublicKey()))), "-p", "127.0.0.1::22", img)
 	t.Cleanup(func() {
 		if t.Failed() {
