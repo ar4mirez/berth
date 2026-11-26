@@ -1,6 +1,8 @@
 # Test fixture for the host guard on Podman (#97): a remote "host" with sshd and a rootful Podman
 # (netavark, nftables). Built and run by test/integration/guard_test.go; never used outside CI.
-FROM quay.io/podman/stable
+# Pinned: the floating tag moved to Podman 6, whose rootless network teardown fails here
+# ("rootless netns: kill network process: permission denied" on `down`). Move it on purpose.
+FROM quay.io/podman/stable:v5.8.9-immutable@sha256:0ccbc4e7f79f9c33e7fc959be59f714abbc0f4c9cffbe14f5bceff537a014738
 
 # What a real berth host has (ss, flock, git, ssh-keygen), sshd, and iptables for the test to read
 # the rules back. `podman compose` runs Docker's compose against Podman's socket.
