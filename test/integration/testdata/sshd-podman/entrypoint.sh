@@ -22,7 +22,9 @@ for home in /root /home/podman; do
 done
 chown -R podman:podman /home/podman/.ssh
 podman system service --time=0 unix:///run/podman/podman.sock &
-# No login session here, so no XDG_RUNTIME_DIR: Podman puts the user's socket under /tmp, where an
-# ssh login finds it too.
-su podman -c 'cd /tmp && podman system service --time=0' &
+# No login session (no systemd-logind) to make the user's runtime dir, so make it as logind would:
+# /run/user/<uid>, 0700. The service and every podman login (sshd_config's SetEnv) use it, so they
+# share one rootless runtime state (#215).
+install -d -m 700 -o podman -g podman /run/user/1000
+su podman -c 'cd /tmp && XDG_RUNTIME_DIR=/run/user/1000 podman system service --time=0' &
 exec /usr/sbin/sshd -D -E /var/log/sshd.log
