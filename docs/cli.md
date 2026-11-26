@@ -123,7 +123,7 @@ berth claude acme --cwd app/.worktrees/feat-12 --env OTEL_RESOURCE_ATTRIBUTES=ca
 ```
 
 `berth org exec` runs any command the same way, without a terminal, and ends with its exit code. Tools use it to run a step
-inside the org (`crew start` runs its card preparation this way):
+inside the org (a setup script, for example):
 
 ```bash
 berth org exec acme -- git -C app status
