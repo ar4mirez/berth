@@ -124,14 +124,16 @@ func (s *server) tools() {
 	add(s, "hosts_list", "host", "ls", "This machine and every registered host: whether each is reachable, its container engine, and how many orgs it has.",
 		func(ctx context.Context, c *call, _ noArgs) (ops.Hosts, error) { return ops.GetHosts(ctx, c.app) })
 	add(s, "orgs_list", "ls", "", "Every org, here and on registered hosts: whether it is up, its ports, whether it has a Claude token, and its Remote Control state.",
-		func(ctx context.Context, c *call, _ noArgs) (ops.Orgs, error) { return ops.ListOrgs(ctx, c.app), nil })
+		func(ctx context.Context, c *call, _ noArgs) (ops.Orgs, error) {
+			return ops.ListOrgsStarted(ctx, c.app), nil
+		})
 	add(s, "org_info", "info", "", "An org's connection sheet: its state, address and ports, the claude.ai/code link, and its git public key. Never the browser terminal's password.",
 		func(ctx context.Context, c *call, in orgArg) (ops.Info, error) {
 			b, o, err := c.at(ctx, in.Org)
 			if err != nil {
 				return ops.Info{}, err
 			}
-			return ops.GetInfo(ctx, b, o)
+			return ops.GetInfoStarted(ctx, b, o)
 		})
 	add(s, "org_accounts", "whoami", "", "Which Claude account and GitHub account each org is signed in to.",
 		func(ctx context.Context, c *call, in accountsArgs) (ops.Whoami, error) {

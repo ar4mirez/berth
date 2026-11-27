@@ -49,6 +49,12 @@
               "null"
             ]
           },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "state": {
             "type": "string"
           },
@@ -70,7 +76,8 @@
           "ttyd_port",
           "token",
           "remote",
-          "host"
+          "host",
+          "started_at"
         ],
         "type": "object"
       },

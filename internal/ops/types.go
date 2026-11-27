@@ -45,6 +45,8 @@ type OrgStatus struct {
 	Remote string `json:"remote"`
 	// Host is where the org is: "local" or a registered host's name (#45).
 	Host string `json:"host"`
+	// StartedAt is when the running container was last started, as berth.info/v1 has it (#216).
+	StartedAt *string `json:"started_at"`
 	// SSHRaw and TTYDRaw are the ports exactly as org.env has them: what the text table prints.
 	SSHRaw  string `json:"-"`
 	TTYDRaw string `json:"-"`
@@ -129,6 +131,10 @@ type Info struct {
 	GitPublicKey string `json:"git_public_key"`
 	// Tunnel is set when the org is reached through an SSH tunnel (#58).
 	Tunnel *Tunnel `json:"tunnel"`
+	// StartedAt is when the running container was last started (RFC 3339, UTC): by an up, a restart,
+	// a migrate or a restore, by any caller, or by the engine restarting it (#216). null when the org
+	// is stopped.
+	StartedAt *string `json:"started_at"`
 
 	// What only the text needs: the address as ccenv words it, the ports as org.env has them, and
 	// why the key couldn't be read.

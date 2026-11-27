@@ -86,6 +86,8 @@ var acmeRunning = []Rule{
 	{Bin: "docker", Match: `^exec claude-acme sh -c sed `, Stdout: "  Capacity: 1/8 sessions\n"},
 	{Bin: "docker", Match: `^exec claude-acme cat /run/firewall\.status$`, Stdout: "on (12 entries)\n"},
 	{Bin: "tailscale", Match: `^ip -4$`, Stdout: "100.64.0.7\n"},
+	// berth's JSON only (#216): when the container was started, as the engine says it.
+	{Bin: "docker", Match: `^inspect -f \{\{\.State\.StartedAt\}\} claude-acme$`, Stdout: "2026-01-02T03:04:05.123456789Z\n"},
 }
 
 var nothingRunning = []Rule{

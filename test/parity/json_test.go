@@ -30,7 +30,8 @@ func TestBerthJSONOutput(t *testing.T) {
       "ttyd_port": 7701,
       "token": true,
       "remote": "on",
-      "host": "local"
+      "host": "local",
+      "started_at": "2026-01-02T03:04:05.123456789Z"
     },
     {
       "name": "globex",
@@ -40,7 +41,8 @@ func TestBerthJSONOutput(t *testing.T) {
       "ttyd_port": 7702,
       "token": false,
       "remote": "-",
-      "host": "local"
+      "host": "local",
+      "started_at": null
     }
   ],
   "unreachable": [],

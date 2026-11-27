@@ -10,8 +10,14 @@ import (
 
 // ListOrgs is `ls`: every org dir with an org.env, whatever its MANAGER, then the orgs of each
 // registered host (#45). A host that can't be reached is reported, never hidden.
-func ListOrgs(ctx context.Context, s System) Orgs {
-	out := Orgs{Schema: "berth.orgs/v1", Orgs: orgStatuses(ctx, s), Unreachable: []HostError{}, Destroyed: s.Destroyed()}
+func ListOrgs(ctx context.Context, s System) Orgs { return listOrgs(ctx, s, false) }
+
+// ListOrgsStarted is ListOrgs with each running org's started_at: a docker call per running org,
+// which the text table, like ccenv's, doesn't make (#216).
+func ListOrgsStarted(ctx context.Context, s System) Orgs { return listOrgs(ctx, s, true) }
+
+func listOrgs(ctx context.Context, s System, started bool) Orgs {
+	out := Orgs{Schema: "berth.orgs/v1", Orgs: orgStatuses(ctx, s, started), Unreachable: []HostError{}, Destroyed: s.Destroyed()}
 	for _, p := range s.Peers(ctx) {
 		out.MultiHost = true
 		ps, done, err := p.Open(ctx)
@@ -19,7 +25,7 @@ func ListOrgs(ctx context.Context, s System) Orgs {
 			out.Unreachable = append(out.Unreachable, HostError{Host: p.Name, Error: err.Error()})
 			continue
 		}
-		out.Orgs = append(out.Orgs, orgStatuses(ctx, ps)...)
+		out.Orgs = append(out.Orgs, orgStatuses(ctx, ps, started)...)
 		out.Destroyed = append(out.Destroyed, ps.Destroyed()...)
 		done()
 	}
@@ -34,7 +40,7 @@ func ListOrgs(ctx context.Context, s System) Orgs {
 
 // orgStatuses is ls's data for one System: every dir with an org.env, in byte order, with the
 // same checks (and the same docker calls, in the same order) as ccenv's cmd_ls.
-func orgStatuses(ctx context.Context, s System) []OrgStatus {
+func orgStatuses(ctx context.Context, s System, started bool) []OrgStatus {
 	var rows []OrgStatus
 	for _, o := range s.OrgDirs() {
 		if !s.IsFile(EnvPath(s, o)) {
@@ -47,6 +53,9 @@ func orgStatuses(ctx context.Context, s System) []OrgStatus {
 		if Running(ctx, s, o) {
 			r.State = "up"
 			r.Remote = RemoteState(ctx, s, o)
+			if started {
+				r.StartedAt = StartedAt(ctx, s, o)
+			}
 		}
 		r.Token = s.Secret(o, "CLAUDE_CODE_OAUTH_TOKEN")+s.Secret(o, "ANTHROPIC_API_KEY") != ""
 		r.SSHRaw, r.TTYDRaw = env(s, o, "SSH_PORT"), env(s, o, "TTYD_PORT")

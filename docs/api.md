@@ -134,12 +134,12 @@ others take a JSON body.
 | Endpoint | | Needs | The command |
 |---|---|---|---|
 | `GET /v1/hosts` | This machine and every registered host: whether each is reachable, its container engine, and how many orgs it has | read | `berth host ls` |
-| `GET /v1/orgs` | Every org, here and on registered hosts: whether it is up, its ports, whether it has a Claude token, and its Remote Control state | read | `berth ls` |
+| `GET /v1/orgs` | Every org, here and on registered hosts: whether it is up and since when (`started_at`), its ports, whether it has a Claude token, and its Remote Control state | read | `berth ls` |
 | `GET /v1/accounts` | Which Claude account and GitHub account each org is signed in to | read | `berth whoami` |
 | `GET /v1/backups` | The backup files on this machine, newest first: org, when, size and how each is encrypted | read | `berth ` |
 | `POST /v1/backups` | Take an encrypted backup of orgs on this machine, into the backups directory | write | `berth backup` |
 | `GET /v1/schedule` | The nightly backup schedule on this machine: a systemd timer or a launchd agent and its last runs, or a crontab line | read | `berth schedule status` |
-| `GET /v1/orgs/{org}` | An org's connection sheet: its state, address and ports, the claude.ai/code link, and its git public key | read | `berth info` |
+| `GET /v1/orgs/{org}` | An org's connection sheet: its state and when its container started (`started_at`), address and ports, the claude.ai/code link, and its git public key | read | `berth info` |
 | `GET /v1/orgs/{org}/remote` | Remote Control in a running org: on, login-needed, blocked-by-org or restarting, with its link and capacity when on | read | `berth remote status` |
 | `GET /v1/orgs/{org}/logs` | The last lines of a running org's container log (startup, firewall, Remote Control) | read | `berth logs` |
 | `GET /v1/orgs/{org}/firewall` | An org's egress allowlist as written, and the live firewall status of its container | read | `berth fw show` |
