@@ -163,6 +163,7 @@ func TestBerthMCPConformance(t *testing.T) {
 		"repos_list":       {map[string]any{"org": "acme"}, []string{`"schema":"berth.repos/v1"`, `"dir":"app"`, `"unregistered":[`}},
 		"env_list":         {map[string]any{"org": "acme"}, []string{`"schema":"berth.env/v1"`, `"vars":[]`}},
 		"packages_list":    {map[string]any{"org": "acme"}, []string{`"schema":"berth.packages/v1"`, `"packages":[]`}},
+		"mounts_list":      {map[string]any{"org": "acme"}, []string{`"schema":"berth.mounts/v1"`, `"mounts":[]`}},
 		"schedule_status":  {nil, []string{`"schema":"berth.schedule/v1"`, `"kind":"none"`}},
 		"backups_list":     {map[string]any{"org": "acme"}, []string{`"file":"acme-20261006-023000.tar.zst.age"`, `"encryption":"age"`, `"stamp":"20261006-023000"`}},
 		"package_presets":  {nil, []string{`"schema":"berth.package-presets/v1"`, `"name":"@playwright-chromium"`}},

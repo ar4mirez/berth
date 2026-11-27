@@ -124,6 +124,21 @@ func (c *Client) PackagesList(ctx context.Context, org string) (out ops.Packages
 	return out, c.do(ctx, "GET", "/v1/orgs/"+url.PathEscape(org)+"/packages", nil, nil, &out)
 }
 
+// MountsList is GET /v1/orgs/{org}/mounts: An org's socket mounts: each Unix socket from its host, where it is in the container, and whether the running container has it yet.
+func (c *Client) MountsList(ctx context.Context, org string) (out ops.Mounts, err error) {
+	return out, c.do(ctx, "GET", "/v1/orgs/"+url.PathEscape(org)+"/mounts", nil, nil, &out)
+}
+
+// MountSet is PUT /v1/orgs/{org}/mounts/{name}: Mount a Unix socket of the org's host in its container, under /run/berth-mounts/: its directory is what is mounted, so a daemon that makes the socket again is seen.
+func (c *Client) MountSet(ctx context.Context, org string, name string, source string, target string, mode string) (out ops.MountDoc, err error) {
+	return out, c.do(ctx, "PUT", "/v1/orgs/"+url.PathEscape(org)+"/mounts/"+url.PathEscape(name), nil, map[string]any{"source": source, "target": target, "mode": mode}, &out)
+}
+
+// MountRemove is DELETE /v1/orgs/{org}/mounts/{name}: Remove one of an org's socket mounts.
+func (c *Client) MountRemove(ctx context.Context, org string, name string) (out ops.Mounts, err error) {
+	return out, c.do(ctx, "DELETE", "/v1/orgs/"+url.PathEscape(org)+"/mounts/"+url.PathEscape(name), nil, nil, &out)
+}
+
 // OrgUp is POST /v1/orgs/{org}/up: Start an org: gets its image if needed, then recreates its container.
 func (c *Client) OrgUp(ctx context.Context, org string, confirm string) (out mcpsrv.Recreated, err error) {
 	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/up", nil, map[string]any{"confirm": confirm}, &out)

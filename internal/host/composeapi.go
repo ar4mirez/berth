@@ -72,13 +72,18 @@ func (e apiExec) answers(ctx context.Context) bool {
 	return e.alive.ok
 }
 
-// composeFiles splits `-f F --env-file E <verb> …` into the compose file, the env file and the verb.
+// composeFiles splits `-f F [-f F2] --env-file E <verb> …` into the compose files, joined by commas
+// as compose labels them (compose.yml first, then the org's socket mounts), the env file and the
+// verb.
 func composeFiles(args []string) (file, envFile string, verb []string) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "-f", "--file":
 			if i++; i < len(args) {
-				file = args[i]
+				if file != "" {
+					file += ","
+				}
+				file += args[i]
 			}
 		case "--env-file":
 			if i++; i < len(args) {
@@ -108,7 +113,7 @@ func (e apiExec) compose(ctx context.Context, c Cmd, file, envFile string, verb 
 		return err
 	}
 	if !path.IsAbs(spec.BuildContext) {
-		spec.BuildContext = path.Join(path.Dir(file), spec.BuildContext)
+		spec.BuildContext = path.Join(path.Dir(firstFile(file)), spec.BuildContext)
 	}
 	say := func(format string, v ...any) {
 		if c.Stderr != nil {
@@ -134,6 +139,12 @@ func (e apiExec) compose(ctx context.Context, c Cmd, file, envFile string, verb 
 // network is the org's network, compose's default one for its project.
 func (s OrgSpec) network() string { return s.Project + "_default" }
 
+// firstFile is compose.yml, of the files composeFiles joined.
+func firstFile(files string) string {
+	f, _, _ := strings.Cut(files, ",")
+	return f
+}
+
 // labels are compose's on the org's container, so compose (and the host guard, and ccenv down)
 // find it as one of its own.
 func (s OrgSpec) labels(file string) map[string]string {
@@ -143,7 +154,7 @@ func (s OrgSpec) labels(file string) map[string]string {
 		"com.docker.compose.container-number":     "1",
 		"com.docker.compose.oneoff":               "False",
 		"com.docker.compose.project.config_files": file,
-		"com.docker.compose.project.working_dir":  path.Dir(file),
+		"com.docker.compose.project.working_dir":  path.Dir(firstFile(file)),
 		"berth.engine-api":                        "1",
 	}
 }

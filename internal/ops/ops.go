@@ -67,6 +67,9 @@ var (
 	admin = func(op Op) Op { op.Admin = true; return op }
 )
 
+// mountWrite changes an org's socket mounts: nothing restarts, and the change waits for one.
+var mountWrite = Op{Access: Write, Note: "applies at the org's next up or restart, which it doesn't do"}
+
 // Catalog is every top-level command, by name.
 var Catalog = map[string]Op{
 	// Reading.
@@ -140,6 +143,11 @@ var Catalog = map[string]Op{
 	"pkg": {Access: BySub, Subs: map[string]Op{
 		"": readJSON, "ls": readJSON, "list": readJSON, "presets": readJSON,
 		"add": write, "rm": write, "remove": write, "build": write,
+	}},
+	// Socket mounts (#216): the list is saved; the container gets them at its next up or restart.
+	"mount": {Access: BySub, Subs: map[string]Op{
+		"": readJSON, "ls": readJSON, "list": readJSON,
+		"add": mountWrite, "rm": mountWrite, "remove": mountWrite,
 	}},
 
 	// Backups.

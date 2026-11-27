@@ -149,6 +149,17 @@ func completePkg(cmd *cobra.Command, args []string, toComplete string) ([]cobra.
 	return nil, cobra.ShellCompDirectiveNoFileComp
 }
 
+// completeMount completes `mount <org> <verb>`: orgs, then the verbs.
+func completeMount(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	switch {
+	case len(args) == 0:
+		return completionOrgsAt(cmd, toComplete), cobra.ShellCompDirectiveNoFileComp
+	case len(args) == 1:
+		return []string{"ls", "add", "rm"}, cobra.ShellCompDirectiveNoFileComp
+	}
+	return nil, cobra.ShellCompDirectiveDefault
+}
+
 func completeFw(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 	switch {
 	case len(args) == 0:

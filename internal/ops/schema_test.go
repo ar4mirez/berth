@@ -120,7 +120,10 @@ func TestDocumentsValidate(t *testing.T) {
 	p.Step("image", "getting the image")
 	_, _ = p.Writer("stdout").Write([]byte("line\n"))
 	p.Done(fail(KindCommand, "", "docker exited with status 1"))
-	samples := []any{g, Image{Schema: "berth.image/v1", Tag: "berth/claude-env:0123456789ab"}, doc}
+	mount := Mount{Name: "agent", Source: "/run/agent/agent.sock", Target: "/run/berth-mounts/agent/agent.sock", Mode: "rw", Applied: true}
+	samples := []any{g, Image{Schema: "berth.image/v1", Tag: "berth/claude-env:0123456789ab"}, doc,
+		Mounts{Schema: "berth.mounts/v1", Org: "acme", Mounts: []Mount{mount}, Pending: false},
+		MountDoc{Schema: "berth.mount/v1", Org: "acme", Name: mount.Name, Source: mount.Source, Target: mount.Target, Mode: "rw"}}
 	for _, e := range events {
 		samples = append(samples, e)
 	}

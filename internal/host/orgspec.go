@@ -1,6 +1,7 @@
 package host
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -92,6 +93,17 @@ func NewOrgSpec(env, org map[string]string, envFile string) (OrgSpec, error) {
 	}
 	for _, m := range orgMounts {
 		s.Mounts = append(s.Mounts, MountSpec{Source: dir + "/" + m.dir, Target: m.target, ReadOnly: m.ro})
+	}
+	// The org's socket mounts (#216): each socket's directory, read-write, as the second compose
+	// file berth gives compose adds them.
+	if v := env["BERTH_SOCKET_MOUNTS"]; v != "" {
+		var binds [][2]string
+		if err := json.Unmarshal([]byte(v), &binds); err != nil {
+			return OrgSpec{}, fmt.Errorf("BERTH_SOCKET_MOUNTS: %w", err)
+		}
+		for _, b := range binds {
+			s.Mounts = append(s.Mounts, MountSpec{Source: b[0], Target: b[1]})
+		}
 	}
 	return s, nil
 }

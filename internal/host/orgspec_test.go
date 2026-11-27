@@ -48,3 +48,30 @@ func TestNewOrgSpec(t *testing.T) {
 		}
 	}
 }
+
+// TestOrgSpecSocketMounts: an org's socket mounts (#216) are binds after compose.yml's, each a
+// socket's directory read-write, as the second compose file berth writes adds them; compose's
+// arguments with both files label the container with both, as compose does.
+func TestOrgSpecSocketMounts(t *testing.T) {
+	env := map[string]string{"ORG": "acme", "ORG_DIR": "/d", "BERTH_SOCKET_MOUNTS": `[["/run/agent","/run/berth-mounts/agent"]]`}
+	s, err := NewOrgSpec(env, map[string]string{"SSH_PORT": "1", "TTYD_PORT": "2"}, "/d/org.env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if last := s.Mounts[len(s.Mounts)-1]; len(s.Mounts) != len(orgMounts)+1 || last != (MountSpec{Source: "/run/agent", Target: "/run/berth-mounts/agent"}) {
+		t.Errorf("mounts: %+v", s.Mounts)
+	}
+	env["BERTH_SOCKET_MOUNTS"] = "not json"
+	if _, err := NewOrgSpec(env, map[string]string{"SSH_PORT": "1", "TTYD_PORT": "2"}, "/d/org.env"); err == nil {
+		t.Error("a broken BERTH_SOCKET_MOUNTS was taken")
+	}
+
+	file, envFile, verb := composeFiles([]string{"-f", "/s/berth/compose.yml", "-f", "/s/berth-orgs/acme/mounts.compose.yml", "--env-file", "/d/org.env", "up", "-d"})
+	if file != "/s/berth/compose.yml,/s/berth-orgs/acme/mounts.compose.yml" || envFile != "/d/org.env" || !reflect.DeepEqual(verb, []string{"up", "-d"}) {
+		t.Errorf("composeFiles: %q %q %q", file, envFile, verb)
+	}
+	l := s.labels(file)
+	if l["com.docker.compose.project.config_files"] != file || l["com.docker.compose.project.working_dir"] != "/s/berth" {
+		t.Errorf("labels: %v", l)
+	}
+}

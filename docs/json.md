@@ -77,6 +77,8 @@ from it; a field that may be `null` says so.
 | `berth.host-guard/v1` | `host guard <name> status` | [`host-guard.v1.json`](schemas/host-guard.v1.json) |
 | `berth.packages/v1` | `pkg ls <org>` | [`packages.v1.json`](schemas/packages.v1.json) |
 | `berth.package-presets/v1` | `pkg presets <org>` | [`package-presets.v1.json`](schemas/package-presets.v1.json) |
+| `berth.mounts/v1` | `mount ls <org>` | [`mounts.v1.json`](schemas/mounts.v1.json) |
+| `berth.mount/v1` | `PUT /v1/orgs/{org}/mounts/{name}` | [`mount.v1.json`](schemas/mount.v1.json) |
 | `berth.default-org/v1` | `org use` | [`default-org.v1.json`](schemas/default-org.v1.json) |
 | `berth.image/v1` | `image-tag` | [`image.v1.json`](schemas/image.v1.json) |
 | `berth.error/v1` | any command that fails (on stderr) | [`error.v1.json`](schemas/error.v1.json) |
@@ -436,5 +438,37 @@ other two are `""`.
 
 ```json
 { "schema": "berth.package-presets/v1", "presets": [ { "name": "@playwright-chromium", "packages": ["libasound2", "…"] } ] }
+```
+
+## `berth.mounts/v1`: `mount ls <org>`
+
+An org's socket mounts (`GET /v1/orgs/{org}/mounts`): Unix sockets of its host, in its container under
+`/run/berth-mounts/` ([the API](api.md#socket-mounts)).
+
+```json
+{
+  "schema": "berth.mounts/v1",
+  "org": "acme",
+  "mounts": [
+    { "name": "agent", "source": "/run/agent/agent.sock", "target": "/run/berth-mounts/agent/agent.sock", "mode": "rw", "applied": true }
+  ],
+  "pending": false
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `mounts[].source` | the socket on the org's host |
+| `mounts[].target` | where it is in the container: the socket's directory is mounted at the target's |
+| `mounts[].mode` | `rw`, the only mode |
+| `mounts[].applied` | whether the running container has it; `false` while the org is stopped, and until its next up or restart |
+| `pending` | whether the running container's socket mounts differ from the list: a change waits for the org's next restart |
+
+## `berth.mount/v1`: `PUT /v1/orgs/{org}/mounts/{name}`
+
+One socket mount, as it was set: the fields of a `mounts[]` entry, with `schema` and `org`.
+
+```json
+{ "schema": "berth.mount/v1", "org": "acme", "name": "agent", "source": "/run/agent/agent.sock", "target": "/run/berth-mounts/agent/agent.sock", "mode": "rw", "applied": false }
 ```
 
