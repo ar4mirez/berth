@@ -170,8 +170,16 @@ func TestBerthAPI(t *testing.T) {
 		t.Errorf("GET /v1/openapi.json: %d, and it isn't the committed document", status)
 	}
 
+	// A socket of this user's own, in a directory of its own, for a socket mount (#216).
+	_, msock := socketDir(t, "agent.sock")
+
 	// Every endpoint, through the generated client. A route this table lacks fails the test.
 	calls := map[string]func() (any, error){
+		"mounts_list": func() (any, error) { return c.MountsList(ctx, "acme") },
+		"mount_set": func() (any, error) {
+			return c.MountSet(ctx, "acme", "agent", msock, "/run/berth-mounts/agent/agent.sock", "")
+		},
+		"mount_remove":     func() (any, error) { return c.MountRemove(ctx, "acme", "agent") },
 		"hosts_list":       func() (any, error) { return c.HostsList(ctx) },
 		"orgs_list":        func() (any, error) { return c.OrgsList(ctx) },
 		"org_accounts":     func() (any, error) { return c.OrgAccounts(ctx, []string{"acme"}) },
@@ -253,6 +261,9 @@ func TestBerthAPI(t *testing.T) {
 		"remote_status": {`"state":"on"`}, "org_logs": {`claude-env[acme]: ready`}, "firewall_show": {`"live":"on (12 entries)"`},
 		"firewall_presets": {`"name":"@python"`}, "firewall_test": {`"allowed":true`}, "repos_list": {`"dir":"app"`},
 		"env_list": {`"schema":"berth.env/v1"`}, "packages_list": {`"schema":"berth.packages/v1"`},
+		"mounts_list":    {`"schema":"berth.mounts/v1"`, `"mounts":[]`},
+		"mount_set":      {`"schema":"berth.mount/v1"`, `"name":"agent"`, `"target":"/run/berth-mounts/agent/agent.sock"`, `"mode":"rw"`, `"applied":false`},
+		"mount_remove":   {`"schema":"berth.mounts/v1"`, `"mounts":[]`},
 		"firewall_allow": {`allowed: files.example.com`, `"files.example.com"`}, "firewall_deny": {`removed: pypi.org`},
 		"repo_add": {`Registered github.com/acme/widget as /workspace/widget`}, "repo_remove": {`Unregistered /workspace/app`},
 		"backup_create": {`Wrote `}, "org_restart": {`"org":"acme"`}, "org_up": {`"org":"acme"`}, "org_down": {`"org":"acme"`},
@@ -408,7 +419,8 @@ func TestBerthAPI(t *testing.T) {
 	for _, w := range []string{`firewall_allow|ok|{"entries":["files.example.com"],"org":"acme"}`, `repo_remove|ok|{"dir":"app","org":"acme"}`, `org_restart|ok|{"org":"acme"}`, `backup_create|ok|`,
 		`org_create|ok|{"email":"ada@example.com","name":"Ada Lovelace","org":"t-new"}`, `org_destroy|ok|{"keep_backups":false,"org":"t-new"}`, `firewall_off|ok|{"org":"acme"}`,
 		`packages_add|ok|{"entries":["jq"],"no_build":true,"org":"acme"}`, `remote_restart|ok|{"fresh":false,"org":"acme"}`, `repo_sync|ok|{"org":"acme"}`,
-		`org_run|ok|{"org":"acme"}`, `host_remove|failed|{"force":false,"host":"t-box"}`, `env_migrate|ok|{"no_backup":true,"org":"acme"}`} {
+		`org_run|ok|{"org":"acme"}`, `host_remove|failed|{"force":false,"host":"t-box"}`, `env_migrate|ok|{"no_backup":true,"org":"acme"}`,
+		`mount_set|ok|{"mode":"","name":"agent","org":"acme","source":"` + msock + `","target":"/run/berth-mounts/agent/agent.sock"}`, `mount_remove|ok|{"name":"agent","org":"acme"}`} {
 		if !strings.Contains(audit, w) {
 			t.Errorf("the audit log lacks %s:\n%s", w, audit)
 		}

@@ -475,6 +475,9 @@ var fwVerbs = []string{"show", "allow", "add", "deny", "remove", "rm", "on", "of
 // pkgVerbs are pkg's subcommands, which can't be taken for an org.
 var pkgVerbs = []string{"ls", "list", "add", "rm", "remove", "presets", "build"}
 
+// mountVerbs are mount's subcommands, which can't be taken for an org.
+var mountVerbs = []string{"ls", "list", "add", "rm", "remove"}
+
 // nthArg picks the nth argument; allArgs picks none, meaning every argument (localOnly).
 func nthArg(n int) func([]string) int { return func([]string) int { return n } }
 
@@ -801,6 +804,22 @@ func addCommands(root *cobra.Command) {
 					return a.Pkg(cmd.Context(), "", nil)
 				}
 				return a.Pkg(cmd.Context(), args[0], args[1:])
+			}),
+		}),
+		reads(&cobra.Command{
+			Use: "mount <org> [ls|add|rm] [name socket target]", Short: "Unix sockets from the host in an org's container (applied at its next restart)",
+			Long: "A Unix socket on the org's host, in its container under /run/berth-mounts/: for a program in the org\n" +
+				"that talks to a daemon outside it. The socket must be berth's user's own, in a directory of its own that\n" +
+				"nobody else may write to; that directory is what is mounted, so a daemon that makes its socket again is\n" +
+				"seen at once. The list is saved and checked again at every start; the running container isn't touched:\n" +
+				"a change applies at the org's next up or restart.",
+			DisableFlagParsing: true,
+			ValidArgsFunction:  completeMount,
+			RunE: onOrgV(nthArg(0), mountVerbs, func(a *app.App, cmd *cobra.Command, args []string) error {
+				if len(args) == 0 {
+					return a.Mount(cmd.Context(), "", nil)
+				}
+				return a.Mount(cmd.Context(), args[0], args[1:])
 			}),
 		}),
 		reads(&cobra.Command{

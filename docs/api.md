@@ -152,6 +152,9 @@ others take a JSON body.
 | `DELETE /v1/orgs/{org}/repos/{dir}` | Unregister a repo from an org | write | `berth repo rm` |
 | `GET /v1/orgs/{org}/env` | The names of an org's custom environment variables | read | `berth env ls` |
 | `GET /v1/orgs/{org}/packages` | The system packages an org's image adds, and that image | read | `berth pkg ls` |
+| `GET /v1/orgs/{org}/mounts` | An org's [socket mounts](#socket-mounts), and whether its container has them yet | read | `berth mount ls` |
+| `PUT /v1/orgs/{org}/mounts/{name}` | Mount a Unix socket of the org's host in its container, from its next up or restart: `source`, `target`, `mode` | write | `berth mount add` |
+| `DELETE /v1/orgs/{org}/mounts/{name}` | Remove a socket mount, from the org's next up or restart | write | `berth mount rm` |
 | `POST /v1/orgs/{org}/up` | Start an org: gets its image if needed, then recreates its container | restart | `berth up` |
 | `POST /v1/orgs/{org}/restart` | Restart an org: recreates its container, applying pending changes (a new image, packages, variables) | restart | `berth restart` |
 | `POST /v1/orgs/{org}/down` | Stop an org: stops and removes its container | restart | `berth down` |
@@ -215,6 +218,33 @@ curl --unix-socket "$s" "http://berth/v1/orgs/acme/logs?lines=50"
 curl --unix-socket "$s" -X POST -d '{"entries":["pypi.org","@python"]}' http://berth/v1/orgs/acme/firewall/allow
 curl --unix-socket "$s" -X POST -d '{"confirm":"acme"}' http://berth/v1/orgs/acme/restart
 ```
+
+## Socket mounts
+
+A program in an org that talks to a daemon outside it gets the daemon's Unix socket through a socket mount
+([`berth.mounts/v1`](json.md#berthmountsv1-mount-ls-org)):
+
+```bash
+curl --unix-socket "$s" -X PUT -d '{"source":"/run/agent/agent.sock","target":"/run/berth-mounts/agent/agent.sock"}' \
+  http://berth/v1/orgs/acme/mounts/agent
+curl --unix-socket "$s" -X POST -d '{"confirm":"acme"}' http://berth/v1/orgs/acme/restart   # applies it
+```
+
+- **Only a socket of berth's own user.** `source` is an absolute path to an existing Unix socket (not a link to
+  one) owned by the user berth runs as, in a directory of its own: that user owns it, nobody else may write to it,
+  and it holds no other socket and no link. `/tmp`, `/run`, the user's runtime directory and home are refused,
+  since other programs keep their sockets there. Anything else is refused (400) with the reason.
+- **Under `/run/berth-mounts/`.** `target` is in a directory of its own there, ending in the socket's own name
+  (`/run/berth-mounts/agent/agent.sock`), and two mounts never share a directory. `mode` is `rw`, the only one.
+- **The directory is what is mounted**, not the socket's inode: a daemon that restarts and makes its socket again
+  is seen in the container at once.
+- **From the next up or restart.** Setting or removing one only changes the org's list (`orgs/<org>/mounts.json`,
+  kept in backups; the socket never is): the restart that applies it is its own operation, with its own
+  `confirm`. `applied` and `pending` say whether the running container has the list yet. Every start checks every
+  socket again, and one that is gone or no longer berth's own stops the start with the reason, before anything
+  is stopped.
+- Each change is in the audit log with the source, the target and the caller. No MCP server offers the changes:
+  a socket mount gives an org a daemon of its host, which is a person's call. Socket mounts need a Linux host.
 
 ## Errors
 

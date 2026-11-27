@@ -367,6 +367,19 @@ func layout(root *cobra.Command) {
 	pv("presets", "<org>", "the presets add takes", 0, org1, "berth pkg presets acme")
 	pv("build", "<org>", "build the org's image now", 0, org1, "berth pkg build acme")
 
+	// mount
+	mnt := t.group(root, "mount", "Unix sockets from the host in an org's container (applied at its next restart)",
+		"berth mount add acme agent /run/agent/agent.sock /run/berth-mounts/agent/agent.sock", "berth mount ls acme")
+	mnt.Long = t.flat["mount"].Long
+	t.orgFirst(mnt, "mount")
+	mv := func(sub, use, short string, fixed int, ex ...string) {
+		t.verb(mnt, "mount", sub, strings.TrimSpace(sub+" "+use), short, orgVerb(sub, fixed), org1, ex...)
+	}
+	mv("ls", "<org>", "an org's socket mounts, and whether its container has them", 0, "berth mount ls acme")
+	mv("add", "<org> <name> <socket> <target>", "mount a socket of berth's user at target, under /run/berth-mounts/, from the org's next start", 3,
+		"berth mount add acme agent /run/agent/agent.sock /run/berth-mounts/agent/agent.sock", "berth restart acme   # to apply it")
+	mv("rm", "<org> <name>", "remove a socket mount, from the org's next start", 1, "berth mount rm acme agent")
+
 	// account
 	acct := t.group(root, "account", "sign-in: Claude, Remote Control, GitHub", "berth account signin acme", "berth account whoami")
 	for _, v := range [][2]string{{"auth", "signin"}, {"token", "token"}, {"login", "login"}, {"logout", "logout"}, {"gh-login", "gh"}, {"whoami", "whoami"}} {

@@ -100,7 +100,16 @@ func (a *App) compose(ctx context.Context, o string, args ...string) error {
 		repo, tag, _ := strings.Cut(img.tag, ":")
 		env = append(env, "CLAUDE_ENV_IMAGE="+repo, "IMAGE_TAG="+tag, "CLAUDE_ENV_IMAGE_DIR="+img.dir)
 	}
-	argv := append([]string{"docker", "compose", "-f", set.Compose, "--env-file", a.Orgs.EnvPath(o)}, args...)
+	files := []string{"-f", set.Compose}
+	mounts, menv, err := a.socketMounts(ctx, o, len(args) > 0 && args[0] == "up")
+	if err != nil {
+		return err
+	}
+	if mounts != "" {
+		files = append(files, "-f", mounts)
+		env = append(env, menv...)
+	}
+	argv := append(append([]string{"docker", "compose"}, files...), append([]string{"--env-file", a.Orgs.EnvPath(o)}, args...)...)
 	return a.Host.Exec.Run(ctx, host.Cmd{
 		Args:   argv,
 		Env:    env,

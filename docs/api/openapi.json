@@ -4876,6 +4876,463 @@
         "x-berth-operation": "migrate"
       }
     },
+    "/v1/orgs/{org}/mounts": {
+      "get": {
+        "description": "An org's socket mounts: each Unix socket from its host, where it is in the container, and whether the running container has it yet.",
+        "operationId": "mounts_list",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "mounts": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "applied": {
+                            "type": "boolean"
+                          },
+                          "mode": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "source",
+                          "target",
+                          "mode",
+                          "applied"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "org": {
+                      "type": "string"
+                    },
+                    "pending": {
+                      "type": "boolean"
+                    },
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "org",
+                    "mounts",
+                    "pending"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "An org's socket mounts: each Unix socket from its host, where it is in the container, and whether the running container has it yet",
+        "x-berth-about": "An org's socket mounts: each Unix socket from its host, where it is in the container, and whether the running container has it yet.",
+        "x-berth-access": "read",
+        "x-berth-operation": "mount ls"
+      }
+    },
+    "/v1/orgs/{org}/mounts/{name}": {
+      "delete": {
+        "description": "Remove one of an org's socket mounts. It leaves the container at the org's next up or restart, which this doesn't do. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "mount_remove",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the mount's name, as mounts_list shows it",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "mounts": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "applied": {
+                            "type": "boolean"
+                          },
+                          "mode": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "source",
+                          "target",
+                          "mode",
+                          "applied"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "org": {
+                      "type": "string"
+                    },
+                    "pending": {
+                      "type": "boolean"
+                    },
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "org",
+                    "mounts",
+                    "pending"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Remove one of an org's socket mounts",
+        "x-berth-about": "Remove one of an org's socket mounts. It leaves the container at the org's next up or restart, which this doesn't do.",
+        "x-berth-access": "write",
+        "x-berth-operation": "mount rm"
+      },
+      "put": {
+        "description": "Mount a Unix socket of the org's host in its container, under /run/berth-mounts/: its directory is what is mounted, so a daemon that makes the socket again is seen. Saved for the org; it applies at the org's next up or restart, which this doesn't do. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "mount_set",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the mount's name: lowercase letters, digits and dashes, up to 32",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "mode": {
+                    "description": "rw, the only mode (a socket needs it); the default",
+                    "type": "string"
+                  },
+                  "source": {
+                    "description": "the absolute path of an existing Unix socket on the org's host, owned by berth's user, in a directory of its own that nobody else may write to; nothing else is accepted",
+                    "type": "string"
+                  },
+                  "target": {
+                    "description": "where it is in the container: an absolute path under /run/berth-mounts/, in a directory of its own, ending in the socket's own name (as in /run/berth-mounts/agent/agent.sock)",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "target"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "applied": {
+                      "type": "boolean"
+                    },
+                    "mode": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "org": {
+                      "type": "string"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "org",
+                    "name",
+                    "source",
+                    "target",
+                    "mode",
+                    "applied"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Mount a Unix socket of the org's host in its container, under /run/berth-mounts/: its directory is what is mounted, so a daemon that makes the socket again is seen",
+        "x-berth-about": "Mount a Unix socket of the org's host in its container, under /run/berth-mounts/: its directory is what is mounted, so a daemon that makes the socket again is seen. Saved for the org; it applies at the org's next up or restart, which this doesn't do.",
+        "x-berth-access": "write",
+        "x-berth-operation": "mount add"
+      }
+    },
     "/v1/orgs/{org}/packages": {
       "get": {
         "description": "The system packages an org's image adds, and that image.",

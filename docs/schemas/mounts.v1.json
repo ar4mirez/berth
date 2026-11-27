@@ -1,0 +1,56 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/mounts.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth mount <org> --output json",
+  "properties": {
+    "mounts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "applied": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source",
+          "target",
+          "mode",
+          "applied"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "org": {
+      "type": "string"
+    },
+    "pending": {
+      "type": "boolean"
+    },
+    "schema": {
+      "const": "berth.mounts/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "org",
+    "mounts",
+    "pending"
+  ],
+  "title": "berth.mounts/v1",
+  "type": "object"
+}

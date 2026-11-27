@@ -46,6 +46,10 @@ var Routes = []Route{
 	{Method: "DELETE", Path: "/v1/orgs/{org}/repos/{dir}", Tool: "repo_remove"},
 	{Method: "GET", Path: "/v1/orgs/{org}/env", Tool: "env_list"},
 	{Method: "GET", Path: "/v1/orgs/{org}/packages", Tool: "packages_list"},
+	// Socket mounts (#216).
+	{Method: "GET", Path: "/v1/orgs/{org}/mounts", Tool: "mounts_list"},
+	{Method: "PUT", Path: "/v1/orgs/{org}/mounts/{name}", Tool: "mount_set"},
+	{Method: "DELETE", Path: "/v1/orgs/{org}/mounts/{name}", Tool: "mount_remove"},
 	{Method: "POST", Path: "/v1/orgs/{org}/up", Tool: "org_up"},
 	{Method: "POST", Path: "/v1/orgs/{org}/restart", Tool: "org_restart"},
 	{Method: "POST", Path: "/v1/orgs/{org}/down", Tool: "org_down"},
