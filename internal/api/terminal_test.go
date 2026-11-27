@@ -32,11 +32,24 @@ type fakeTerm struct {
 	closed bool
 	end    chan int
 	once   sync.Once
+	echo   chan string
 }
 
+// newFakeTerm's echoes go out in the order they were typed, from one writer: "bye" and the end
+// never overtake an echo before them.
 func newFakeTerm() *fakeTerm {
 	r, w := io.Pipe()
-	return &fakeTerm{out: r, w: w, end: make(chan int, 1)}
+	f := &fakeTerm{out: r, w: w, end: make(chan int, 1), echo: make(chan string, 16)}
+	go func() {
+		for s := range f.echo {
+			_, _ = io.WriteString(f.w, s)
+			if s == "bye\r\n" {
+				f.finish(0)
+				return
+			}
+		}
+	}()
+	return f
 }
 
 func (f *fakeTerm) Read(b []byte) (int, error) { return f.out.Read(b) }
@@ -45,10 +58,10 @@ func (f *fakeTerm) Write(b []byte) (int, error) {
 	f.typed = append(f.typed, string(b))
 	f.mu.Unlock()
 	if strings.Contains(string(b), "done") {
-		go func() { _, _ = io.WriteString(f.w, "bye\r\n"); f.finish(0) }()
+		f.echo <- "bye\r\n"
 		return len(b), nil
 	}
-	go func() { _, _ = io.WriteString(f.w, "got "+string(b)) }()
+	f.echo <- "got " + string(b)
 	return len(b), nil
 }
 func (f *fakeTerm) Resize(c, r int) error {
