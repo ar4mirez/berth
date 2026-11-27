@@ -186,6 +186,9 @@ func TestBerthAPI(t *testing.T) {
 		},
 		"process_show":     func() (any, error) { return c.ProcessShow(ctx, "acme", "worker") },
 		"process_stop":     func() (any, error) { return c.ProcessStop(ctx, "acme", "worker") },
+		"tools_list":       func() (any, error) { return c.ToolsList(ctx, "acme") },
+		"tool_set":         func() (any, error) { return c.ToolSet(ctx, "acme", "gadget", "github:acme/gadget", "1.4.2") },
+		"tool_remove":      func() (any, error) { return c.ToolRemove(ctx, "acme", "gadget") },
 		"hosts_list":       func() (any, error) { return c.HostsList(ctx) },
 		"orgs_list":        func() (any, error) { return c.OrgsList(ctx) },
 		"org_accounts":     func() (any, error) { return c.OrgAccounts(ctx, []string{"acme"}) },
@@ -274,6 +277,9 @@ func TestBerthAPI(t *testing.T) {
 		"process_start":  {`"schema":"berth.process/v1"`, `"org":"acme"`, `"state":"running"`, `"env_names":["API_KEY"]`},
 		"process_show":   {`"schema":"berth.process/v1"`, `"pid":41`},
 		"process_stop":   {`"schema":"berth.process/v1"`, `"state":"exited"`},
+		"tools_list":     {`"schema":"berth.tools/v1"`, `"tools":[]`},
+		"tool_set":       {`"schema":"berth.tools/v1"`, `"name":"gadget"`, `"source":"github:acme/gadget"`, `"version":"1.4.2"`, `"installed":false`},
+		"tool_remove":    {`"schema":"berth.tools/v1"`, `"tools":[]`},
 		"firewall_allow": {`allowed: files.example.com`, `"files.example.com"`}, "firewall_deny": {`removed: pypi.org`},
 		"repo_add": {`Registered github.com/acme/widget as /workspace/widget`}, "repo_remove": {`Unregistered /workspace/app`},
 		"backup_create": {`Wrote `}, "org_restart": {`"org":"acme"`}, "org_up": {`"org":"acme"`}, "org_down": {`"org":"acme"`},
@@ -435,7 +441,8 @@ func TestBerthAPI(t *testing.T) {
 		`packages_add|ok|{"entries":["jq"],"no_build":true,"org":"acme"}`, `remote_restart|ok|{"fresh":false,"org":"acme"}`, `repo_sync|ok|{"org":"acme"}`,
 		`org_run|ok|{"org":"acme"}`, `host_remove|failed|{"force":false,"host":"t-box"}`, `env_migrate|ok|{"no_backup":true,"org":"acme"}`,
 		`mount_set|ok|{"mode":"","name":"agent","org":"acme","source":"` + msock + `","target":"/run/berth-mounts/agent/agent.sock"}`, `mount_remove|ok|{"name":"agent","org":"acme"}`,
-		`process_start|ok|{"argv":["worker","--once"],"cwd":"","env_names":["API_KEY"],"name":"worker","org":"acme","restart":"","stop_grace_seconds":0}`, `process_stop|ok|{"name":"worker","org":"acme"}`} {
+		`process_start|ok|{"argv":["worker","--once"],"cwd":"","env_names":["API_KEY"],"name":"worker","org":"acme","restart":"","stop_grace_seconds":0}`, `process_stop|ok|{"name":"worker","org":"acme"}`,
+		`tool_set|ok|{"name":"gadget","org":"acme","source":"github:acme/gadget","version":"1.4.2"}`, `tool_remove|ok|{"name":"gadget","org":"acme"}`} {
 		if !strings.Contains(audit, w) {
 			t.Errorf("the audit log lacks %s:\n%s", w, audit)
 		}

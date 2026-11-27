@@ -79,6 +79,7 @@ from it; a field that may be `null` says so.
 | `berth.package-presets/v1` | `pkg presets <org>` | [`package-presets.v1.json`](schemas/package-presets.v1.json) |
 | `berth.mounts/v1` | `mount ls <org>` | [`mounts.v1.json`](schemas/mounts.v1.json) |
 | `berth.mount/v1` | `PUT /v1/orgs/{org}/mounts/{name}` | [`mount.v1.json`](schemas/mount.v1.json) |
+| `berth.tools/v1` | `tool ls <org>` | [`tools.v1.json`](schemas/tools.v1.json) |
 | `berth.processes/v1` | `proc ls <org>` | [`processes.v1.json`](schemas/processes.v1.json) |
 | `berth.process/v1` | `proc show <org> <name>` | [`process.v1.json`](schemas/process.v1.json) |
 | `berth.default-org/v1` | `org use` | [`default-org.v1.json`](schemas/default-org.v1.json) |
@@ -473,6 +474,25 @@ One socket mount, as it was set: the fields of a `mounts[]` entry, with `schema`
 ```json
 { "schema": "berth.mount/v1", "org": "acme", "name": "agent", "source": "/run/agent/agent.sock", "target": "/run/berth-mounts/agent/agent.sock", "mode": "rw", "applied": false }
 ```
+
+## `berth.tools/v1`: `tool ls <org>`
+
+An org's pinned tools (`GET /v1/orgs/{org}/tools`, [the API](api.md#pinned-tools)); `PUT` and `DELETE` answer with
+the list after the change.
+
+```json
+{
+  "schema": "berth.tools/v1",
+  "org": "acme",
+  "tools": [ { "name": "gadget", "source": "github:acme/gadget", "version": "1.4.2", "installed": true } ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `source` | the mise backend it comes from: `github:owner/repo` or `aqua:owner/repo` |
+| `version` | the one version installed |
+| `installed` | whether the running container installed that version at its start; `false` while the org is stopped, and until its next up or restart |
 
 ## `berth.processes/v1`: `proc ls <org>`
 

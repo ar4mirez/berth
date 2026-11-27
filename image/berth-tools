@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# berth-tools: install the org's pinned tools (#216) with the image's mise, at the container's
+# start, as the container's user. /config/tools.txt (orgs/<org>/config/tools.txt on the host,
+# `berth tool`) has one "<name> <source> <version>" per line: a mise backend whose downloads mise
+# verifies (github: or aqua:) and one exact version. Each is installed with every check mise has on:
+# paranoid mode, GitHub artifact attestations, SLSA provenance, cosign and minisign signatures, and
+# checksums. One that fails is reported, never skipped: berth waits for this at an up or restart and
+# fails it with the reason.
+#
+# /run/berth/tools.status, written whole when it is done: "<name> <source>@<version> ok" or
+# "... failed <reason>" per tool, then "done".
+set -uo pipefail
+
+LIST="${BERTH_TOOLS_LIST:-/config/tools.txt}"
+STATUS="${BERTH_TOOLS_STATUS:-/run/berth/tools.status}"
+MISE="${BERTH_TOOLS_MISE:-mise}"
+
+[ "$(id -u)" != 0 ] || { echo "berth-tools: runs as the container's user, never as root" >&2; exit 1; }
+rm -f "$STATUS"
+tmp=$(mktemp "$STATUS.XXXXXX") || exit 1
+if [ -f "$LIST" ]; then
+  while read -r name source version extra || [ -n "${name:-}" ]; do
+    case "$name" in "" | \#*) continue ;; esac
+    if ! [[ "$name" =~ ^[a-z0-9-]{1,32}$ && "$source" =~ ^(github|aqua):[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ &&
+      "$version" =~ ^v?[0-9]+(\.[0-9]+){0,3}([-+][0-9A-Za-z][0-9A-Za-z.-]*)?$ && -z "${extra:-}" ]]; then
+      echo "${name} - failed not a valid pin: <name> <github:|aqua:owner/repo> <exact version>" >> "$tmp"
+      continue
+    fi
+    if out=$(MISE_PARANOID=1 MISE_GITHUB_ATTESTATIONS=1 MISE_SLSA=1 MISE_GITHUB_GITHUB_ATTESTATIONS=1 MISE_GITHUB_SLSA=1 \
+      MISE_AQUA_GITHUB_ATTESTATIONS=1 MISE_AQUA_SLSA=1 MISE_AQUA_COSIGN=1 MISE_AQUA_MINISIGN=1 \
+      "$MISE" use --global "$source@$version" 2>&1 </dev/null); then
+      echo "$name $source@$version ok" >> "$tmp"
+    else
+      echo "$name $source@$version failed $(printf '%s' "$out" | tr -s '\n\t' '  ' | tail -c 400)" >> "$tmp"
+    fi
+  done < "$LIST"
+fi
+echo "done" >> "$tmp"
+mv -f "$tmp" "$STATUS"

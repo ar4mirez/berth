@@ -155,6 +155,9 @@ others take a JSON body.
 | `GET /v1/orgs/{org}/mounts` | An org's [socket mounts](#socket-mounts), and whether its container has them yet | read | `berth mount ls` |
 | `PUT /v1/orgs/{org}/mounts/{name}` | Mount a Unix socket of the org's host in its container, from its next up or restart: `source`, `target`, `mode` | write | `berth mount add` |
 | `DELETE /v1/orgs/{org}/mounts/{name}` | Remove a socket mount, from the org's next up or restart | write | `berth mount rm` |
+| `GET /v1/orgs/{org}/tools` | An org's [pinned tools](#pinned-tools), and whether its container installed them | read | `berth tool ls` |
+| `PUT /v1/orgs/{org}/tools/{name}` | Pin a tool to one exact version, installed at the org's next up or restart: `source`, `version` | write | `berth tool set` |
+| `DELETE /v1/orgs/{org}/tools/{name}` | Stop installing a pinned tool at the org's start | write | `berth tool rm` |
 | `GET /v1/orgs/{org}/processes` | A running org's [supervised processes](#supervised-processes) and their state | read | `berth proc ls` |
 | `POST /v1/orgs/{org}/processes/{name}` | Start a named long-lived process in a running org's container: `argv`, `cwd`, `env`, `restart`, `stop_grace_seconds` | write | `berth proc start` |
 | `GET /v1/orgs/{org}/processes/{name}` | One supervised process: its state, pid, start, exit code and restarts | read | `berth proc show` |
@@ -250,6 +253,25 @@ curl --unix-socket "$s" -X POST -d '{"confirm":"acme"}' http://berth/v1/orgs/acm
   is stopped.
 - Each change is in the audit log with the source, the target and the caller. No MCP server offers the changes:
   a socket mount gives an org a daemon of its host, which is a person's call. Socket mounts need a Linux host.
+
+## Pinned tools
+
+One exact version of a tool in an org, so a program there matches what talks to it from outside
+([`berth.tools/v1`](json.md#berthtoolsv1-tool-ls-org)):
+
+```bash
+curl --unix-socket "$s" -X PUT -d '{"source":"github:acme/gadget","version":"1.4.2"}' http://berth/v1/orgs/acme/tools/gadget
+curl --unix-socket "$s" -X POST -d '{"confirm":"acme"}' http://berth/v1/orgs/acme/restart   # installs it
+```
+
+- `source` is a mise backend whose downloads mise verifies, `github:owner/repo` or `aqua:owner/repo`; `version` is
+  one exact version (`0.6.0`, `v1.2.3-rc.1`), never a range or `latest`.
+- **Installed at the org's start**, with the image's mise as the container's user, every check mise has on:
+  paranoid mode, GitHub artifact attestations, SLSA provenance, cosign and minisign signatures, checksums. The
+  org's firewall applies: its allowlist must let it reach the release (github.com and its download hosts).
+- **An up or restart waits for it** and fails (`berth.error/v1`, kind `failed`) with the reason when one didn't
+  install, never a silent skip; the org is running, without it.
+- The list is `orgs/<org>/config/tools.txt`, kept in backups; setting or removing one restarts nothing.
 
 ## Supervised processes
 

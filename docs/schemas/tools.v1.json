@@ -1,0 +1,48 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/tools.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth tool <org> --output json",
+  "properties": {
+    "org": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "berth.tools/v1"
+    },
+    "tools": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "installed": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source",
+          "version",
+          "installed"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "org",
+    "tools"
+  ],
+  "title": "berth.tools/v1",
+  "type": "object"
+}
