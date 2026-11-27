@@ -61,6 +61,16 @@ func TestHostGuardPodmanRootless(t *testing.T) {
 	hostGuard(t, target, "berth-t-podman", "podman", "podman")
 }
 
+// kernelLog is the runner's kernel log, where AppArmor records what it refuses: the fixture runs on
+// the runner's kernel. "" when it can't be read (no passwordless sudo), and then nothing is tolerated.
+func kernelLog() string {
+	out, err := exec.Command("sudo", "-n", "dmesg").Output()
+	if err != nil {
+		return ""
+	}
+	return string(out)
+}
+
 // startPodmanTarget is the sshd + rootful Podman fixture.
 func startPodmanTarget(t *testing.T) *sshTarget {
 	t.Helper()
@@ -268,11 +278,16 @@ func hostGuard(t *testing.T, target *sshTarget, fixture, engine, user string) {
 	}
 
 	// host rm takes the guard and its rules away.
+	before := kernelLog()
 	if out, err := berth("down", o+"@box"); err != nil {
-		if !rootless || !knownRootlessTeardown(out) {
+		denial := ""
+		if rootless {
+			denial = upstreamTeardown(out, before, kernelLog())
+		}
+		if denial == "" {
 			t.Fatalf("berth down %s@box: %v\n%s", o, err, out)
 		}
-		t.Logf("known issue https://github.com/ar4mirez/berth/issues/215: rootless teardown hit %q; every guard check above ran and passed. Removing the org's container by hand.", knownTeardownError)
+		t.Logf("known upstream issue https://github.com/ar4mirez/berth/issues/215: rootless teardown hit %q, because the host's AppArmor kept podman's SIGTERM from pasta (%s). Every guard check above ran and passed. Removing the org's container by hand.", knownTeardownError, denial)
 		if out, err := inner("rm", "-f", "claude-"+o); err != nil {
 			t.Logf("best-effort rm of claude-%s: %v\n%s", o, err, out)
 		}
