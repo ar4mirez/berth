@@ -193,7 +193,8 @@ try {
   await phone.locator('#job-title').waitFor({ state: 'visible' })
   await phone.waitForFunction(() => ![...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Close' && b.offsetParent).disabled)
   await button(phone, 'Close').click()
-  assert.equal(new URL(phone.url()).hash, '#/orgs/t-two')
+  // The page moves to the org once it has read the list again, which can end after the job does.
+  await phone.waitForFunction(() => location.hash === '#/orgs/t-two')
   await phone.locator('p.banner', { hasText: "This org isn't running" }).waitFor({ state: 'visible' })
   assert.ok(await button(phone, 'Start').isVisible())
   await fits(phone, 'phone-org-new')
