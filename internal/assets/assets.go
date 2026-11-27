@@ -33,7 +33,7 @@ const stampFile = ".berth-assets"
 // executable are the image/ files git records as 0755 (embed.FS keeps no modes).
 // TestModesMatchGit keeps this in step with the repo.
 var executable = map[string]bool{
-	"image/archive.sh": true, "image/bashrc.sh": true, "image/entrypoint.sh": true, "image/init-firewall.sh": true,
+	"image/archive.sh": true, "image/bashrc.sh": true, "image/berth-proc": true, "image/entrypoint.sh": true, "image/init-firewall.sh": true,
 }
 
 // Set is a materialized (or overridden) set of assets.
