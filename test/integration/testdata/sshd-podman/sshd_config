@@ -14,3 +14,6 @@ AllowStreamLocalForwarding yes
 # block the Docker channel even with AllowStreamLocalForwarding yes.
 Subsystem sftp internal-sftp
 LogLevel VERBOSE
+# The rootless engine's runtime dir (the entrypoint makes it; no logind here).
+Match User podman
+  SetEnv XDG_RUNTIME_DIR=/run/user/1000
