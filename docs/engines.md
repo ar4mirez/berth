@@ -66,6 +66,21 @@ delegated to your user, which is the default on current systemd distributions.
     restarts itself when it finds the namespace up but out of its sight (within about 20 seconds of an org
     coming back without berth, after a reboot, say), and berth restarts it when it starts an org. It runs with
     `SYS_ADMIN` in your user's namespace, which is no more than your user already has.
+- **Ubuntu's AppArmor and pasta** (#215): on Ubuntu (seen on 26.04), the `pasta` profile that Ubuntu enforces has no
+  rule for signals, and Podman runs under a profile of its own name, so the kernel keeps Podman's SIGTERM from pasta.
+  Removing an org's container when it is the last one on the user's network then fails, in `berth down` for one,
+  with `rootless netns: kill network process: permission denied`, and the kernel log has
+  `apparmor="DENIED" operation="signal" profile="pasta" … signal=term peer="podman"`. It is
+  [Ubuntu's bug](https://bugs.launchpad.net/ubuntu/+source/passt/+bug/2154379), not berth's; the rule it needs is
+  [proposed in passt](https://archives.passt.top/passt-dev/be4eef52592341b08433f80995025768@kdo.de/). Until a
+  fixed package is out, add that rule to the profile and load it again (a passt upgrade puts the file back):
+
+  ```bash
+  sudo sed -i 's|^\( *\)include <abstractions/pasta>|&\n\1signal (receive) peer=podman,|' /etc/apparmor.d/usr.bin.pasta
+  sudo apparmor_parser -r /etc/apparmor.d/usr.bin.pasta
+  ```
+
+  An org whose `down` failed this way can be left with its container: `podman rm -f claude-<org>` removes it.
 - **Restarts after a reboot** need `podman-restart.service` (above). With Docker, the daemon restarts `unless-stopped`
   containers itself.
 - **Image names:** Podman keeps images under `localhost/…` and `docker.io/…` names. berth refers to its image by the
