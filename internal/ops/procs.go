@@ -175,8 +175,8 @@ func procExec(org string, args ...string) []string {
 var ErrProcInUse = errors.New("a process of that name exists")
 
 // ProcErr is berth-proc's exit code as an error a caller can act on: 3 a process of that name
-// exists (409 state), 4 no such process (404), 2 a spec it refused (400), 127 or 126 an image
-// that predates supervised processes.
+// exists (409 state), 4 no such process (404), 2 a spec it refused (400), 5 a container still
+// starting (409 starting), 127 or 126 an image that predates supervised processes.
 func ProcErr(org string, code int, msg string) error {
 	msg = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(msg), "berth-proc: "))
 	switch code {
@@ -186,6 +186,8 @@ func ProcErr(org string, code int, msg string) error {
 		return &Error{Kind: KindState, Code: 1, Msg: msg, Err: ErrProcInUse}
 	case 4:
 		return &Error{Kind: KindNotFound, Code: 1, Msg: msg}
+	case 5:
+		return fail(KindStarting, "try again in a few seconds", "%s's container is still starting", org)
 	case 126, 127:
 		return fail(KindState, Tool+" restart "+org+", which stops the work running in it", "%s's container runs an image that has no supervised processes: restart it on berth's current image", org)
 	}

@@ -305,7 +305,9 @@ curl --unix-socket "$s" -X DELETE http://berth/v1/orgs/acme/processes/worker
   lines.
 - **As long as its container.** An up, restart or down ends it, and nothing starts it again in a new container: the
   caller starts it again after every recreate. The org must be running (409 `not-running`), and a name already
-  in use is refused (409 `state`) until it is stopped.
+  in use is refused (409 `state`) until it is stopped. In the few seconds after its container starts, before its
+  supervisor is ready, a start (with or without placement) is refused with 409 `starting` and a `Retry-After`
+  header, and creates nothing: no token, no process. The same start a moment later succeeds.
 - **Its variables are secrets**: passed to the container on stdin, never on a command line, and never in an event,
   the audit log or any document, which list them by name (`env_names`). The audit log has the `argv`, the
   variables' names and the caller; a `proc start` through `POST /v1/cli` or `--via-daemon` is in it with each
@@ -373,6 +375,7 @@ A failure is a `berth.error/v1` document, as `--output json` prints on stderr, w
 | 403 | `refused` | read-only, a token without the scope, or a restart without `confirm` |
 | 404 | `not-found` | no such org, host or endpoint |
 | 409 | `not-running`, `state` | the org isn't in a state for this |
+| 409 | `starting` | the org's container is still starting; retry (after `Retry-After`, in seconds) |
 | 500 | `command`, `failed` | the operation failed |
 
 ```json

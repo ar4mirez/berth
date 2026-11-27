@@ -34,6 +34,9 @@ type fakeDocker struct {
 	started bool
 	file    string
 	lost    int
+	// starting is a container whose entrypoint hasn't made berth-proc's directory yet: berth-proc
+	// says so (exit 5).
+	starting bool
 }
 
 func (f *fakeDocker) Run(_ context.Context, c host.Cmd) error {
@@ -52,6 +55,9 @@ func (f *fakeDocker) Run(_ context.Context, c host.Cmd) error {
 		out = f.container + "\n"
 	case strings.HasSuffix(args, "inspect -f {{.State.StartedAt}} claude-t-proc"):
 		out = "2026-11-27T18:00:00Z\n"
+	case f.starting && (strings.HasSuffix(args, "berth-proc status") || strings.HasSuffix(args, "berth-proc start runner")):
+		_, _ = io.WriteString(c.Stderr, "berth-proc: the container is still starting: try again in a few seconds\n")
+		return &host.ExitError{Code: 5}
 	case strings.HasSuffix(args, "berth-proc status"):
 		out = f.procs
 	case strings.HasSuffix(args, "berth-proc start runner"):
@@ -208,6 +214,30 @@ func TestPlacementStart(t *testing.T) {
 	}
 	a.HostName = "box" // reached over ssh: no host API answered
 	refused("an org on a registered host")
+}
+
+// TestStartWhileContainerStarts: a start right after the org's container starts, before its
+// entrypoint has made berth-proc's directory, is refused as `starting`, with and without
+// placement, and creates nothing: no token, no process. Once the container is ready, the same
+// start succeeds.
+func TestStartWhileContainerStarts(t *testing.T) {
+	ctx := context.Background()
+	for _, withPlacement := range []bool{false, true} {
+		f := &fakeDocker{container: "c1", procs: "[]", starting: true}
+		a := placementApp(t, f)
+		if err := a.beat(); err != nil {
+			t.Fatal(err)
+		}
+		spec := ops.ProcSpec{Argv: []string{"runner"}, Placement: withPlacement}
+		_, err := a.ProcStart(ctx, "t-proc", "runner", spec)
+		if !ops.IsKind(err, ops.KindStarting) || len(f.tokens) != 0 || len(f.starts) != 0 || f.file != "" {
+			t.Fatalf("placement %v, starting: %v, tokens %v, starts %v", withPlacement, err, f.tokens, f.starts)
+		}
+		f.starting = false
+		if _, err := a.ProcStart(ctx, "t-proc", "runner", spec); err != nil || len(f.starts) != 1 || (len(f.tokens) == 1) != withPlacement {
+			t.Fatalf("placement %v, ready: %v, tokens %v, starts %v", withPlacement, err, f.tokens, f.starts)
+		}
+	}
 }
 
 // TestPlacementStartRace: two --placement starts of one name at once both pass the check for a

@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +17,7 @@ import (
 	"time"
 
 	"github.com/ar4mirez/berth/internal/apiclient"
+	"github.com/ar4mirez/berth/internal/ops"
 )
 
 // TestProcCommand: `berth proc` (#216, berth-only). A process starts in a running org's container
@@ -88,6 +91,21 @@ func TestProcCommand(t *testing.T) {
 		if r.Exit != 1 || !strings.Contains(r.Stderr, "runs an image that has no supervised processes") || !strings.Contains(r.Stderr, "<tool> restart acme, which stops the work running in it") ||
 			callsMatching(r, regexp.MustCompile(`berth-placement`)) != 0 {
 			t.Errorf("%v on an older image: exit %d, stderr %q", args, r.Exit, r.Stderr)
+		}
+	}
+
+	// Right after the container starts, before its entrypoint has made berth-proc's directory:
+	// `starting`, with or without placement, and no token or process. Once it is ready, the same
+	// start succeeds.
+	for _, args := range [][]string{{"proc", "acme", "start", "worker", "--", "worker"}, {"proc", "acme", "start", "worker", "--placement", "--", "worker"}} {
+		r = run(t, raw, Scenario{Args: args, Files: served, Rules: running("acme", stillStarting, token, mcpRules[0], mcpRules[1])})
+		if r.Exit != 1 || !strings.Contains(r.Stderr, "acme's container is still starting (try again in a few seconds)") ||
+			callsMatching(r, regexp.MustCompile(`berth-placement`)) != 0 {
+			t.Errorf("%v while the container starts: exit %d, stderr %q", args, r.Exit, r.Stderr)
+		}
+		r = run(t, raw, Scenario{Args: args, Files: served, Rules: running("acme", append([]Rule{none}, starting...)...)})
+		if r.Exit != 0 {
+			t.Errorf("%v once it is ready: exit %d, stderr %q", args, r.Exit, r.Stderr)
 		}
 	}
 
@@ -170,6 +188,43 @@ func TestProcCommand(t *testing.T) {
 	r = run(t, raw, Scenario{Args: []string{"--read-only", "proc", "acme", "start", "worker", "--", "worker"}, Files: twoOrgs, Rules: running("acme")})
 	if r.Exit != 1 || !strings.Contains(r.Stderr, "read-only") || callsMatching(r, regexp.MustCompile(`berth-proc`)) != 0 {
 		t.Errorf("--read-only: exit %d, stderr %q", r.Exit, r.Stderr)
+	}
+}
+
+// stillStarting is berth-proc in a container whose entrypoint hasn't made its directory yet.
+var stillStarting = Rule{Bin: "docker", Match: `berth-proc (status|start worker)$`, Stderr: "berth-proc: the container is still starting: try again in a few seconds\n", Exit: 5}
+
+// TestProcStartWhileStarting: over the API, a start right after the org's container starts, before
+// its supervisor is ready, is 409 `starting` with a Retry-After, with and without placement, and
+// writes no token.
+func TestProcStartWhileStarting(t *testing.T) {
+	token := Rule{Bin: "docker", Match: `berth-placement`, Stdin: true}
+	c, _, snap := apiSession(t, twoOrgs, running("acme", append([]Rule{stillStarting, token}, mcpRules...)...))
+	for _, body := range []string{`{"argv":["worker"]}`, `{"argv":["worker"],"placement":true}`} {
+		var resp *http.Response
+		for i := 0; ; i++ { // with placement, once serve's refresher has had its first round
+			req, err := http.NewRequest("POST", c.Base+"/v1/orgs/acme/processes/worker", strings.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resp, err = c.HTTP.Do(req); err != nil {
+				t.Fatal(err)
+			}
+			b, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if strings.Contains(string(b), "placement needs") && i < 50 {
+				time.Sleep(50 * time.Millisecond)
+				continue
+			}
+			var doc ops.ErrorDoc
+			if resp.StatusCode != 409 || json.Unmarshal(b, &doc) != nil || doc.Kind != ops.KindStarting || doc.Schema != "berth.error/v1" || resp.Header.Get("Retry-After") != "3" {
+				t.Errorf("%s: %d %q, Retry-After %q", body, resp.StatusCode, b, resp.Header.Get("Retry-After"))
+			}
+			break
+		}
+	}
+	if r := snap(); callsMatching(r, regexp.MustCompile(`berth-placement`)) != 0 {
+		t.Errorf("a token was written while the container starts:\n%s", strings.Join(r.Calls, "\n"))
 	}
 }
 

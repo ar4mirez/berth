@@ -20,6 +20,9 @@ const (
 	KindNotRunning Kind = "not-running"
 	// KindRefused: berth won't do it: --read-only, an org another tool manages, a failed check.
 	KindRefused Kind = "refused"
+	// KindStarting: the org's container is still starting (its supervisor isn't ready yet): the
+	// same call shortly after succeeds.
+	KindStarting Kind = "starting"
 	// KindState: the org's own state is incomplete or inconsistent.
 	KindState Kind = "state"
 	// KindCommand: a command the operation ran (docker, systemctl, …) failed.

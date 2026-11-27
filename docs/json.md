@@ -123,6 +123,7 @@ $ berth --output json info nope
 | `usage` | the command line is wrong, or the command returns no JSON |
 | `not-found` | the org named doesn't exist |
 | `not-running` | the org's container isn't running, and the command needs it |
+| `starting` | the org's container is still starting (its supervised processes aren't ready yet); try again in a few seconds |
 | `refused` | berth won't do it: `--read-only`, or an org ccenv manages |
 | `state` | the org's own state is incomplete (no ports in `org.env`, never started, …) |
 | `command` | a command berth ran (docker, systemctl, …) failed; `code` is its exit code |
