@@ -164,7 +164,9 @@ var sharedDirs = []string{"/", "/tmp", "/var/tmp", "/run", "/var/run", "/dev", "
 // CheckSocket checks a mount's socket on the org's host: a socket (not a link to one), owned by
 // berth's user, in a directory berth's user owns, that nobody else may write to, that is no shared
 // place (/tmp, the user's runtime directory or home), and whose whole tree holds no other socket, no
-// link, and no directory berth's user doesn't own or others may write to, at any depth: the socket's directory, with everything under it, is all the container gets. It needs GNU stat and find (a Linux host).
+// link, and no directory berth's user doesn't own or others may write to, at any depth: the
+// socket's directory, with everything under it, is all the container gets. It needs GNU stat and
+// find (a Linux host).
 func CheckSocket(ctx context.Context, s System, source string) error {
 	uid, err := s.Capture(ctx, true, "id", "-u")
 	if err != nil {
