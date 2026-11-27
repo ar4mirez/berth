@@ -66,7 +66,7 @@ func (e execOpts) command(o string, a *App, cmd ...string) []string {
 // Exec is `berth exec <org> [--cwd DIR] [--env K=V]... -- <command> [args...]`: a command in the
 // container as node, not interactive (stdin is passed, as `run` does), with the org's variables.
 // It ends with the command's exit code. It reaches nothing `shell` doesn't; it's for tools
-// (crew start) that need to run a step in the org.
+// (a setup script, say) that need to run a step in the org.
 func (a *App) Exec(ctx context.Context, o string, args []string) error {
 	if err := a.interactive(ctx, o); err != nil {
 		return err

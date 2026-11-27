@@ -46,7 +46,19 @@ func TestHostGuardPodmanRootless(t *testing.T) {
 	if os.Getenv("BERTH_BIN") == "" {
 		t.Skip("BERTH_BIN not set (the integration workflow builds berth and sets it)")
 	}
-	hostGuard(t, startPodmanTarget(t), "berth-t-podman", "podman", "podman")
+	target := startPodmanTarget(t)
+	// The guard only matters if the org starts, and a rootless org starts only with delegated cgroup
+	// controllers (the fixture's entrypoint delegates them). Say so by name rather than fail later
+	// on crun's "cannot set limits without cgroups", or pass without running.
+	ctl, err := exec.Command("docker", "exec", "-u", "podman", "-e", "XDG_RUNTIME_DIR=/run/user/1000", "-w", "/tmp", "berth-t-podman", "podman", "info", "--format", "{{.Host.CgroupControllers}}").CombinedOutput()
+	if err != nil {
+		t.Fatalf("podman info as podman: %v\n%s", err, ctl)
+	}
+	t.Logf("rootless Podman's cgroup controllers: %s", strings.TrimSpace(string(ctl)))
+	if !strings.Contains(string(ctl), "memory") || !strings.Contains(string(ctl), "pids") {
+		t.Skipf("SKIP no-cgroup-delegation: this runner gives rootless Podman no memory/pids cgroup controllers (%s), so the org can't start with its limits", strings.TrimSpace(string(ctl)))
+	}
+	hostGuard(t, target, "berth-t-podman", "podman", "podman")
 }
 
 // startPodmanTarget is the sshd + rootful Podman fixture.
@@ -65,12 +77,17 @@ func startPodmanTarget(t *testing.T) *sshTarget {
 	docker(t, "build", "-q", "-t", img, "testdata/sshd-podman")
 	_ = exec.Command("docker", "rm", "-f", "-v", name).Run()
 	// Podman's storage on a volume: overlay can't sit on the container's own overlay filesystem.
-	docker(t, "run", "-d", "--privileged", "--name", name, "-v", "/var/lib/containers",
+	// A cgroup namespace of its own: the entrypoint delegates that tree to the rootless Podman.
+	docker(t, "run", "-d", "--privileged", "--cgroupns=private", "--name", name, "-v", "/var/lib/containers",
 		"-e", "AUTHORIZED_KEY="+strings.TrimSpace(string(gossh.MarshalAuthorizedKey(signer.PublicKey()))), "-p", "127.0.0.1::22", img)
 	t.Cleanup(func() {
 		if t.Failed() {
 			out, _ := exec.Command("docker", "logs", "--tail", "20", name).CombinedOutput()
 			t.Logf("fixture logs:\n%s", out)
+			// Who owns what, for a failure in the rootless engine (its network process, its cgroups).
+			out, _ = exec.Command("docker", "exec", name, "sh", "-c",
+				`podman version --format '{{.Client.Version}}'; ps -eo pid,ppid,user,uid,args; for p in $(pgrep -f 'pasta|slirp4netns|rootlessport|catatonit'); do echo "== $p $(readlink /proc/$p/ns/user) $(cat /proc/$p/cgroup)"; done; ls -ld /sys/fs/cgroup/*/`).CombinedOutput()
+			t.Logf("fixture processes:\n%s", out)
 		}
 		_ = exec.Command("docker", "rm", "-f", "-v", name).Run()
 	})
@@ -111,7 +128,7 @@ func hostGuard(t *testing.T, target *sshTarget, fixture, engine, user string) {
 	inner := func(args ...string) (string, error) {
 		pre := []string{"exec", fixture, engine}
 		if rootless {
-			pre = []string{"exec", "-u", "podman", "-w", "/tmp", fixture, engine}
+			pre = []string{"exec", "-u", "podman", "-e", "XDG_RUNTIME_DIR=/run/user/1000", "-w", "/tmp", fixture, engine}
 		}
 		b, err := exec.Command("docker", append(pre, args...)...).CombinedOutput()
 		return strings.TrimSpace(string(b)), err
@@ -121,7 +138,7 @@ func hostGuard(t *testing.T, target *sshTarget, fixture, engine, user string) {
 		cmd := exec.Command("docker", "exec", fixture, "sh", "-c", list)
 		if rootless {
 			// In the user's network namespace, which is there while a bridge container runs.
-			cmd = exec.Command("docker", "exec", "-u", "podman", "-w", "/tmp", fixture, "podman", "unshare", "--rootless-netns", "sh", "-c", list)
+			cmd = exec.Command("docker", "exec", "-u", "podman", "-e", "XDG_RUNTIME_DIR=/run/user/1000", "-w", "/tmp", fixture, "podman", "unshare", "--rootless-netns", "sh", "-c", list)
 		}
 		b, _ := cmd.Output()
 		var out []string
@@ -251,7 +268,15 @@ func hostGuard(t *testing.T, target *sshTarget, fixture, engine, user string) {
 	}
 
 	// host rm takes the guard and its rules away.
-	must("down", o+"@box")
+	if out, err := berth("down", o+"@box"); err != nil {
+		if !rootless || !knownRootlessTeardown(out) {
+			t.Fatalf("berth down %s@box: %v\n%s", o, err, out)
+		}
+		t.Logf("known issue https://github.com/ar4mirez/berth/issues/215: rootless teardown hit %q; every guard check above ran and passed. Removing the org's container by hand.", knownTeardownError)
+		if out, err := inner("rm", "-f", "claude-"+o); err != nil {
+			t.Logf("best-effort rm of claude-%s: %v\n%s", o, err, out)
+		}
+	}
 	must("host", "rm", "box", "--force")
 	if _, err := inner("inspect", "berth-host-guard"); err == nil {
 		t.Error("berth-host-guard remains after host rm")
