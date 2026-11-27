@@ -179,7 +179,13 @@ func TestBerthAPI(t *testing.T) {
 		"mount_set": func() (any, error) {
 			return c.MountSet(ctx, "acme", "agent", msock, "/run/berth-mounts/agent/agent.sock", "")
 		},
-		"mount_remove":     func() (any, error) { return c.MountRemove(ctx, "acme", "agent") },
+		"mount_remove":   func() (any, error) { return c.MountRemove(ctx, "acme", "agent") },
+		"processes_list": func() (any, error) { return c.ProcessesList(ctx, "acme") },
+		"process_start": func() (any, error) {
+			return c.ProcessStart(ctx, "acme", "worker", []string{"worker", "--once"}, "", map[string]string{"API_KEY": secretValue}, "", 0)
+		},
+		"process_show":     func() (any, error) { return c.ProcessShow(ctx, "acme", "worker") },
+		"process_stop":     func() (any, error) { return c.ProcessStop(ctx, "acme", "worker") },
 		"hosts_list":       func() (any, error) { return c.HostsList(ctx) },
 		"orgs_list":        func() (any, error) { return c.OrgsList(ctx) },
 		"org_accounts":     func() (any, error) { return c.OrgAccounts(ctx, []string{"acme"}) },
@@ -264,6 +270,10 @@ func TestBerthAPI(t *testing.T) {
 		"mounts_list":    {`"schema":"berth.mounts/v1"`, `"mounts":[]`},
 		"mount_set":      {`"schema":"berth.mount/v1"`, `"name":"agent"`, `"target":"/run/berth-mounts/agent/agent.sock"`, `"mode":"rw"`, `"applied":false`},
 		"mount_remove":   {`"schema":"berth.mounts/v1"`, `"mounts":[]`},
+		"processes_list": {`"schema":"berth.processes/v1"`, `"name":"worker"`},
+		"process_start":  {`"schema":"berth.process/v1"`, `"org":"acme"`, `"state":"running"`, `"env_names":["API_KEY"]`},
+		"process_show":   {`"schema":"berth.process/v1"`, `"pid":41`},
+		"process_stop":   {`"schema":"berth.process/v1"`, `"state":"exited"`},
 		"firewall_allow": {`allowed: files.example.com`, `"files.example.com"`}, "firewall_deny": {`removed: pypi.org`},
 		"repo_add": {`Registered github.com/acme/widget as /workspace/widget`}, "repo_remove": {`Unregistered /workspace/app`},
 		"backup_create": {`Wrote `}, "org_restart": {`"org":"acme"`}, "org_up": {`"org":"acme"`}, "org_down": {`"org":"acme"`},
@@ -412,6 +422,10 @@ func TestBerthAPI(t *testing.T) {
 	if strings.Contains(strings.Join(auditLines(t, res), "\n"), "say hello") {
 		t.Error("the audit log has a prompt: it is the user's words, and may hold anything")
 	}
+	// A process's variables reach the container on stdin: never on a command line.
+	if hasCall(res, secretValue) || !hasCall(res, `"-i" "claude-acme"`) {
+		t.Errorf("process_start put a variable's value on a command line, or ran no berth-proc:\n%s", strings.Join(res.Calls, "\n"))
+	}
 	if !hasCall(res, `"up" "-d" "--force-recreate"`) || !hasCall(res, `"down"`) {
 		t.Errorf("the lifecycle endpoints ran no compose:\n%s", strings.Join(res.Calls, "\n"))
 	}
@@ -420,7 +434,8 @@ func TestBerthAPI(t *testing.T) {
 		`org_create|ok|{"email":"ada@example.com","name":"Ada Lovelace","org":"t-new"}`, `org_destroy|ok|{"keep_backups":false,"org":"t-new"}`, `firewall_off|ok|{"org":"acme"}`,
 		`packages_add|ok|{"entries":["jq"],"no_build":true,"org":"acme"}`, `remote_restart|ok|{"fresh":false,"org":"acme"}`, `repo_sync|ok|{"org":"acme"}`,
 		`org_run|ok|{"org":"acme"}`, `host_remove|failed|{"force":false,"host":"t-box"}`, `env_migrate|ok|{"no_backup":true,"org":"acme"}`,
-		`mount_set|ok|{"mode":"","name":"agent","org":"acme","source":"` + msock + `","target":"/run/berth-mounts/agent/agent.sock"}`, `mount_remove|ok|{"name":"agent","org":"acme"}`} {
+		`mount_set|ok|{"mode":"","name":"agent","org":"acme","source":"` + msock + `","target":"/run/berth-mounts/agent/agent.sock"}`, `mount_remove|ok|{"name":"agent","org":"acme"}`,
+		`process_start|ok|{"argv":["worker","--once"],"cwd":"","env_names":["API_KEY"],"name":"worker","org":"acme","restart":"","stop_grace_seconds":0}`, `process_stop|ok|{"name":"worker","org":"acme"}`} {
 		if !strings.Contains(audit, w) {
 			t.Errorf("the audit log lacks %s:\n%s", w, audit)
 		}
@@ -733,7 +748,41 @@ func TestBerthViaDaemon(t *testing.T) {
 	if out.Exit != 0 || !strings.Contains(out.Stdout, "allowed: via.example") || len(out.Tree) > 3 {
 		t.Errorf("a write through the daemon: %d %q %q, the client's tree: %v", out.Exit, out.Stdout, out.Stderr, out.Tree)
 	}
+	// A process's variable given on the command line, through the daemon or POST /v1/cli: refused,
+	// and audited with its name only.
+	out = via("proc", "acme", "start", "worker", "--env", "API_KEY=sk-via-SECRET", "--", "worker")
+	if out.Exit == 0 || !strings.Contains(out.Stderr, "never on the command line") || strings.Contains(out.Stdout+out.Stderr, "sk-via-SECRET") {
+		t.Errorf("--via-daemon proc start --env NAME=value: %d %q %q", out.Exit, out.Stdout, out.Stderr)
+	}
+	var cerr strings.Builder
+	if code, err := apiclient.Unix(sock).CLI(context.Background(), []string{"proc", "acme", "start", "worker", "--env=API_KEY=sk-cli-SECRET", "--", "worker", "--env", "kept"}, "", io.Discard, &cerr); err != nil || code == 0 ||
+		strings.Contains(cerr.String(), "sk-cli-SECRET") || !strings.Contains(cerr.String(), "--env API_KEY: a variable's value is never on the command line") {
+		t.Errorf("POST /v1/cli proc start --env=NAME=value: %d %v %q", code, err, cerr.String())
+	}
+	// A server reads no file a caller names, and has no stdin of theirs: the values go in the body.
+	for _, args := range [][]string{
+		{"proc", "acme", "start", "x", "--env-file", "../state/orgs/globex/org.env", "--", "sh"},
+		{"proc", "acme", "start", "x", "--env", "API_KEY", "--", "sh"},
+	} {
+		var serr strings.Builder
+		code, err := apiclient.Unix(sock).CLI(context.Background(), args, "", io.Discard, &serr)
+		if err != nil || code == 0 || !strings.Contains(serr.String(), "pass the values as env in the body of POST /v1/orgs/{org}/processes/{name}") ||
+			strings.Contains(serr.String(), "test@example.com") {
+			t.Errorf("POST /v1/cli %v: %d %v %q", args, code, err, serr.String())
+		}
+	}
+	if out := via("proc", "acme", "start", "x", "--env-file", "../state/orgs/globex/org.env", "--", "sh"); out.Exit == 0 || !strings.Contains(out.Stderr, "POST /v1/orgs/{org}/processes/{name}") {
+		t.Errorf("--via-daemon proc start --env-file: %d %q", out.Exit, out.Stderr)
+	}
 	res := snap()
+	if hasCall(res, "berth-proc\" \"start\" \"x\"") || strings.Contains(strings.Join(auditLines(t, res), "\n"), "test@example.com") || strings.Contains(serveStderr.String(), "test@example.com") {
+		t.Errorf("a refused --env-file started a process, or its file's values got out:\n%s", strings.Join(res.Calls, "\n"))
+	}
+	if audit := strings.Join(auditLines(t, res), "\n"); strings.Contains(audit, "sk-via-SECRET") || strings.Contains(audit, "sk-cli-SECRET") ||
+		!strings.Contains(audit, `cli proc start|failed|{"args":["acme","start","worker","--env","API_KEY=***","--","worker"]}`) ||
+		!strings.Contains(audit, `cli proc start|failed|{"args":["acme","start","worker","--env=API_KEY=***","--","worker","--env","kept"]}`) {
+		t.Errorf("the audit log has a variable's value, or not its name:\n%s", audit)
+	}
 	if !strings.Contains(treeLine(res, "state/orgs/acme/config/firewall.txt"), "via.example") {
 		t.Error("the server's firewall.txt didn't change")
 	}

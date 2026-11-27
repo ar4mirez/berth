@@ -6233,6 +6233,728 @@
         "x-berth-operation": "password rotate"
       }
     },
+    "/v1/orgs/{org}/processes": {
+      "get": {
+        "description": "An org's supervised processes: each one's state (starting, running, exited, backoff), pid, start time, exit code and restarts. A stopped org has none.",
+        "operationId": "processes_list",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "processes": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "argv": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "env_names": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "exit_code": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "pid": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "restarts": {
+                            "type": "integer"
+                          },
+                          "started_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "state",
+                          "pid",
+                          "started_at",
+                          "exit_code",
+                          "restarts",
+                          "argv",
+                          "env_names"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "org",
+                    "processes"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "An org's supervised processes: each one's state (starting, running, exited, backoff), pid, start time, exit code and restarts",
+        "x-berth-about": "An org's supervised processes: each one's state (starting, running, exited, backoff), pid, start time, exit code and restarts. A stopped org has none.",
+        "x-berth-access": "read",
+        "x-berth-operation": "proc ls"
+      }
+    },
+    "/v1/orgs/{org}/processes/{name}": {
+      "delete": {
+        "description": "Stop one of an org's supervised processes: SIGTERM, its grace, then SIGKILL of its whole process group; then it is forgotten. Answers when it has exited. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "process_stop",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the process's name, as processes_list shows it",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "argv": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "env_names": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "exit_code": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "org": {
+                      "type": "string"
+                    },
+                    "pid": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "restarts": {
+                      "type": "integer"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "started_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "state": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "org",
+                    "name",
+                    "state",
+                    "pid",
+                    "started_at",
+                    "exit_code",
+                    "restarts",
+                    "argv",
+                    "env_names"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Stop one of an org's supervised processes: SIGTERM, its grace, then SIGKILL of its whole process group; then it is forgotten",
+        "x-berth-about": "Stop one of an org's supervised processes: SIGTERM, its grace, then SIGKILL of its whole process group; then it is forgotten. Answers when it has exited.",
+        "x-berth-access": "write",
+        "x-berth-operation": "proc stop"
+      },
+      "get": {
+        "description": "One of an org's supervised processes: its state, pid, start time, exit code and restarts.",
+        "operationId": "process_show",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the process's name, as processes_list shows it",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "argv": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "env_names": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "exit_code": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "org": {
+                      "type": "string"
+                    },
+                    "pid": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "restarts": {
+                      "type": "integer"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "started_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "state": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "org",
+                    "name",
+                    "state",
+                    "pid",
+                    "started_at",
+                    "exit_code",
+                    "restarts",
+                    "argv",
+                    "env_names"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "One of an org's supervised processes: its state, pid, start time, exit code and restarts",
+        "x-berth-about": "One of an org's supervised processes: its state, pid, start time, exit code and restarts.",
+        "x-berth-access": "read",
+        "x-berth-operation": "proc show"
+      },
+      "post": {
+        "description": "Start a named long-lived process in a running org's container, as its user (never root), inside its firewall. A supervisor there keeps it running (restart on-failure, or never); it ends with the container. Its variables are listed by name only. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "process_start",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the process's name: lowercase letters, digits and dashes, up to 32",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "argv": {
+                    "description": "the command and its arguments, as a list (never a shell string): argv[0] an absolute path in the container, or a name on its user's PATH",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "cwd": {
+                    "description": "where it starts: an absolute path in the container (/workspace by default)",
+                    "type": "string"
+                  },
+                  "env": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "its variables, {NAME: value}, names like API_URL, on top of the org's own; listed back by name only",
+                    "format": "password",
+                    "type": "object",
+                    "writeOnly": true
+                  },
+                  "restart": {
+                    "description": "never, or on-failure (the default): started again after a failure, waiting 1s, then twice as long each time, up to 60s",
+                    "type": "string"
+                  },
+                  "stop_grace_seconds": {
+                    "description": "1 to 300, 30 by default: how long a stop waits after SIGTERM before it kills the process's whole group",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "argv"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "argv": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "env_names": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "exit_code": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "org": {
+                      "type": "string"
+                    },
+                    "pid": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "restarts": {
+                      "type": "integer"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "started_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "state": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "org",
+                    "name",
+                    "state",
+                    "pid",
+                    "started_at",
+                    "exit_code",
+                    "restarts",
+                    "argv",
+                    "env_names"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Start a named long-lived process in a running org's container, as its user (never root), inside its firewall",
+        "x-berth-about": "Start a named long-lived process in a running org's container, as its user (never root), inside its firewall. A supervisor there keeps it running (restart on-failure, or never); it ends with the container. Its variables are listed by name only.",
+        "x-berth-access": "write",
+        "x-berth-operation": "proc start"
+      }
+    },
+    "/v1/orgs/{org}/processes/{name}/logs/follow": {
+      "get": {
+        "description": "Its output as server-sent events (berth.event/v1): the last lines, then one `output` event per line as it prints them, until the client closes the connection.",
+        "operationId": "process_logs_follow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The events."
+          }
+        },
+        "summary": "Follow what a supervised process prints",
+        "x-berth-access": "read",
+        "x-berth-operation": "proc logs"
+      }
+    },
     "/v1/orgs/{org}/rehydrate": {
       "post": {
         "description": "Reinstall in a running org what backups leave out: its repos, toolchains and project dependencies. For an org that was restored or moved. Changes the org: needs the server started with --allow-writes.",

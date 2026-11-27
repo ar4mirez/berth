@@ -155,6 +155,11 @@ others take a JSON body.
 | `GET /v1/orgs/{org}/mounts` | An org's [socket mounts](#socket-mounts), and whether its container has them yet | read | `berth mount ls` |
 | `PUT /v1/orgs/{org}/mounts/{name}` | Mount a Unix socket of the org's host in its container, from its next up or restart: `source`, `target`, `mode` | write | `berth mount add` |
 | `DELETE /v1/orgs/{org}/mounts/{name}` | Remove a socket mount, from the org's next up or restart | write | `berth mount rm` |
+| `GET /v1/orgs/{org}/processes` | A running org's [supervised processes](#supervised-processes) and their state | read | `berth proc ls` |
+| `POST /v1/orgs/{org}/processes/{name}` | Start a named long-lived process in a running org's container: `argv`, `cwd`, `env`, `restart`, `stop_grace_seconds` | write | `berth proc start` |
+| `GET /v1/orgs/{org}/processes/{name}` | One supervised process: its state, pid, start, exit code and restarts | read | `berth proc show` |
+| `DELETE /v1/orgs/{org}/processes/{name}` | Stop a supervised process and forget it; answers when it has exited | write | `berth proc stop` |
+| `GET /v1/orgs/{org}/processes/{name}/logs/follow` | Follow what a supervised process prints (an event stream) | read | `berth proc logs --follow` |
 | `POST /v1/orgs/{org}/up` | Start an org: gets its image if needed, then recreates its container | restart | `berth up` |
 | `POST /v1/orgs/{org}/restart` | Restart an org: recreates its container, applying pending changes (a new image, packages, variables) | restart | `berth restart` |
 | `POST /v1/orgs/{org}/down` | Stop an org: stops and removes its container | restart | `berth down` |
@@ -245,6 +250,43 @@ curl --unix-socket "$s" -X POST -d '{"confirm":"acme"}' http://berth/v1/orgs/acm
   is stopped.
 - Each change is in the audit log with the source, the target and the caller. No MCP server offers the changes:
   a socket mount gives an org a daemon of its host, which is a person's call. Socket mounts need a Linux host.
+
+## Supervised processes
+
+A long-lived process in an org's container, started through the API and supervised there
+([`berth.process/v1`](json.md#berthprocessv1-proc-show-org-name)):
+
+```bash
+curl --unix-socket "$s" -X POST -d '{"argv":["worker","--once"],"env":{"API_URL":"http://example.com"},"restart":"on-failure"}' \
+  http://berth/v1/orgs/acme/processes/worker
+curl --unix-socket "$s" http://berth/v1/orgs/acme/processes/worker
+curl -N --unix-socket "$s" http://berth/v1/orgs/acme/processes/worker/logs/follow
+curl --unix-socket "$s" -X DELETE http://berth/v1/orgs/acme/processes/worker
+```
+
+- **As the container's user, never root**, with the org's own variables and its egress firewall, and no
+  capability added: what `berth exec` runs as. `argv` is a list, never a shell string; its first word is an
+  absolute path or a name on that user's `PATH`. `cwd` is `/workspace` unless given.
+- **Supervised in the container**, by `berth-proc` in berth's image, not by a `docker exec` held open from the host:
+  it keeps running when `berth serve` restarts, and its state is read from the container. `restart` is
+  `on-failure` (the default: started again after a failure, waiting 1s, then twice as long each time, up to 60s)
+  or `never`. A stop sends SIGTERM to its whole process group, waits `stop_grace_seconds` (1 to 300, 30 by
+  default), then sends SIGKILL; `DELETE` answers when it has exited. What it prints (stdout and stderr) is kept in
+  the container, up to 10 MB and the 10 MB before it, whatever its uptime; `logs/follow` starts with its last 100
+  lines.
+- **As long as its container.** An up, restart or down ends it, and nothing starts it again in a new container: the
+  caller starts it again after every recreate. The org must be running (409 `not-running`), and a name already
+  in use is refused (409 `state`) until it is stopped.
+- **Its variables are secrets**: passed to the container on stdin, never on a command line, and never in an event,
+  the audit log or any document, which list them by name (`env_names`). The audit log has the `argv`, the
+  variables' names and the caller; a `proc start` through `POST /v1/cli` or `--via-daemon` is in it with each
+  `--env` as `NAME=***`. On the command line, `berth proc start` never takes a value on its arguments, where `ps`
+  would show it: `--env NAME` reads it from stdin (`NAME=value` lines, or the value alone for one `--env`), and
+  `--env-file PATH` reads `NAME=value` lines. Only the command line on the caller's own machine reads them: through
+  `POST /v1/cli`, `--via-daemon` or for an org on a registered host they are refused (400 `usage`), and the values go
+  in the body of `POST /v1/orgs/{org}/processes/{name}`.
+- No MCP server offers starting or stopping one: it runs a program in the org, as a session would. An org must run
+  an image that has `berth-proc`: an older one is refused (409 `state`) until it is restarted on berth's current image.
 
 ## Errors
 

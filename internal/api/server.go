@@ -109,6 +109,7 @@ func Handler(o Options) http.Handler {
 		_, _ = w.Write(OpenAPI())
 	})
 	mux.HandleFunc("GET /"+Version+"/orgs/{org}/logs/follow", o.follow)
+	mux.HandleFunc("GET /"+Version+"/orgs/{org}/processes/{name}/logs/follow", o.followProc)
 	mux.HandleFunc("POST /"+Version+"/cli", o.cli)
 	ts := &terminals{}
 	mux.HandleFunc("POST /"+Version+"/terminal", o.terminal(ts))
@@ -278,6 +279,29 @@ func (o Options) follow(w http.ResponseWriter, req *http.Request) {
 	}
 	defer done()
 	err = b.Logs(req.Context(), org)
+	if req.Context().Err() != nil {
+		err = nil // the client left: that is how a follow ends
+	}
+	p.Done(err)
+}
+
+// followProc is `GET /v1/orgs/{org}/processes/{name}/logs/follow`: what a supervised process
+// prints, one `output` event per line, until the client goes away (#216).
+func (o Options) followProc(w http.ResponseWriter, req *http.Request) {
+	if _, err := o.caller(req); err != nil {
+		fail(w, err)
+		return
+	}
+	s := newStream(w)
+	p := ops.NewProgress(func(e ops.Event) { s.send(e.Type, e) }, "proc logs", req.PathValue("org"))
+	a := o.NewApp(p.Writer("stdout"), p.Writer("stderr"))
+	b, org, done, err := a.At(req.Context(), req.PathValue("org"))
+	if err != nil {
+		p.Done(err)
+		return
+	}
+	defer done()
+	err = b.Proc(req.Context(), org, []string{"logs", req.PathValue("name"), "--follow"})
 	if req.Context().Err() != nil {
 		err = nil // the client left: that is how a follow ends
 	}

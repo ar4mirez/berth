@@ -50,6 +50,7 @@ berth [flags]
 * [berth mount](berth_mount.md)	 - Unix sockets from the host in an org's container (applied at its next restart)
 * [berth org](berth_org.md)	 - orgs: create, start, stop, connect, move
 * [berth pkg](berth_pkg.md)	 - system packages in an org's image (applied at its next restart)
+* [berth proc](berth_proc.md)	 - long-lived processes in an org's container, supervised there
 * [berth repo](berth_repo.md)	 - the repos allowed in an org's /workspace
 * [berth restart](berth_restart.md)	 - recreate the container
 * [berth serve](berth_serve.md)	 - the API server: berth's operations over HTTP

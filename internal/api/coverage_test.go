@@ -30,6 +30,8 @@ var notServed = map[string]string{
 	"fw ": alias + "fw show", "fw add": alias + "fw allow", "fw remove": alias + "fw deny", "fw rm": alias + "fw deny",
 	"pkg ": alias + "pkg ls", "pkg list": alias + "pkg ls", "pkg remove": alias + "pkg rm",
 	"mount ": alias + "mount ls", "mount list": alias + "mount ls", "mount remove": alias + "mount rm",
+	"proc ": alias + "proc ls", "proc list": alias + "proc ls",
+	"proc logs": "served as its own stream: GET /v1/orgs/{org}/processes/{name}/logs/follow",
 	"repo list": alias + "repo ls", "repo remove": alias + "repo rm", "repo create": alias + "repo new",
 	"repo policy/": alias + "repo ls, which has the policy", "remote ": alias + "remote status", "password ": alias + "password show",
 	"schedule --off": alias + "schedule off", "schedule now": alias + "schedule run", "host guard/": alias + "host guard/status",

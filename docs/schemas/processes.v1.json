@@ -1,0 +1,79 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/processes.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth proc <org> --output json",
+  "properties": {
+    "org": {
+      "type": "string"
+    },
+    "processes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "argv": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "env_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "exit_code": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "pid": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "restarts": {
+            "type": "integer"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "state",
+          "pid",
+          "started_at",
+          "exit_code",
+          "restarts",
+          "argv",
+          "env_names"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "berth.processes/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "org",
+    "processes"
+  ],
+  "title": "berth.processes/v1",
+  "type": "object"
+}

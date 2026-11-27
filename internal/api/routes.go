@@ -50,6 +50,11 @@ var Routes = []Route{
 	{Method: "GET", Path: "/v1/orgs/{org}/mounts", Tool: "mounts_list"},
 	{Method: "PUT", Path: "/v1/orgs/{org}/mounts/{name}", Tool: "mount_set"},
 	{Method: "DELETE", Path: "/v1/orgs/{org}/mounts/{name}", Tool: "mount_remove"},
+	// Supervised processes (#216); their log is followed at /v1/orgs/{org}/processes/{name}/logs/follow.
+	{Method: "GET", Path: "/v1/orgs/{org}/processes", Tool: "processes_list"},
+	{Method: "POST", Path: "/v1/orgs/{org}/processes/{name}", Tool: "process_start"},
+	{Method: "GET", Path: "/v1/orgs/{org}/processes/{name}", Tool: "process_show"},
+	{Method: "DELETE", Path: "/v1/orgs/{org}/processes/{name}", Tool: "process_stop"},
 	{Method: "POST", Path: "/v1/orgs/{org}/up", Tool: "org_up"},
 	{Method: "POST", Path: "/v1/orgs/{org}/restart", Tool: "org_restart"},
 	{Method: "POST", Path: "/v1/orgs/{org}/down", Tool: "org_down"},

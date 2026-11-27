@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+# berth-proc: supervised processes in an org's container (#216). berth starts one through the API
+# (`POST /v1/orgs/{org}/processes/{name}`) or `berth proc`, with `docker exec -i -u node`, so it
+# runs as the container's normal user, never root, inside the org's own firewall. Its supervisor is
+# a process in the container, not a `docker exec` held open from the host, so it outlives berth and
+# `berth serve` restarting; it ends with the container, and an up, restart or down ends it for good.
+#
+#   berth-proc start <name>     the spec as JSON on stdin: {argv, cwd, env, restart, stop_grace_seconds}
+#   berth-proc status [<name>]  one process as JSON, or every one as a JSON array
+#   berth-proc stop <name>      SIGTERM to its process group, SIGKILL after its grace; then forgotten
+#   berth-proc logs <name> [--follow] [--lines N]
+#
+# A process's state is in $BERTH_PROC_DIR/<name>/ (mode 0700): spec.json (0600, it holds the
+# variables' values), state.json, log (and log.1, the one before it), and the supervisor's pid. Variables' values are never
+# printed: status lists them by name. Exit codes: 0 ok, 2 usage, 3 a process of that name exists,
+# 4 no such process, 1 anything else.
+set -uo pipefail
+
+DIR="${BERTH_PROC_DIR:-/run/berth/procs}"
+LOG_MAX="${BERTH_PROC_LOG_MAX:-10000000}"
+BACKOFF_MAX="${BERTH_PROC_BACKOFF_MAX:-60}"
+
+die() { echo "berth-proc: $2" >&2; exit "$1"; }
+now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+valid_name() { [[ "$1" =~ ^[a-z0-9-]{1,32}$ ]]; }
+
+[ "$(id -u)" != 0 ] || die 1 "runs as the container's user, never as root"
+
+# write_state <name> <state> <pid|null> <started_at|null> <exit|null> <restarts>
+write_state() {
+  local d="$DIR/$1" t
+  t=$(mktemp "$d/.state.XXXXXX") || return 1
+  jq -n --arg name "$1" --arg state "$2" --argjson pid "$3" --argjson started "$4" \
+    --argjson exit "$5" --argjson restarts "$6" --slurpfile spec "$d/spec.json" \
+    '{name: $name, state: $state, pid: $pid, started_at: $started, exit_code: $exit, restarts: $restarts,
+      argv: $spec[0].argv, env_names: ($spec[0].env // {} | keys)}' > "$t" && mv -f "$t" "$d/state.json"
+}
+
+# write_log <log>: what the process prints, from stdin, into log. At LOG_MAX bytes log becomes
+# log.1 (replacing the one before) and a new log starts, so the two hold at most twice LOG_MAX
+# whatever the uptime. It ends when every writer has closed its stdin.
+# It copies what each read of the pipe gives, up to 64 KiB, as it comes: lines or not, NULs too.
+write_log() {
+  local log="$1" size before n
+  size=$(stat -c %s "$log" 2>/dev/null || echo 0)
+  while :; do
+    if [ "$size" -ge "$LOG_MAX" ]; then mv -f "$log" "$log.1"; size=0; fi
+    n=$((LOG_MAX - size)); [ "$n" -gt 65536 ] && n=65536
+    before=$size
+    dd bs="$n" count=1 status=none >> "$log" 2>/dev/null || break
+    size=$(stat -c %s "$log" 2>/dev/null || echo 0)
+    [ "$size" -gt "$before" ] || break
+  done
+}
+
+# is_supervisor <pid> <name>: pid is name's supervisor (berth-proc supervise <name>), not a
+# process that got its pid since.
+is_supervisor() {
+  local -a a
+  mapfile -d '' a 2>/dev/null < "/proc/$1/cmdline" || return 1
+  local n=${#a[@]}
+  [ "$n" -ge 3 ] && [ "${a[n-3]##*/}" = berth-proc ] && [ "${a[n-2]}" = supervise ] && [ "${a[n-1]}" = "$2" ]
+}
+
+quote() { if [ "$1" = null ]; then echo null; else jq -n --arg v "$1" '$v'; fi; }
+
+# supervise <name>: run the process, as its spec says, until it is stopped or it ends for good.
+supervise() {
+  local name="$1" d="$DIR/$1" restarts=0 backoff=1 child=0 logger=0 stopping=0 code started left
+  local -a argv env
+  mapfile -d '' argv < <(jq -j '.argv[] | . + "\u0000"' "$d/spec.json")
+  mapfile -d '' env < <(jq -j '.env // {} | to_entries[] | "\(.key)=\(.value)\u0000"' "$d/spec.json")
+  local cwd restart grace
+  cwd=$(jq -r '.cwd // "/workspace"' "$d/spec.json")
+  restart=$(jq -r '.restart // "on-failure"' "$d/spec.json")
+  grace=$(jq -r '.stop_grace_seconds // 30' "$d/spec.json")
+  rm -f "$d/.out" && mkfifo -m 600 "$d/.out" || return 1
+  echo "$$" > "$d/supervisor.pid"
+  # end_group: SIGTERM to the process's whole group, its grace, then SIGKILL; what the leader
+  # left behind too, once it has ended.
+  end_group() {
+    [ "$child" -gt 0 ] && kill -0 -- "-$child" 2>/dev/null || return 0
+    kill -TERM -- "-$child" 2>/dev/null
+    local left=$((grace * 10))
+    while [ "$left" -gt 0 ] && kill -0 -- "-$child" 2>/dev/null; do sleep 0.1; left=$((left - 1)); done
+    kill -KILL -- "-$child" 2>/dev/null
+  }
+  stop() {
+    stopping=1
+    end_group
+  }
+  trap stop TERM INT
+  while [ "$stopping" = 0 ]; do
+    started=$(now)
+    # Its output goes through a pipe to the logger, which is outside its process group: a stop
+    # doesn't end the logger before it has written the last of it.
+    write_log "$d/log" < "$d/.out" &
+    logger=$!
+    # A session of its own, so its whole process group is stopped together.
+    ( cd "$cwd" 2>/dev/null || { echo "berth-proc: no such directory $cwd" >&2; exit 126; }
+      exec setsid env "${env[@]}" "${argv[@]}" ) </dev/null >"$d/.out" 2>&1 &
+    child=$!
+    write_state "$name" running "$child" "$(quote "$started")" null "$restarts"
+    wait "$child"; code=$?
+    # wait returns early for a signal to the supervisor: wait for the child itself.
+    while kill -0 "$child" 2>/dev/null; do wait "$child"; code=$?; done
+    end_group
+    # The logger ends once the process's group has closed the pipe; one that something that left
+    # the group holds open is left to it.
+    left=50
+    while [ "$left" -gt 0 ] && kill -0 "$logger" 2>/dev/null; do sleep 0.1; left=$((left - 1)); done
+    if [ "$stopping" = 1 ] || [ "$restart" = never ] || { [ "$restart" = on-failure ] && [ "$code" = 0 ]; }; then
+      write_state "$name" exited null "$(quote "$started")" "$code" "$restarts"
+      break
+    fi
+    restarts=$((restarts + 1))
+    write_state "$name" backoff null "$(quote "$started")" "$code" "$restarts"
+    left=$((backoff * 10))
+    while [ "$left" -gt 0 ] && [ "$stopping" = 0 ]; do sleep 0.1; left=$((left - 1)); done
+    backoff=$((backoff * 2)); [ "$backoff" -gt "$BACKOFF_MAX" ] && backoff="$BACKOFF_MAX"
+  done
+  rm -f "$d/supervisor.pid"
+}
+
+cmd_start() {
+  local name="${1:-}" d spec
+  valid_name "$name" || die 2 "a process's name is lowercase letters, digits and dashes, up to 32"
+  d="$DIR/$name"
+  spec=$(cat) || die 1 "can't read the spec"
+  jq -e '(.argv | type == "array" and length > 0 and all(type == "string")) and (.argv[0] | (. == "" or startswith("-") or contains("=")) | not)
+      and ((.env // {}) | type == "object" and all(type == "string") and (keys | all(test("^[A-Z_][A-Z0-9_]*$"))))
+      and ((.restart // "on-failure") | IN("never", "on-failure"))
+      and ((.stop_grace_seconds // 30) | type == "number" and . >= 1 and . <= 300 and floor == .)
+      and ((.cwd // "/workspace") | type == "string" and startswith("/"))' <<<"$spec" >/dev/null 2>&1 \
+    || die 2 "the spec: argv a non-empty list of strings whose first is a command (not an option or NAME=value), env {NAME: value} with NAME like A_B1, restart never or on-failure, stop_grace_seconds 1 to 300, cwd an absolute path"
+  mkdir -p "$DIR" && chmod 700 "$DIR" 2>/dev/null
+  mkdir -m 700 "$d" 2>/dev/null || die 3 "a process named $name exists: stop it first"
+  ( umask 077; printf '%s' "$spec" > "$d/spec.json" ) || die 1 "can't write its spec"
+  write_state "$name" starting null null null 0
+  setsid "$0" supervise "$name" </dev/null >/dev/null 2>&1 &
+  local left=50
+  while [ "$left" -gt 0 ] && [ "$(jq -r .state "$d/state.json" 2>/dev/null)" = starting ]; do sleep 0.1; left=$((left - 1)); done
+  cat "$d/state.json"
+}
+
+cmd_status() {
+  if [ -n "${1:-}" ]; then
+    valid_name "$1" && [ -f "$DIR/$1/state.json" ] || die 4 "no process named $1"
+    cat "$DIR/$1/state.json"
+    return
+  fi
+  local f out=()
+  for f in "$DIR"/*/state.json; do [ -f "$f" ] && out+=("$f"); done
+  if [ "${#out[@]}" = 0 ]; then echo '[]'; else jq -s 'sort_by(.name)' "${out[@]}"; fi
+}
+
+cmd_stop() {
+  local name="${1:-}" d pid grace left
+  valid_name "$name" && [ -d "$DIR/$name" ] || die 4 "no process named $name"
+  d="$DIR/$name"
+  grace=$(jq -r '.stop_grace_seconds // 30' "$d/spec.json" 2>/dev/null || echo 30)
+  if pid=$(cat "$d/supervisor.pid" 2>/dev/null) && is_supervisor "$pid" "$name"; then
+    kill -TERM "$pid"
+    left=$(((grace + 5) * 10))
+    while [ "$left" -gt 0 ] && kill -0 "$pid" 2>/dev/null; do sleep 0.1; left=$((left - 1)); done
+    is_supervisor "$pid" "$name" && kill -KILL "$pid"
+  fi
+  local state; state=$(cat "$d/state.json" 2>/dev/null)
+  rm -rf "$d"
+  printf '%s\n' "${state:-{\}}"
+}
+
+cmd_logs() {
+  local name="${1:-}" follow=0 lines=100
+  valid_name "$name" && [ -d "$DIR/$name" ] || die 4 "no process named $name"
+  shift
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --follow) follow=1 ;;
+      --lines) shift; [[ "${1:-}" =~ ^[0-9]+$ ]] || die 2 "--lines takes a number"; lines="$1" ;;
+      *) die 2 "unknown option $1" ;;
+    esac
+    shift
+  done
+  touch "$DIR/$name/log"
+  if [ "$follow" = 1 ]; then exec tail -n "$lines" -F "$DIR/$name/log"; fi
+  tail -n "$lines" "$DIR/$name/log"
+}
+
+case "${1:-}" in
+  start) shift; cmd_start "$@" ;;
+  status) shift; cmd_status "$@" ;;
+  stop) shift; cmd_stop "$@" ;;
+  logs) shift; cmd_logs "$@" ;;
+  supervise) shift; supervise "$@" ;;
+  *) die 2 "usage: berth-proc start <name> < spec.json | status [<name>] | stop <name> | logs <name> [--follow] [--lines N]" ;;
+esac

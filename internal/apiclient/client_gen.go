@@ -139,6 +139,26 @@ func (c *Client) MountRemove(ctx context.Context, org string, name string) (out 
 	return out, c.do(ctx, "DELETE", "/v1/orgs/"+url.PathEscape(org)+"/mounts/"+url.PathEscape(name), nil, nil, &out)
 }
 
+// ProcessesList is GET /v1/orgs/{org}/processes: An org's supervised processes: each one's state (starting, running, exited, backoff), pid, start time, exit code and restarts.
+func (c *Client) ProcessesList(ctx context.Context, org string) (out ops.Processes, err error) {
+	return out, c.do(ctx, "GET", "/v1/orgs/"+url.PathEscape(org)+"/processes", nil, nil, &out)
+}
+
+// ProcessStart is POST /v1/orgs/{org}/processes/{name}: Start a named long-lived process in a running org's container, as its user (never root), inside its firewall.
+func (c *Client) ProcessStart(ctx context.Context, org string, name string, argv []string, cwd string, env map[string]string, restart string, stopGraceSeconds int) (out ops.Process, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/processes/"+url.PathEscape(name), nil, map[string]any{"argv": argv, "cwd": cwd, "env": env, "restart": restart, "stop_grace_seconds": stopGraceSeconds}, &out)
+}
+
+// ProcessShow is GET /v1/orgs/{org}/processes/{name}: One of an org's supervised processes: its state, pid, start time, exit code and restarts.
+func (c *Client) ProcessShow(ctx context.Context, org string, name string) (out ops.Process, err error) {
+	return out, c.do(ctx, "GET", "/v1/orgs/"+url.PathEscape(org)+"/processes/"+url.PathEscape(name), nil, nil, &out)
+}
+
+// ProcessStop is DELETE /v1/orgs/{org}/processes/{name}: Stop one of an org's supervised processes: SIGTERM, its grace, then SIGKILL of its whole process group; then it is forgotten.
+func (c *Client) ProcessStop(ctx context.Context, org string, name string) (out ops.Process, err error) {
+	return out, c.do(ctx, "DELETE", "/v1/orgs/"+url.PathEscape(org)+"/processes/"+url.PathEscape(name), nil, nil, &out)
+}
+
 // OrgUp is POST /v1/orgs/{org}/up: Start an org: gets its image if needed, then recreates its container.
 func (c *Client) OrgUp(ctx context.Context, org string, confirm string) (out mcpsrv.Recreated, err error) {
 	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/up", nil, map[string]any{"confirm": confirm}, &out)

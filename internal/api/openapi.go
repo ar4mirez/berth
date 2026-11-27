@@ -19,6 +19,8 @@ func argSchema(a Arg) map[string]any {
 		s["type"] = "integer"
 	case reflect.Bool:
 		s["type"] = "boolean"
+	case reflect.Map:
+		s["type"], s["additionalProperties"] = "object", map[string]any{"type": "string"}
 	default:
 		s["type"] = "string"
 	}
@@ -135,6 +137,12 @@ func openAPI() map[string]any {
 		"x-berth-operation": "logs", "x-berth-access": "read",
 		"parameters": []any{map[string]any{"name": "org", "in": "path", "required": true, "schema": map[string]any{"type": "string"}}},
 		"responses":  map[string]any{"200": map[string]any{"description": "The events.", "content": map[string]any{"text/event-stream": map[string]any{"schema": map[string]any{"type": "string"}}}}}})
+	add("/v1/orgs/{org}/processes/{name}/logs/follow", "GET", map[string]any{"operationId": "process_logs_follow", "summary": "Follow what a supervised process prints",
+		"description":       "Its output as server-sent events (berth.event/v1): the last lines, then one `output` event per line as it prints them, until the client closes the connection.",
+		"x-berth-operation": "proc logs", "x-berth-access": "read",
+		"parameters": []any{map[string]any{"name": "org", "in": "path", "required": true, "schema": map[string]any{"type": "string"}},
+			map[string]any{"name": "name", "in": "path", "required": true, "schema": map[string]any{"type": "string"}}},
+		"responses": map[string]any{"200": map[string]any{"description": "The events.", "content": map[string]any{"text/event-stream": map[string]any{"schema": map[string]any{"type": "string"}}}}}})
 	str := map[string]any{"type": "string"}
 	num := map[string]any{"type": "integer"}
 	names := make([]any, 0, len(TerminalCommands))

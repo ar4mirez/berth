@@ -74,6 +74,7 @@ uses to refuse writes under `--read-only`.
 | `env_list` | the names of an org's variables | |
 | `packages_list`, `package_presets` | the system packages an org's image adds; the @presets and what each stands for | |
 | `mounts_list` | an org's socket mounts, and whether its container has them | |
+| `processes_list`, `process_show` | a running org's supervised processes, and one of them | |
 | `backups_list`, `schedule_status` | the backup files here; the nightly schedule | |
 | `firewall_allow`, `firewall_deny` | add or remove allowlist entries, applied live | `--allow-writes` |
 | `repo_add`, `repo_remove` | register and clone a repo; unregister one (its folder goes to quarantine, not deleted) | `--allow-writes` |
@@ -100,6 +101,7 @@ uses to refuse writes under `--read-only`.
 - upgrading berth: it replaces what is serving;
 - restoring a backup, and moving an org to another host: each replaces or stops an org.
 - adding or removing a socket mount: it gives an org a daemon of its host.
+- starting or stopping a supervised process: it runs a program in the org, as a session would.
 - anything that takes or shows a secret: setting a variable, an org's Claude token, a password rotated or shown,
   the backup key, and
   the API's own tokens. Each needs the `admin` scope, which no MCP server has.
