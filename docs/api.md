@@ -280,7 +280,9 @@ curl --unix-socket "$s" -X DELETE http://berth/v1/orgs/acme/processes/worker
   variables' names and the caller; a `proc start` through `POST /v1/cli` or `--via-daemon` is in it with each
   `--env` as `NAME=***`. On the command line, `berth proc start` never takes a value on its arguments, where `ps`
   would show it: `--env NAME` reads it from stdin (`NAME=value` lines, or the value alone for one `--env`), and
-  `--env-file PATH` reads `NAME=value` lines.
+  `--env-file PATH` reads `NAME=value` lines. Only the command line on the caller's own machine reads them: through
+  `POST /v1/cli`, `--via-daemon` or for an org on a registered host they are refused (400 `usage`), and the values go
+  in the body of `POST /v1/orgs/{org}/processes/{name}`.
 - No MCP server offers starting or stopping one: it runs a program in the org, as a session would. An org must run
   an image that has `berth-proc`: an older one is refused (409 `state`) until it is restarted on berth's current image.
 

@@ -39,20 +39,17 @@ write_state() {
 # write_log <log>: what the process prints, from stdin, into log. At LOG_MAX bytes log becomes
 # log.1 (replacing the one before) and a new log starts, so the two hold at most twice LOG_MAX
 # whatever the uptime. It ends when every writer has closed its stdin.
+# It copies what each read of the pipe gives, up to 64 KiB, as it comes: lines or not, NULs too.
 write_log() {
-  local log="$1" size line LC_ALL=C
+  local log="$1" size before n
   size=$(stat -c %s "$log" 2>/dev/null || echo 0)
-  exec 3>>"$log"
-  while IFS= read -r line || [ -n "$line" ]; do
-    line="${line:0:$((LOG_MAX - 1))}"$'\n'
-    if [ $((size + ${#line})) -gt "$LOG_MAX" ]; then
-      exec 3>&-
-      mv -f "$log" "$log.1"
-      exec 3>>"$log"
-      size=0
-    fi
-    printf '%s' "$line" >&3
-    size=$((size + ${#line}))
+  while :; do
+    if [ "$size" -ge "$LOG_MAX" ]; then mv -f "$log" "$log.1"; size=0; fi
+    n=$((LOG_MAX - size)); [ "$n" -gt 65536 ] && n=65536
+    before=$size
+    dd bs="$n" count=1 status=none >> "$log" 2>/dev/null || break
+    size=$(stat -c %s "$log" 2>/dev/null || echo 0)
+    [ "$size" -gt "$before" ] || break
   done
 }
 
@@ -79,14 +76,18 @@ supervise() {
   grace=$(jq -r '.stop_grace_seconds // 30' "$d/spec.json")
   rm -f "$d/.out" && mkfifo -m 600 "$d/.out" || return 1
   echo "$$" > "$d/supervisor.pid"
+  # end_group: SIGTERM to the process's whole group, its grace, then SIGKILL; what the leader
+  # left behind too, once it has ended.
+  end_group() {
+    [ "$child" -gt 0 ] && kill -0 -- "-$child" 2>/dev/null || return 0
+    kill -TERM -- "-$child" 2>/dev/null
+    local left=$((grace * 10))
+    while [ "$left" -gt 0 ] && kill -0 -- "-$child" 2>/dev/null; do sleep 0.1; left=$((left - 1)); done
+    kill -KILL -- "-$child" 2>/dev/null
+  }
   stop() {
     stopping=1
-    if [ "$child" -gt 0 ] && kill -0 "$child" 2>/dev/null; then
-      kill -TERM -- "-$child" 2>/dev/null
-      local left=$((grace * 10))
-      while [ "$left" -gt 0 ] && kill -0 "$child" 2>/dev/null; do sleep 0.1; left=$((left - 1)); done
-      kill -KILL -- "-$child" 2>/dev/null
-    fi
+    end_group
   }
   trap stop TERM INT
   while [ "$stopping" = 0 ]; do
@@ -103,7 +104,8 @@ supervise() {
     wait "$child"; code=$?
     # wait returns early for a signal to the supervisor: wait for the child itself.
     while kill -0 "$child" 2>/dev/null; do wait "$child"; code=$?; done
-    # The logger ends once the process's group has closed the pipe; one that something outside
+    end_group
+    # The logger ends once the process's group has closed the pipe; one that something that left
     # the group holds open is left to it.
     left=50
     while [ "$left" -gt 0 ] && kill -0 "$logger" 2>/dev/null; do sleep 0.1; left=$((left - 1)); done

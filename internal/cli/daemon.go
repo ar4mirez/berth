@@ -117,7 +117,7 @@ func runFor(st config.State) func(ctx context.Context, by mcpsrv.Caller, args []
 		if output == app.OutputJSON {
 			full = append(full, "--output", "json")
 		}
-		code := executeContext(ctx, root, append(full, args...), strings.NewReader(""), stdout, stderr)
+		code := executeContext(app.Served(ctx), root, append(full, args...), strings.NewReader(""), stdout, stderr)
 		if code == 0 {
 			audit("ok")
 		} else {

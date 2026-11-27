@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/ar4mirez/berth/internal/contract"
 	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/ops"
+	"golang.org/x/term"
 )
 
 // Supervised processes (#216, internal/ops/procs.go and image/berth-proc; berth-only): a named
@@ -60,7 +62,7 @@ func (a *App) Proc(ctx context.Context, o string, args []string) error {
 		if len(args) == 0 || strings.HasPrefix(args[0], "-") {
 			return usage
 		}
-		spec, err := a.parseProcStart(args[1:])
+		spec, err := a.parseProcStart(ctx, args[1:])
 		if err != nil {
 			return fmt.Errorf("%w; %s", err, usage)
 		}
@@ -142,11 +144,21 @@ func (a *App) procShow(p ops.Process, done string) error {
 // variable's value is never on the command line, where ps would show it: each --env NAME's value is
 // read from stdin, as NAME=value lines or, for a single --env NAME, the value alone; --env-file is
 // a file of NAME=value lines.
-func (a *App) parseProcStart(args []string) (ops.ProcSpec, error) {
+//
+// Only the command line on the caller's own machine reads them: run for an API's caller, or for an
+// org on a registered host, the values go in the body of POST /v1/orgs/{org}/processes/{name}.
+func (a *App) parseProcStart(ctx context.Context, args []string) (ops.ProcSpec, error) {
 	s := ops.ProcSpec{Env: map[string]string{}}
 	var names []string
+	local := !served(ctx) && a.HostName == ""
 	for i := 0; i < len(args); i++ {
 		x := args[i]
+		if k, v, ok := strings.Cut(x, "="); ok && strings.HasPrefix(x, "--") {
+			if k == "--env" {
+				return s, envOnArgv(v)
+			}
+			return s, fmt.Errorf("%s=: give %s and its value as two arguments", k, k)
+		}
 		if x == "--" {
 			s.Argv = args[i+1:]
 			if err := a.procEnvStdin(names, s.Env); err != nil {
@@ -167,10 +179,16 @@ func (a *App) parseProcStart(args []string) (ops.ProcSpec, error) {
 			s.Cwd = v
 		case "--env":
 			if strings.Contains(v, "=") {
-				return s, fmt.Errorf("--env %s: a variable's value is never on the command line: give --env %s and its value on stdin, or NAME=value lines in --env-file", ops.EnvNames(v)[0], ops.EnvNames(v)[0])
+				return s, envOnArgv(v)
+			}
+			if !local {
+				return s, envNotLocal()
 			}
 			names = append(names, v)
 		case "--env-file":
+			if !local {
+				return s, envNotLocal()
+			}
 			b, err := a.Host.FS.ReadFile(v)
 			if err != nil {
 				return s, fmt.Errorf("--env-file: %w", err)
@@ -193,20 +211,42 @@ func (a *App) parseProcStart(args []string) (ops.ProcSpec, error) {
 	return s, errors.New("missing -- before the command")
 }
 
+// envOnArgv refuses a variable's value on the command line, naming the variable only.
+func envOnArgv(v string) error {
+	n := ops.EnvNames(v)[0]
+	return ops.Usage("--env %s: a variable's value is never on the command line: give --env %s and its value on stdin, or NAME=value lines in --env-file", n, n)
+}
+
+// envNotLocal refuses reading variables' values where the caller isn't: a server or another host.
+func envNotLocal() error {
+	return ops.Usage("--env NAME and --env-file are read only on the command line of the caller's own machine: pass the values as env in the body of POST /v1/orgs/{org}/processes/{name}")
+}
+
+type servedKey struct{}
+
+// Served marks ctx as a command run for an API's caller (POST /v1/cli, --via-daemon): it has no
+// stdin of the caller's, and no file of theirs.
+func Served(ctx context.Context) context.Context { return context.WithValue(ctx, servedKey{}, true) }
+
+func served(ctx context.Context) bool { v, _ := ctx.Value(servedKey{}).(bool); return v }
+
 // procEnvStdin reads the values of the variables --env names from stdin: NAME=value lines or, for
 // a single one, the value alone.
 func (a *App) procEnvStdin(names []string, env map[string]string) error {
 	if len(names) == 0 {
 		return nil
 	}
-	if a.Stdin == nil {
-		return errors.New("--env NAME reads its value from stdin, and there is none: use --env-file")
+	if f, ok := a.Stdin.(*os.File); a.Stdin == nil || ok && term.IsTerminal(int(f.Fd())) {
+		return ops.Usage("--env NAME reads its value from stdin, and there is none: pipe it in, or use --env-file")
 	}
 	b, err := io.ReadAll(a.Stdin)
 	if err != nil {
 		return fmt.Errorf("stdin: %w", err)
 	}
 	in := string(b)
+	if strings.TrimRight(in, "\r\n") == "" {
+		return ops.Usage("stdin has no value for %s", strings.Join(names, ", "))
+	}
 	if len(names) == 1 && !strings.HasPrefix(in, names[0]+"=") {
 		env[names[0]] = strings.TrimSuffix(strings.TrimSuffix(in, "\n"), "\r")
 		return nil

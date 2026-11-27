@@ -755,10 +755,29 @@ func TestBerthViaDaemon(t *testing.T) {
 		t.Errorf("--via-daemon proc start --env NAME=value: %d %q %q", out.Exit, out.Stdout, out.Stderr)
 	}
 	var cerr strings.Builder
-	if code, err := apiclient.Unix(sock).CLI(context.Background(), []string{"proc", "acme", "start", "worker", "--env=API_KEY=sk-cli-SECRET", "--", "worker", "--env", "kept"}, "", io.Discard, &cerr); err != nil || code == 0 {
+	if code, err := apiclient.Unix(sock).CLI(context.Background(), []string{"proc", "acme", "start", "worker", "--env=API_KEY=sk-cli-SECRET", "--", "worker", "--env", "kept"}, "", io.Discard, &cerr); err != nil || code == 0 ||
+		strings.Contains(cerr.String(), "sk-cli-SECRET") || !strings.Contains(cerr.String(), "--env API_KEY: a variable's value is never on the command line") {
 		t.Errorf("POST /v1/cli proc start --env=NAME=value: %d %v %q", code, err, cerr.String())
 	}
+	// A server reads no file a caller names, and has no stdin of theirs: the values go in the body.
+	for _, args := range [][]string{
+		{"proc", "acme", "start", "x", "--env-file", "../state/orgs/globex/org.env", "--", "sh"},
+		{"proc", "acme", "start", "x", "--env", "API_KEY", "--", "sh"},
+	} {
+		var serr strings.Builder
+		code, err := apiclient.Unix(sock).CLI(context.Background(), args, "", io.Discard, &serr)
+		if err != nil || code == 0 || !strings.Contains(serr.String(), "pass the values as env in the body of POST /v1/orgs/{org}/processes/{name}") ||
+			strings.Contains(serr.String(), "test@example.com") {
+			t.Errorf("POST /v1/cli %v: %d %v %q", args, code, err, serr.String())
+		}
+	}
+	if out := via("proc", "acme", "start", "x", "--env-file", "../state/orgs/globex/org.env", "--", "sh"); out.Exit == 0 || !strings.Contains(out.Stderr, "POST /v1/orgs/{org}/processes/{name}") {
+		t.Errorf("--via-daemon proc start --env-file: %d %q", out.Exit, out.Stderr)
+	}
 	res := snap()
+	if hasCall(res, "berth-proc\" \"start\" \"x\"") || strings.Contains(strings.Join(auditLines(t, res), "\n"), "test@example.com") || strings.Contains(serveStderr.String(), "test@example.com") {
+		t.Errorf("a refused --env-file started a process, or its file's values got out:\n%s", strings.Join(res.Calls, "\n"))
+	}
 	if audit := strings.Join(auditLines(t, res), "\n"); strings.Contains(audit, "sk-via-SECRET") || strings.Contains(audit, "sk-cli-SECRET") ||
 		!strings.Contains(audit, `cli proc start|failed|{"args":["acme","start","worker","--env","API_KEY=***","--","worker"]}`) ||
 		!strings.Contains(audit, `cli proc start|failed|{"args":["acme","start","worker","--env=API_KEY=***","--","worker","--env","kept"]}`) {

@@ -85,7 +85,7 @@ func TestBerthProc(t *testing.T) {
 		}
 	}
 	t.Cleanup(func() {
-		for _, n := range []string{"web", "flaky", "once", "stubborn", "chatty", "stale"} {
+		for _, n := range []string{"web", "flaky", "once", "stubborn", "chatty", "stale", "leaver"} {
 			_, _, _ = run("", "stop", n)
 		}
 	})
@@ -180,12 +180,13 @@ func TestBerthProc(t *testing.T) {
 	}
 	// The log is capped while the process runs: at the cap, log becomes log.1 and a new log starts.
 	logMax = "4096"
-	run(`{"argv":["sh","-c","i=0; while [ $i -lt 3000 ]; do echo line-$i; i=$((i+1)); done; echo last-line; exec sleep 60"],"cwd":"`+work+`"}`, "start", "chatty")
+	// Lines, then output with no newline at all (a progress bar's), NULs in it too.
+	run(`{"argv":["sh","-c","i=0; while [ $i -lt 3000 ]; do echo line-$i; i=$((i+1)); done; head -c 9000 /dev/zero | tr '\\0' x; printf 'nul\\0byte last-bytes'; exec sleep 60"],"cwd":"`+work+`"}`, "start", "chatty")
 	for deadline := time.Now().Add(15 * time.Second); ; time.Sleep(100 * time.Millisecond) {
-		if logs, _, _ := run("", "logs", "chatty", "--lines", "1"); logs == "last-line\n" {
+		if b, _ := os.ReadFile(filepath.Join(state, "chatty", "log")); strings.HasSuffix(string(b), "xnul\x00byte last-bytes") {
 			break
 		} else if time.Now().After(deadline) {
-			t.Fatalf("chatty's logs: %q", logs)
+			t.Fatalf("chatty's log: %q", b)
 		}
 	}
 	for _, f := range []string{"log", "log.1"} {
@@ -193,11 +194,40 @@ func TestBerthProc(t *testing.T) {
 			t.Errorf("chatty's %s, past its cap: %v %v", f, fi, err)
 		}
 	}
-	if b, _ := os.ReadFile(filepath.Join(state, "chatty", "log.1")); strings.Contains(string(b), "last-line") {
+	if b, _ := os.ReadFile(filepath.Join(state, "chatty", "log.1")); strings.Contains(string(b), "last-bytes") {
 		t.Errorf("the newest output is in log.1: %q", b)
 	}
 	run("", "stop", "chatty")
 	logMax = "10000000"
+
+	// What the process leaves in its group when it ends is ended too: before it starts again, and
+	// at a stop.
+	pids := filepath.Join(work, "leaver.pids")
+	run(`{"argv":["bash","-c","sleep 60 & echo $! >> `+pids+`; exit 1"],"cwd":"`+work+`","stop_grace_seconds":2}`, "start", "leaver")
+	waitFor("leaver", func(p procState) bool { return p.Restarts >= 2 })
+	gone := func(pid string) bool {
+		n, err := strconv.Atoi(pid)
+		if err != nil {
+			t.Fatalf("a pid: %q", pid)
+		}
+		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+			if b, err := os.ReadFile("/proc/" + pid + "/stat"); err != nil || strings.Contains(string(b), ") Z ") {
+				return true
+			}
+		}
+		return syscall.Kill(n, 0) != nil
+	}
+	b, _ := os.ReadFile(pids)
+	if first := strings.Fields(string(b)); len(first) == 0 || !gone(first[0]) {
+		t.Errorf("a restart left the last run's sleep running: %q", b)
+	}
+	run("", "stop", "leaver")
+	b, _ = os.ReadFile(pids)
+	for _, pid := range strings.Fields(string(b)) {
+		if !gone(pid) {
+			t.Errorf("a stop left sleep %s running", pid)
+		}
+	}
 
 	// A supervisor.pid that outlived its supervisor (a pid reused since) is never signalled.
 	other := exec.Command("sleep", "30")
