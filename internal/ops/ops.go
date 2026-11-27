@@ -67,7 +67,8 @@ var (
 	admin = func(op Op) Op { op.Admin = true; return op }
 )
 
-// mountWrite changes an org's socket mounts: nothing restarts, and the change waits for one.
+// mountWrite changes a setting an org's container takes at its start (its socket mounts, its
+// pinned tools): nothing restarts, and the change waits for one.
 var mountWrite = Op{Access: Write, Note: "applies at the org's next up or restart, which it doesn't do"}
 
 // Catalog is every top-level command, by name.
@@ -154,6 +155,11 @@ var Catalog = map[string]Op{
 		"": readJSON, "ls": readJSON, "list": readJSON, "show": readJSON,
 		"logs":  events(Op{Access: Read}), // a stream with --follow: one event per line
 		"start": write, "stop": write,
+	}},
+	// Pinned tools (#216): the list is saved; the org installs them at its next up or restart.
+	"tool": {Access: BySub, Subs: map[string]Op{
+		"": readJSON, "ls": readJSON, "list": readJSON,
+		"set": mountWrite, "rm": mountWrite, "remove": mountWrite,
 	}},
 
 	// Backups.

@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# berth-tools: install the org's pinned tools (#216) with the image's mise, at the container's
+# start, as the container's user. /config/tools.txt (orgs/<org>/config/tools.txt on the host,
+# `berth tool`) has one "<name> <source> <version>" per line: a mise backend whose downloads mise
+# verifies (github: or aqua:) and one exact version. Each is installed with every check mise has on:
+# paranoid mode, GitHub artifact attestations, SLSA provenance, cosign and minisign signatures, and
+# checksums, and must resolve to that exact version. One that fails is reported, never skipped:
+# berth waits for this at an up or restart and fails it with the reason.
+#
+# The tools that installed are put on PATH by a mise config berth owns, written whole at every start
+# ($MISE_CONFIG_DIR/conf.d/berth-tools.toml): a pin removed or changed is gone from it at the next
+# start. With no list, that file is removed and no status is written.
+#
+# /run/berth/tools.status, written whole when it is done: "<name> <source>@<version> ok" or
+# "... failed <reason>" per tool, then "done".
+set -uo pipefail
+
+LIST="${BERTH_TOOLS_LIST:-/config/tools.txt}"
+STATUS="${BERTH_TOOLS_STATUS:-/run/berth/tools.status}"
+MISE="${BERTH_TOOLS_MISE:-mise}"
+CONF="${MISE_CONFIG_DIR:-$HOME/.config/mise}/conf.d/berth-tools.toml"
+
+[ "$(id -u)" != 0 ] || { echo "berth-tools: runs as the container's user, never as root" >&2; exit 1; }
+rm -f "$STATUS" "$CONF"
+[ -s "$LIST" ] || exit 0
+mkdir -p "${CONF%/*}" || exit 1
+tmp=$(mktemp "$STATUS.XXXXXX") || exit 1
+conf=$(mktemp "$CONF.XXXXXX") || exit 1
+printf '# Written by berth-tools at every start from the org'"'"'s pinned tools (berth tool); edits here are replaced.\n[tools]\n' > "$conf"
+declare -A seen=()
+while read -r name source version extra || [ -n "${name:-}" ]; do
+  case "$name" in "" | \#*) continue ;; esac
+  if ! [[ "$name" =~ ^[a-z0-9-]{1,32}$ && "$source" =~ ^(github|aqua):[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ &&
+    "$version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?([-+][0-9A-Za-z][0-9A-Za-z.-]*)?$ && -z "${extra:-}" ]]; then
+    echo "${name} - failed not a valid pin: <name> <github:|aqua:owner/repo> <exact version>" >> "$tmp"
+    continue
+  fi
+  if [ -n "${seen[$source]:-}" ]; then
+    echo "$name $source@$version failed $source is already pinned as ${seen[$source]}" >> "$tmp"
+    continue
+  fi
+  seen[$source]=$name
+  if ! out=$(MISE_PARANOID=1 MISE_GITHUB_ATTESTATIONS=1 MISE_SLSA=1 MISE_GITHUB_GITHUB_ATTESTATIONS=1 MISE_GITHUB_SLSA=1 \
+    MISE_AQUA_GITHUB_ATTESTATIONS=1 MISE_AQUA_SLSA=1 MISE_AQUA_COSIGN=1 MISE_AQUA_MINISIGN=1 \
+    "$MISE" install "$source@$version" 2>&1 </dev/null); then
+    echo "$name $source@$version failed $(printf '%s' "$out" | tr -s '\n\t' '  ' | tail -c 400)" >> "$tmp"
+    continue
+  fi
+  where=$("$MISE" where "$source@$version" 2>/dev/null </dev/null)
+  got=${where##*/}
+  if [ -z "$where" ] || [ "${got#v}" != "${version#v}" ]; then
+    echo "$name $source@$version failed mise installed ${got:-nothing}, not $version" >> "$tmp"
+    continue
+  fi
+  echo "\"$source\" = \"$version\"" >> "$conf"
+  echo "$name $source@$version ok" >> "$tmp"
+done < "$LIST"
+mv -f "$conf" "$CONF"
+echo "done" >> "$tmp"
+mv -f "$tmp" "$STATUS"

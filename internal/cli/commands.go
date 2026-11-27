@@ -478,6 +478,9 @@ var pkgVerbs = []string{"ls", "list", "add", "rm", "remove", "presets", "build"}
 // mountVerbs are mount's subcommands, which can't be taken for an org.
 var mountVerbs = []string{"ls", "list", "add", "rm", "remove"}
 
+// toolVerbs are tool's subcommands, which can't be taken for an org.
+var toolVerbs = []string{"ls", "list", "set", "rm", "remove"}
+
 // procVerbs are proc's subcommands, which can't be taken for an org.
 var procVerbs = []string{"ls", "list", "start", "show", "stop", "logs"}
 
@@ -841,6 +844,22 @@ func addCommands(root *cobra.Command) {
 					return a.Proc(cmd.Context(), "", nil)
 				}
 				return a.Proc(cmd.Context(), args[0], args[1:])
+			}),
+		}),
+		reads(&cobra.Command{
+			Use: "tool <org> [ls|set|rm] [name source version]", Short: "tools pinned to one exact version, installed at an org's start",
+			Long: "One exact version of a tool, installed with the image's mise when the org starts, so a program in it\n" +
+				"matches what talks to it from outside. The source is a mise backend whose downloads mise verifies\n" +
+				"(github:owner/repo or aqua:owner/repo); mise installs it with its checks on (attestations, provenance,\n" +
+				"signatures, checksums), and an up or restart waits for it and fails if it didn't install. The running\n" +
+				"container isn't touched: a change applies at the org's next up or restart.",
+			DisableFlagParsing: true,
+			ValidArgsFunction:  completeTool,
+			RunE: onOrgV(nthArg(0), toolVerbs, func(a *app.App, cmd *cobra.Command, args []string) error {
+				if len(args) == 0 {
+					return a.Tool(cmd.Context(), "", nil)
+				}
+				return a.Tool(cmd.Context(), args[0], args[1:])
 			}),
 		}),
 		reads(&cobra.Command{

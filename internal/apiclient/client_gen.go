@@ -139,6 +139,21 @@ func (c *Client) MountRemove(ctx context.Context, org string, name string) (out 
 	return out, c.do(ctx, "DELETE", "/v1/orgs/"+url.PathEscape(org)+"/mounts/"+url.PathEscape(name), nil, nil, &out)
 }
 
+// ToolsList is GET /v1/orgs/{org}/tools: An org's pinned tools: each one's mise source and exact version, and whether the running container installed it at its start.
+func (c *Client) ToolsList(ctx context.Context, org string) (out ops.Tools, err error) {
+	return out, c.do(ctx, "GET", "/v1/orgs/"+url.PathEscape(org)+"/tools", nil, nil, &out)
+}
+
+// ToolSet is PUT /v1/orgs/{org}/tools/{name}: Pin a tool to one exact version, installed with the image's mise, its checks on, at the org's next up or restart, which fails if it doesn't install.
+func (c *Client) ToolSet(ctx context.Context, org string, name string, source string, version string) (out ops.Tools, err error) {
+	return out, c.do(ctx, "PUT", "/v1/orgs/"+url.PathEscape(org)+"/tools/"+url.PathEscape(name), nil, map[string]any{"source": source, "version": version}, &out)
+}
+
+// ToolRemove is DELETE /v1/orgs/{org}/tools/{name}: Stop installing one of an org's pinned tools at its start.
+func (c *Client) ToolRemove(ctx context.Context, org string, name string) (out ops.Tools, err error) {
+	return out, c.do(ctx, "DELETE", "/v1/orgs/"+url.PathEscape(org)+"/tools/"+url.PathEscape(name), nil, nil, &out)
+}
+
 // ProcessesList is GET /v1/orgs/{org}/processes: An org's supervised processes: each one's state (starting, running, exited, backoff), pid, start time, exit code and restarts.
 func (c *Client) ProcessesList(ctx context.Context, org string) (out ops.Processes, err error) {
 	return out, c.do(ctx, "GET", "/v1/orgs/"+url.PathEscape(org)+"/processes", nil, nil, &out)

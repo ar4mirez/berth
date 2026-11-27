@@ -62,7 +62,7 @@ func (a *App) Restart(ctx context.Context, o string) error {
 		return err
 	}
 	a.refreshGuard(ctx)
-	return nil
+	return a.waitTools(ctx, o)
 }
 
 // execIn runs `docker exec <flags> claude-<org> <cmd>` on berth's own stdio. tty is `-it`: the
@@ -150,6 +150,9 @@ func (a *App) Up(ctx context.Context, o string) error {
 		return err
 	}
 	a.refreshGuard(ctx)
+	if err := a.waitTools(ctx, o); err != nil {
+		return err
+	}
 	a.Progress.Step("ready", "waiting for the container to start")
 	if err := a.passthrough(ctx, false, "sleep", "3"); err != nil {
 		return err

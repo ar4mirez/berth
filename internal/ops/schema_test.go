@@ -127,7 +127,8 @@ func TestDocumentsValidate(t *testing.T) {
 	samples := []any{g, Image{Schema: "berth.image/v1", Tag: "berth/claude-env:0123456789ab"}, doc,
 		Mounts{Schema: "berth.mounts/v1", Org: "acme", Mounts: []Mount{mount}, Pending: false},
 		MountDoc{Schema: "berth.mount/v1", Org: "acme", Name: mount.Name, Source: mount.Source, Target: mount.Target, Mode: "rw"},
-		Processes{Schema: "berth.processes/v1", Org: "acme", Processes: []ProcessInfo{proc}}, procDoc}
+		Processes{Schema: "berth.processes/v1", Org: "acme", Processes: []ProcessInfo{proc}}, procDoc,
+		Tools{Schema: "berth.tools/v1", Org: "acme", Tools: []PinnedTool{{Name: "gadget", Source: "github:acme/gadget", Version: "1.4.2", Installed: true}}}}
 	for _, e := range events {
 		samples = append(samples, e)
 	}

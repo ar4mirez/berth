@@ -160,6 +160,17 @@ func completeMount(cmd *cobra.Command, args []string, toComplete string) ([]cobr
 	return nil, cobra.ShellCompDirectiveDefault
 }
 
+// completeTool completes `tool <org> <verb>`: orgs, then the verbs.
+func completeTool(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+	switch {
+	case len(args) == 0:
+		return completionOrgsAt(cmd, toComplete), cobra.ShellCompDirectiveNoFileComp
+	case len(args) == 1:
+		return []string{"ls", "set", "rm"}, cobra.ShellCompDirectiveNoFileComp
+	}
+	return nil, cobra.ShellCompDirectiveNoFileComp
+}
+
 // completeProc completes `proc <org> <verb>`: orgs, then the verbs.
 func completeProc(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
 	switch {

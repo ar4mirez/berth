@@ -94,7 +94,9 @@ COPY repo-policy.sh repo-guard.js secrets-env.sh uid-remap.sh /usr/local/lib/cla
 COPY git-ssh-guard git-remote-berth git-transport berth-secret-drop /usr/local/bin/
 # berth-proc: supervised processes (#216), started with `docker exec -u node … berth-proc start`.
 COPY berth-proc /usr/local/bin/
-RUN chmod 755 /usr/local/bin/git-ssh-guard /usr/local/bin/git-remote-berth /usr/local/bin/git-transport /usr/local/bin/berth-secret-drop /usr/local/bin/berth-proc \
+# berth-tools: the org's pinned tools (#216), installed by the entrypoint at each start.
+COPY berth-tools /usr/local/bin/
+RUN chmod 755 /usr/local/bin/git-ssh-guard /usr/local/bin/git-remote-berth /usr/local/bin/git-transport /usr/local/bin/berth-secret-drop /usr/local/bin/berth-proc /usr/local/bin/berth-tools \
     && chmod 644 /usr/local/lib/claude-env/* \
     && install -d -m 700 -o root -g root /opt/claude-secrets \
     && printf '%s\n' 'Defaults!/usr/local/bin/git-ssh-guard env_keep += "GIT_PROTOCOL"' \

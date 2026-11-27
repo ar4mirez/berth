@@ -173,6 +173,7 @@ func TestBerthMCPConformance(t *testing.T) {
 		"packages_list":    {map[string]any{"org": "acme"}, []string{`"schema":"berth.packages/v1"`, `"packages":[]`}},
 		"mounts_list":      {map[string]any{"org": "acme"}, []string{`"schema":"berth.mounts/v1"`, `"mounts":[]`}},
 		"processes_list":   {map[string]any{"org": "acme"}, []string{`"schema":"berth.processes/v1"`, `"name":"worker"`, `"env_names":["API_KEY"]`}},
+		"tools_list":       {map[string]any{"org": "acme"}, []string{`"schema":"berth.tools/v1"`, `"tools":[]`}},
 		"process_show":     {map[string]any{"org": "acme", "name": "worker"}, []string{`"schema":"berth.process/v1"`, `"state":"running"`, `"pid":41`}},
 		"schedule_status":  {nil, []string{`"schema":"berth.schedule/v1"`, `"kind":"none"`}},
 		"backups_list":     {map[string]any{"org": "acme"}, []string{`"file":"acme-20261006-023000.tar.zst.age"`, `"encryption":"age"`, `"stamp":"20261006-023000"`}},

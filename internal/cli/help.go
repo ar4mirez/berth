@@ -32,7 +32,7 @@ var sections = []*cobra.Group{
 var placement = map[string]string{
 	"org": "orgs", "ls": "orgs", "up": "orgs", "down": "orgs", "destroy": "orgs", "restart": "orgs", "attach": "orgs",
 	"shell": "orgs", "claude": "orgs", "run": "orgs", "exec": "orgs", "logs": "orgs", "info": "orgs", "connect": "orgs",
-	"repo": "inside", "clone": "inside", "fw": "inside", "pkg": "inside", "mount": "inside", "proc": "inside", "env": "inside", "secrets": "inside",
+	"repo": "inside", "clone": "inside", "fw": "inside", "pkg": "inside", "mount": "inside", "proc": "inside", "tool": "inside", "env": "inside", "secrets": "inside",
 	"account": "account",
 	"backup":  "backups", "restore": "backups", "schedule": "backups", "keygen": "backups",
 	"host": "hosts", "use": "hosts",
@@ -102,6 +102,7 @@ var examples = map[string][]string{
 	"ui":                 {"berth ui", "berth --read-only ui", "berth ui --port 7780 --no-open"},
 	"mcp":                {"berth mcp", "berth mcp --allow-writes", "claude mcp add berth -- berth mcp"},
 	"pkg":                {"berth pkg acme add @playwright-chromium", "berth pkg acme add libpq-dev", "berth pkg acme", "berth restart acme"},
+	"tool":               {"berth tool acme set gadget github:acme/gadget 1.4.2", "berth tool acme", "berth restart acme"},
 	"proc":               {"berth proc acme start worker -- /usr/local/bin/worker --once", "printf %s \"$TOKEN\" | berth proc acme start bot --env TOKEN -- /usr/local/bin/bot", "berth proc acme", "berth proc acme logs worker --follow", "berth proc acme stop worker"},
 	"mount":              {"berth mount acme add agent /run/agent/agent.sock /run/berth-mounts/agent/agent.sock", "berth mount acme", "berth restart acme"},
 	"env":                {"berth env acme ls", "berth env acme set OPENROUTER_API_KEY", "berth env acme unset OPENROUTER_API_KEY", "berth env acme accept"},

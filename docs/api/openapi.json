@@ -9037,6 +9037,451 @@
         "x-berth-operation": "token"
       }
     },
+    "/v1/orgs/{org}/tools": {
+      "get": {
+        "description": "An org's pinned tools: each one's mise source and exact version, and whether the running container installed it at its start.",
+        "operationId": "tools_list",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "tools": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "installed": {
+                            "type": "boolean"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "source",
+                          "version",
+                          "installed"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "org",
+                    "tools"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "An org's pinned tools: each one's mise source and exact version, and whether the running container installed it at its start",
+        "x-berth-about": "An org's pinned tools: each one's mise source and exact version, and whether the running container installed it at its start.",
+        "x-berth-access": "read",
+        "x-berth-operation": "tool ls"
+      }
+    },
+    "/v1/orgs/{org}/tools/{name}": {
+      "delete": {
+        "description": "Stop installing one of an org's pinned tools at its start. This doesn't restart the org. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "tool_remove",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the tool's name, as tools_list shows it",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "tools": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "installed": {
+                            "type": "boolean"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "source",
+                          "version",
+                          "installed"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "org",
+                    "tools"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Stop installing one of an org's pinned tools at its start",
+        "x-berth-about": "Stop installing one of an org's pinned tools at its start. This doesn't restart the org.",
+        "x-berth-access": "write",
+        "x-berth-operation": "tool rm"
+      },
+      "put": {
+        "description": "Pin a tool to one exact version, installed with the image's mise, its checks on, at the org's next up or restart, which fails if it doesn't install. This doesn't restart the org. Changes the org: needs the server started with --allow-writes.",
+        "operationId": "tool_set",
+        "parameters": [
+          {
+            "description": "the org, as in acme, or acme@box1 for one on a registered host",
+            "in": "path",
+            "name": "org",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the tool's name: lowercase letters, digits and dashes, up to 32",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "source": {
+                    "description": "a mise backend whose downloads mise verifies: github:owner/repo or aqua:owner/repo",
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "one exact version, as in 0.6.0: no range, no latest",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "version"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "org": {
+                      "type": "string"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "tools": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "installed": {
+                            "type": "boolean"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "source",
+                          "version",
+                          "installed"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "org",
+                    "tools"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "description": "With Accept: text/event-stream: the operation's progress as berth.event/v1 events (start, step, output, then done or failed), then a `result` event with the document.",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "This caller may not do this: read-only, a token without the scope, or a restart without `confirm`."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "Pin a tool to one exact version, installed with the image's mise, its checks on, at the org's next up or restart, which fails if it doesn't install",
+        "x-berth-about": "Pin a tool to one exact version, installed with the image's mise, its checks on, at the org's next up or restart, which fails if it doesn't install. This doesn't restart the org.",
+        "x-berth-access": "write",
+        "x-berth-operation": "tool set"
+      }
+    },
     "/v1/orgs/{org}/up": {
       "post": {
         "description": "Start an org: gets its image if needed, then recreates its container. Restarts or stops the org's container, which stops the work running in it: needs the server started with --allow-restarts, and `confirm` set to the org's name.",

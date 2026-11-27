@@ -380,6 +380,19 @@ func layout(root *cobra.Command) {
 		"berth mount add acme agent /run/agent/agent.sock /run/berth-mounts/agent/agent.sock", "berth restart acme   # to apply it")
 	mv("rm", "<org> <name>", "remove a socket mount, from the org's next start", 1, "berth mount rm acme agent")
 
+	// tool
+	tl := t.group(root, "tool", "tools pinned to one exact version, installed at an org's start",
+		"berth tool set acme gadget github:acme/gadget 1.4.2", "berth tool ls acme")
+	tl.Long = t.flat["tool"].Long
+	t.orgFirst(tl, "tool")
+	tv := func(sub, use, short string, fixed int, ex ...string) {
+		t.verb(tl, "tool", sub, strings.TrimSpace(sub+" "+use), short, orgVerb(sub, fixed), org1, ex...)
+	}
+	tv("ls", "<org>", "an org's pinned tools, and whether its container installed them", 0, "berth tool ls acme")
+	tv("set", "<org> <name> <source> <version>", "pin a tool to one exact version, installed at the org's next start", 3,
+		"berth tool set acme gadget github:acme/gadget 1.4.2", "berth restart acme   # to install it")
+	tv("rm", "<org> <name>", "stop installing a pinned tool at the org's start", 1, "berth tool rm acme gadget")
+
 	// proc
 	prc := t.group(root, "proc", "long-lived processes in an org's container, supervised there",
 		"berth proc start acme worker -- /usr/local/bin/worker --once", "berth proc ls acme")

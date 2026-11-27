@@ -95,6 +95,15 @@ if [ -s /config/setup.sh ]; then
   fi
 fi
 
+# --- Pinned tools (berth tool, #216): as node, at every start, with mise's checks on ---
+# Root copies the list first, as for setup.sh. berth waits for /run/berth/tools.status at an up or
+# restart and fails it when one didn't install; the container's other services don't wait. It runs
+# without a list too: it then removes the mise config it owns, so a pin removed is gone, and
+# writes no status.
+rm -f /run/berth/tools.status /run/berth/tools.txt
+[ ! -s /config/tools.txt ] || install -m 644 /config/tools.txt /run/berth/tools.txt
+( cd /home/node && as_node env BERTH_TOOLS_LIST=/run/berth/tools.txt /usr/local/bin/berth-tools ) > /run/berth/tools.log 2>&1 &
+
 # --- sshd ---------------------------------------------------------------------
 mkdir -p /etc/ssh/keys
 [ -f /etc/ssh/keys/ssh_host_ed25519_key ] || ssh-keygen -q -t ed25519 -N '' -f /etc/ssh/keys/ssh_host_ed25519_key
