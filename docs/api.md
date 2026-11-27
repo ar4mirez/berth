@@ -266,7 +266,8 @@ curl --unix-socket "$s" -X POST -d '{"confirm":"acme"}' http://berth/v1/orgs/acm
 
 - `source` is a mise backend whose downloads mise verifies, `github:owner/repo` or `aqua:owner/repo`; `version` is
   one exact version, at least major.minor.patch (`0.6.0`, `v1.2.3-rc.1`), never a range, a prefix like `1.4`, or `latest`;
-  the version mise installed must be that one.
+  the version mise installed must be that one. A source is pinned under one name: setting it under another is a
+  `usage` error.
 - **Installed at the org's start**, with the image's mise as the container's user, every check mise has on:
   paranoid mode, GitHub artifact attestations, SLSA provenance, cosign and minisign signatures, checksums. The
   org's firewall applies: its allowlist must let it reach the release (github.com and its download hosts).
