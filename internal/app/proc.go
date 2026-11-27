@@ -12,10 +12,11 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/term"
+
 	"github.com/ar4mirez/berth/internal/contract"
 	"github.com/ar4mirez/berth/internal/host"
 	"github.com/ar4mirez/berth/internal/ops"
-	"golang.org/x/term"
 )
 
 // Supervised processes (#216, internal/ops/procs.go and image/berth-proc; berth-only): a named
@@ -64,7 +65,7 @@ func (a *App) Proc(ctx context.Context, o string, args []string) error {
 		}
 		spec, err := a.parseProcStart(ctx, args[1:])
 		if err != nil {
-			return fmt.Errorf("%w; %s", err, usage)
+			return fmt.Errorf("%w; %s", err, usage.Error())
 		}
 		p, err := a.ProcStart(ctx, o, args[0], spec)
 		if err != nil {

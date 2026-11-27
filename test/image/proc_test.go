@@ -2,6 +2,7 @@ package image
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,7 +56,8 @@ func TestBerthProc(t *testing.T) {
 		c.Stdout, c.Stderr = &out, &errb
 		err := c.Run()
 		code := 0
-		if e, ok := err.(*exec.ExitError); ok {
+		var e *exec.ExitError
+		if errors.As(err, &e) {
 			code = e.ExitCode()
 		} else if err != nil {
 			t.Fatal(err)

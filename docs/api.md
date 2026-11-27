@@ -271,7 +271,9 @@ curl --unix-socket "$s" -X DELETE http://berth/v1/orgs/acme/processes/worker
   it keeps running when `berth serve` restarts, and its state is read from the container. `restart` is
   `on-failure` (the default: started again after a failure, waiting 1s, then twice as long each time, up to 60s)
   or `never`. A stop sends SIGTERM to its whole process group, waits `stop_grace_seconds` (1 to 300, 30 by
-  default), then sends SIGKILL; `DELETE` answers when it has exited.
+  default), then sends SIGKILL; `DELETE` answers when it has exited. What it prints (stdout and stderr) is kept in
+  the container, up to 10 MB and the 10 MB before it, whatever its uptime; `logs/follow` starts with its last 100
+  lines.
 - **As long as its container.** An up, restart or down ends it, and nothing starts it again in a new container: the
   caller starts it again after every recreate. The org must be running (409 `not-running`), and a name already
   in use is refused (409 `state`) until it is stopped.
