@@ -2,8 +2,10 @@ package org
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
@@ -163,20 +165,24 @@ func TestNextPort(t *testing.T) {
 		key  string
 		base int
 		want int
+		// crlf: a CRLF value makes legacy's `[ "$p" -gt "$max" ]` fail. Bash 5.2 and earlier skip
+		// the value, as Go does; Bash 5.3 makes it a fatal arithmetic error, so legacy prints nothing.
+		crlf bool
 	}{
-		{"no orgs", nil, "SSH_PORT", 2201, 2201},
-		{"max plus one", []org{{"acme", "SSH_PORT=2201\n"}, {"globex", "SSH_PORT=2203\n"}}, "SSH_PORT", 2201, 2204},
-		{"never below base", []org{{"acme", "TTYD_PORT=100\n"}}, "TTYD_PORT", 7701, 7701},
-		{"key missing in a file", []org{{"acme", "SSH_PORT=2201\n"}, {"globex", "TTYD_PORT=9999\n"}}, "SSH_PORT", 2201, 2202},
-		{"file with duplicate key skipped", []org{{"acme", "SSH_PORT=2202\n"}, {"globex", "SSH_PORT=2201\nSSH_PORT=2250\n"}}, "SSH_PORT", 2201, 2203},
-		{"empty duplicate is not a duplicate", []org{{"acme", "SSH_PORT=\nSSH_PORT=2240\n"}}, "SSH_PORT", 2201, 2241},
-		{"non-numeric skipped", []org{{"acme", "SSH_PORT=2201\n"}, {"initech", "SSH_PORT=abc\n"}}, "SSH_PORT", 2201, 2202},
-		{"cut -f2 stops at the next =", []org{{"acme", "SSH_PORT=2300=x\n"}}, "SSH_PORT", 2201, 2301},
-		{"spaces and tabs around the number", []org{{"acme", "SSH_PORT= 2210\t\n"}}, "SSH_PORT", 2201, 2211},
-		{"CRLF value skipped", []org{{"acme", "SSH_PORT=2220\r\n"}, {"globex", "SSH_PORT=2201\n"}}, "SSH_PORT", 2201, 2202},
-		{"explicit plus sign", []org{{"acme", "SSH_PORT=+2230\n"}}, "SSH_PORT", 2201, 2231},
-		{"restore zeroes itself first", []org{{"acme", "SSH_PORT=2201\n"}, {"t-restored", "SSH_PORT=0\n"}}, "SSH_PORT", 2201, 2202},
-		{"hidden staging dir ignored", []org{{"acme", "SSH_PORT=2201\n"}, {".restore-Ab12Cd", "SSH_PORT=9999\n"}}, "SSH_PORT", 2201, 2202},
+		{"no orgs", nil, "SSH_PORT", 2201, 2201, false},
+		{"max plus one", []org{{"acme", "SSH_PORT=2201\n"}, {"globex", "SSH_PORT=2203\n"}}, "SSH_PORT", 2201, 2204, false},
+		{"never below base", []org{{"acme", "TTYD_PORT=100\n"}}, "TTYD_PORT", 7701, 7701, false},
+		{"key missing in a file", []org{{"acme", "SSH_PORT=2201\n"}, {"globex", "TTYD_PORT=9999\n"}}, "SSH_PORT", 2201, 2202, false},
+		{"file with duplicate key skipped", []org{{"acme", "SSH_PORT=2202\n"}, {"globex", "SSH_PORT=2201\nSSH_PORT=2250\n"}}, "SSH_PORT", 2201, 2203, false},
+		{"empty duplicate is not a duplicate", []org{{"acme", "SSH_PORT=\nSSH_PORT=2240\n"}}, "SSH_PORT", 2201, 2241, false},
+		{"non-numeric skipped", []org{{"acme", "SSH_PORT=2201\n"}, {"initech", "SSH_PORT=abc\n"}}, "SSH_PORT", 2201, 2202, false},
+		{"cut -f2 stops at the next =", []org{{"acme", "SSH_PORT=2300=x\n"}}, "SSH_PORT", 2201, 2301, false},
+		{"spaces and tabs around the number", []org{{"acme", "SSH_PORT= 2210\t\n"}}, "SSH_PORT", 2201, 2211, false},
+		{"CRLF value skipped", []org{{"acme", "SSH_PORT=2220\r\n"}, {"globex", "SSH_PORT=2201\n"}}, "SSH_PORT", 2201, 2202, true},
+		{"CRLF value after a higher valid one", []org{{"acme", "SSH_PORT=2250\n"}, {"globex", "SSH_PORT=2260\r\n"}}, "SSH_PORT", 2201, 2251, true},
+		{"explicit plus sign", []org{{"acme", "SSH_PORT=+2230\n"}}, "SSH_PORT", 2201, 2231, false},
+		{"restore zeroes itself first", []org{{"acme", "SSH_PORT=2201\n"}, {"t-restored", "SSH_PORT=0\n"}}, "SSH_PORT", 2201, 2202, false},
+		{"hidden staging dir ignored", []org{{"acme", "SSH_PORT=2201\n"}, {".restore-Ab12Cd", "SSH_PORT=9999\n"}}, "SSH_PORT", 2201, 2202, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -201,12 +207,30 @@ func TestNextPort(t *testing.T) {
 			if lg := newLegacy(t, orgs); lg != nil {
 				// Called the way ccenv calls it: inside $( ), where bash clears set -e.
 				out, _ := lg.run(t, `echo "$(next_port "$K" "$B")"`, "K="+tt.key, "B="+strconv.Itoa(tt.base))
-				if out != strconv.Itoa(got)+"\n" {
+				want := strconv.Itoa(got) + "\n"
+				if tt.crlf && bashAtLeast(t, 5, 3) {
+					want = "\n"
+				}
+				if out != want {
 					t.Errorf("legacy next_port printed %q; Go says %d", out, got)
 				}
 			}
 		})
 	}
+}
+
+// bashAtLeast reports whether the bash on PATH is major.minor or newer.
+func bashAtLeast(t *testing.T, major, minor int) bool {
+	t.Helper()
+	out, err := exec.Command("bash", "-c", `echo "${BASH_VERSINFO[0]} ${BASH_VERSINFO[1]}"`).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ma, mi int
+	if _, err := fmt.Sscan(string(out), &ma, &mi); err != nil {
+		t.Fatal(err)
+	}
+	return ma > major || ma == major && mi >= minor
 }
 
 func TestNextPortFollowsSymlinks(t *testing.T) {
