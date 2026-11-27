@@ -39,6 +39,16 @@ func TestToolCommand(t *testing.T) {
 	}
 	pinned := merge(twoOrgs, map[string]File{toolsFile: {Content: "gadget github:acme/gadget 1.4.2\n", Mode: 0o644}})
 
+	// Another name for a source already pinned is refused; the same name is a plain replace.
+	r = run(t, raw, Scenario{Args: []string{"tool", "acme", "set", "gadget2", "github:acme/gadget", "1.5.0"}, Files: pinned})
+	if r.Exit != 1 || !strings.Contains(r.Stderr, "github:acme/gadget is already pinned as gadget") || !strings.HasSuffix(treeLine(r, toolsFile), `gadget github:acme/gadget 1.4.2\n"`) {
+		t.Errorf("set, a source pinned as another name: exit %d, stderr %q, file %s", r.Exit, r.Stderr, treeLine(r, toolsFile))
+	}
+	r = run(t, raw, Scenario{Args: []string{"tool", "acme", "set", "gadget", "github:acme/gadget", "1.5.0"}, Files: pinned})
+	if r.Exit != 0 || !strings.HasSuffix(treeLine(r, toolsFile), `gadget github:acme/gadget 1.5.0\n"`) {
+		t.Errorf("set, the same pin's version changed: exit %d, stderr %q, file %s", r.Exit, r.Stderr, treeLine(r, toolsFile))
+	}
+
 	// A restart waits for the container's status, and fails with mise's reason.
 	failed := Rule{Bin: "docker", Match: `^exec claude-acme cat /run/berth/tools.status$`, Stdout: "gadget github:acme/gadget@1.4.2 failed mise ERROR GitHub artifact attestation verification failed\ndone\n"}
 	r = run(t, raw, Scenario{Args: []string{"restart", "acme"}, Files: pinned, Rules: running("acme", failed)})

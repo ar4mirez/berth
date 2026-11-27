@@ -91,9 +91,13 @@ func (a *App) toolEdit(ctx context.Context, o string, t ops.PinnedTool, remove b
 	}
 	kept := ts[:0]
 	for _, x := range ts {
-		if x.Name != t.Name {
-			kept = append(kept, x)
+		if x.Name == t.Name {
+			continue
 		}
+		if !remove && x.Source == t.Source {
+			return ops.Usage("%s is already pinned as %s: change that one (%s tool %s set %s %s <version>) or remove it first", t.Source, x.Name, Tool, o, x.Name, x.Source)
+		}
+		kept = append(kept, x)
 	}
 	if remove && len(kept) == len(ts) {
 		return &ops.Error{Kind: ops.KindNotFound, Code: 1, Msg: fmt.Sprintf("%s has no pinned tool %q", o, t.Name), Hint: "run: " + Tool + " tool " + o + " ls"}
