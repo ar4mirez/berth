@@ -42,7 +42,7 @@ berth: --output json isn't available for "completion": it is a shell script
 `internal/ops` holds the list (`JSON` or `NoJSON` on each operation), and a test fails for a reading command with
 neither.
 
-Each document below has a golden file in `test/parity/testdata/json/`, which the tests compare byte for byte.
+Each command's document below has a golden file in `test/parity/testdata/json/`, which the tests compare byte for byte.
 
 ## Rules
 - **Every document names its schema and version:** `"schema": "berth.<kind>/v<N>"`.
@@ -61,6 +61,7 @@ from it; a field that may be `null` says so.
 
 | Document | From | Schema |
 |---|---|---|
+| `berth.api/v1` | `GET /v1` (the API, not a command) | in [`openapi.json`](api/openapi.json) |
 | `berth.orgs/v1` | `ls` | [`orgs.v1.json`](schemas/orgs.v1.json) |
 | `berth.info/v1` | `info <org>` | [`info.v1.json`](schemas/info.v1.json) |
 | `berth.whoami/v1` | `account whoami [org...]` | [`whoami.v1.json`](schemas/whoami.v1.json) |
@@ -172,6 +173,22 @@ An operation keeps one name whatever the command is called: the event's `op` is 
 
 Steps may be added without changing the schema's version. `backup -o -` writes the backup itself to stdout, so it
 can't be combined with `--output json`.
+
+## `berth.api/v1`: `GET /v1`
+
+What is serving, and what this caller may do ([the API](api.md)). It is the API's own document, with no command of
+its own; the OpenAPI document (`GET /v1/openapi.json`) has its schema.
+
+```json
+{ "schema": "berth.api/v1", "version": "0.13.0", "read_only": false, "writes": true, "restarts": true, "admin": false }
+```
+
+| Field | Meaning |
+|---|---|
+| `version` | the berth that is serving |
+| `read_only` | whether the server was started with `--read-only`: every write is refused (403) |
+| `writes`, `restarts` | whether this caller may change things, and restart, start or stop containers (with `confirm`) |
+| `admin` | whether this caller may also do what can't be undone, or what takes or shows a secret: the socket's owner, or a token with the `admin` scope |
 
 ## `berth.orgs/v1`: `ls`
 
