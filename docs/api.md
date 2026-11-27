@@ -232,7 +232,7 @@ curl --unix-socket "$s" -X POST -d '{"confirm":"acme"}' http://berth/v1/orgs/acm
 
 - **Only a socket of berth's own user.** `source` is an absolute path to an existing Unix socket (not a link to
   one) owned by the user berth runs as, in a directory of its own: that user owns it, nobody else may write to it,
-  and it holds no other socket and no link. `/tmp`, `/run`, the user's runtime directory and home are refused,
+  and nothing in it, at any depth, is another socket or a link. `/tmp`, `/run`, the user's runtime directory and home are refused,
   since other programs keep their sockets there. Anything else is refused (400) with the reason.
 - **Under `/run/berth-mounts/`.** `target` is in a directory of its own there, ending in the socket's own name
   (`/run/berth-mounts/agent/agent.sock`), and two mounts never share a directory. `mode` is `rw`, the only one.

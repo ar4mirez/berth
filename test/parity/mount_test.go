@@ -56,7 +56,7 @@ func TestMountCommand(t *testing.T) {
 	withMount := merge(twoOrgs, map[string]File{mountsFile: {Content: `{"mounts":[{"name":"agent","source":"` + sock + `","target":"` + target + `","mode":"rw"}]}`, Mode: 0o600}})
 
 	// Refused, with nothing written: what isn't a socket, a link to one, a directory others share
-	// or may write to, one with another socket in it, and a target outside /run/berth-mounts/.
+	// or may write to, one with another socket in it or below it, and a target outside /run/berth-mounts/.
 	file := filepath.Join(dir, "notes.txt")
 	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
@@ -76,6 +76,15 @@ func TestMountCommand(t *testing.T) {
 	} else {
 		t.Fatal(err)
 	}
+	deep, s2 := socketDir(t, "top.sock")
+	if err := os.Mkdir(filepath.Join(deep, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if l, err := net.Listen("unix", filepath.Join(deep, "sub", "other.sock")); err == nil {
+		defer func() { _ = l.Close() }()
+	} else {
+		t.Fatal(err)
+	}
 	for _, tt := range []struct {
 		name, source, target, want string
 	}{
@@ -83,6 +92,7 @@ func TestMountCommand(t *testing.T) {
 		{"a link", link, "/run/berth-mounts/x/link.sock", "a symbolic link, not a socket"},
 		{"others may write", osock, "/run/berth-mounts/x/b.sock", "others may write to its directory"},
 		{"another socket beside it", s1, "/run/berth-mounts/x/one.sock", "also holds " + filepath.Join(two, "two.sock")},
+		{"another socket below it", s2, "/run/berth-mounts/x/top.sock", "also holds " + filepath.Join(deep, "sub", "other.sock")},
 		{"a target outside", sock, "/home/node/agent.sock", "under /run/berth-mounts/"},
 		{"the root of the mounts", sock, "/run/berth-mounts/agent.sock", "a directory of its own under /run/berth-mounts/"},
 		{"another name in the container", sock, "/run/berth-mounts/x/other.sock", "keeps its name in the container"},
