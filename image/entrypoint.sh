@@ -31,6 +31,8 @@ chown root:node /etc/claude-env/env && chmod 640 /etc/claude-env/env
 # The git key is mounted at /opt/claude-secrets/ssh (root-only). Git's transport is the system-wide
 # git-ssh-guard (see Dockerfile), which only connects for repos in /config/repos.txt.
 install -d -m 700 -o node -g node /home/node/.ssh
+# Supervised processes' state (berth-proc, #216): the container's own, gone with it.
+install -d -m 755 -o node -g node /run/berth
 as_node git config --global init.defaultBranch main
 as_node git config --global --replace-all safe.directory '*'
 [ -n "${GIT_USER_NAME:-}" ]  && as_node git config --global user.name  "$GIT_USER_NAME"

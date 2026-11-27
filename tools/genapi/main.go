@@ -31,6 +31,8 @@ func goType(t reflect.Type) string {
 		return "int"
 	case reflect.Bool:
 		return "bool"
+	case reflect.Map:
+		return "map[string]string"
 	}
 	return "string"
 }

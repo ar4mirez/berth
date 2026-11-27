@@ -138,7 +138,7 @@ func CheckMount(m Mount, others []Mount) error {
 	}
 	dir := path.Dir(m.Target)
 	if !strings.HasPrefix(dir, MountsRoot+"/") {
-		return Usage("target %q: a socket in a directory of its own under %s/, as in %s/lucy/lucy.sock", m.Target, MountsRoot, MountsRoot)
+		return Usage("target %q: a socket in a directory of its own under %s/, as in %s/agent/agent.sock", m.Target, MountsRoot, MountsRoot)
 	}
 	if path.Base(m.Target) != path.Base(m.Source) {
 		return Usage("target %q: the socket keeps its name in the container (%s), since its directory is what is mounted", m.Target, path.Base(m.Source))

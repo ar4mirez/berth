@@ -66,7 +66,15 @@ func callTool(t *testing.T, cs *mcp.ClientSession, name string, args map[string]
 }
 
 // mcpRules is acme running, with what the read tools ask of it.
+// procWorker is berth-proc's state for a running process named worker.
+const procWorker = `{"name":"worker","state":"running","pid":41,"started_at":"2026-01-02T03:04:05Z","exit_code":null,"restarts":0,"argv":["worker","--once"],"env_names":["API_KEY"]}`
+
 var mcpRules = append([]Rule{
+	// Supervised processes (#216): berth-proc in the container, as its user.
+	{Bin: "docker", Match: `^exec -u node claude-acme /usr/local/bin/berth-proc status$`, Stdout: "[" + procWorker + "]\n"},
+	{Bin: "docker", Match: `^exec -u node claude-acme /usr/local/bin/berth-proc status worker$`, Stdout: procWorker + "\n"},
+	{Bin: "docker", Match: `^exec -u node -i claude-acme .*/usr/local/bin/berth-proc start worker$`, Stdout: procWorker + "\n"},
+	{Bin: "docker", Match: `^exec -u node claude-acme /usr/local/bin/berth-proc stop worker$`, Stdout: strings.Replace(procWorker, `"running","pid":41`, `"exited","pid":null`, 1) + "\n"},
 	{Bin: "docker", Match: `^exec -u node claude-acme sh -c env -u CLAUDE_CODE_OAUTH_TOKEN claude auth status`, Stdout: authStatusOcto},
 	{Bin: "docker", Match: `^exec -u node claude-acme sh -c gh api user`, Stdout: "octo-acme\n"},
 	{Bin: "docker", Match: `init-firewall\.sh presets$`, Stdout: "@python     pypi.org files.pythonhosted.org\n"},
@@ -164,6 +172,8 @@ func TestBerthMCPConformance(t *testing.T) {
 		"env_list":         {map[string]any{"org": "acme"}, []string{`"schema":"berth.env/v1"`, `"vars":[]`}},
 		"packages_list":    {map[string]any{"org": "acme"}, []string{`"schema":"berth.packages/v1"`, `"packages":[]`}},
 		"mounts_list":      {map[string]any{"org": "acme"}, []string{`"schema":"berth.mounts/v1"`, `"mounts":[]`}},
+		"processes_list":   {map[string]any{"org": "acme"}, []string{`"schema":"berth.processes/v1"`, `"name":"worker"`, `"env_names":["API_KEY"]`}},
+		"process_show":     {map[string]any{"org": "acme", "name": "worker"}, []string{`"schema":"berth.process/v1"`, `"state":"running"`, `"pid":41`}},
 		"schedule_status":  {nil, []string{`"schema":"berth.schedule/v1"`, `"kind":"none"`}},
 		"backups_list":     {map[string]any{"org": "acme"}, []string{`"file":"acme-20261006-023000.tar.zst.age"`, `"encryption":"age"`, `"stamp":"20261006-023000"`}},
 		"package_presets":  {nil, []string{`"schema":"berth.package-presets/v1"`, `"name":"@playwright-chromium"`}},

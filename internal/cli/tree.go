@@ -380,6 +380,22 @@ func layout(root *cobra.Command) {
 		"berth mount add acme agent /run/agent/agent.sock /run/berth-mounts/agent/agent.sock", "berth restart acme   # to apply it")
 	mv("rm", "<org> <name>", "remove a socket mount, from the org's next start", 1, "berth mount rm acme agent")
 
+	// proc
+	prc := t.group(root, "proc", "long-lived processes in an org's container, supervised there",
+		"berth proc start acme worker -- /usr/local/bin/worker --once", "berth proc ls acme")
+	prc.Long = t.flat["proc"].Long
+	t.orgFirst(prc, "proc")
+	pr := func(sub, use, short string, fixed int, ex ...string) {
+		t.verb(prc, "proc", sub, strings.TrimSpace(sub+" "+use), short, orgVerb(sub, fixed), org1, ex...)
+	}
+	pr("ls", "<org>", "an org's supervised processes and their state", 0, "berth proc ls acme")
+	pr("start", "<org> <name> [--cwd DIR] [--env K=V]... [--restart never|on-failure] [--grace SECONDS] -- <command> [args...]",
+		"start a process in a running org's container, as its user", -1,
+		"berth proc start acme worker -- /usr/local/bin/worker --once", "berth proc start acme api --env PORT=8080 --restart never -- node server.js")
+	pr("show", "<org> <name>", "one process: its state, pid, start, exit code and restarts", 1, "berth proc show acme worker")
+	pr("stop", "<org> <name>", "stop a process (SIGTERM, its grace, then SIGKILL of its group) and forget it", 1, "berth proc stop acme worker")
+	pr("logs", "<org> <name> [--follow] [--lines N]", "what a process printed; --follow streams it", -1, "berth proc logs acme worker --follow")
+
 	// account
 	acct := t.group(root, "account", "sign-in: Claude, Remote Control, GitHub", "berth account signin acme", "berth account whoami")
 	for _, v := range [][2]string{{"auth", "signin"}, {"token", "token"}, {"login", "login"}, {"logout", "logout"}, {"gh-login", "gh"}, {"whoami", "whoami"}} {

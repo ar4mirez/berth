@@ -149,6 +149,12 @@ var Catalog = map[string]Op{
 		"": readJSON, "ls": readJSON, "list": readJSON,
 		"add": mountWrite, "rm": mountWrite, "remove": mountWrite,
 	}},
+	// Supervised processes (#216): in a running org's container, as its user; nothing restarts.
+	"proc": {Access: BySub, Subs: map[string]Op{
+		"": readJSON, "ls": readJSON, "list": readJSON, "show": readJSON,
+		"logs":  events(Op{Access: Read}), // a stream with --follow: one event per line
+		"start": write, "stop": write,
+	}},
 
 	// Backups.
 	"backup":    events(write), // writes backup files; the org and its container are untouched

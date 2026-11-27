@@ -478,6 +478,9 @@ var pkgVerbs = []string{"ls", "list", "add", "rm", "remove", "presets", "build"}
 // mountVerbs are mount's subcommands, which can't be taken for an org.
 var mountVerbs = []string{"ls", "list", "add", "rm", "remove"}
 
+// procVerbs are proc's subcommands, which can't be taken for an org.
+var procVerbs = []string{"ls", "list", "start", "show", "stop", "logs"}
+
 // nthArg picks the nth argument; allArgs picks none, meaning every argument (localOnly).
 func nthArg(n int) func([]string) int { return func([]string) int { return n } }
 
@@ -820,6 +823,22 @@ func addCommands(root *cobra.Command) {
 					return a.Mount(cmd.Context(), "", nil)
 				}
 				return a.Mount(cmd.Context(), args[0], args[1:])
+			}),
+		}),
+		reads(&cobra.Command{
+			Use: "proc <org> [ls|start|show|stop|logs] [name] [-- command...]", Short: "long-lived processes in an org's container, supervised there",
+			Long: "A named process in a running org's container, as its user (never root), inside its firewall: for a\n" +
+				"program that should keep running there. berth starts it and a supervisor in the container keeps it\n" +
+				"running (restart on-failure, with a capped backoff, or never); it outlives berth, and ends with the\n" +
+				"container: an up, restart or down ends it, and nothing starts it again until it is started again.\n" +
+				"Its variables (--env) are shown by name only.",
+			DisableFlagParsing: true,
+			ValidArgsFunction:  completeProc,
+			RunE: onOrgV(nthArg(0), procVerbs, func(a *app.App, cmd *cobra.Command, args []string) error {
+				if len(args) == 0 {
+					return a.Proc(cmd.Context(), "", nil)
+				}
+				return a.Proc(cmd.Context(), args[0], args[1:])
 			}),
 		}),
 		reads(&cobra.Command{

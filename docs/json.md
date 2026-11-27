@@ -79,6 +79,8 @@ from it; a field that may be `null` says so.
 | `berth.package-presets/v1` | `pkg presets <org>` | [`package-presets.v1.json`](schemas/package-presets.v1.json) |
 | `berth.mounts/v1` | `mount ls <org>` | [`mounts.v1.json`](schemas/mounts.v1.json) |
 | `berth.mount/v1` | `PUT /v1/orgs/{org}/mounts/{name}` | [`mount.v1.json`](schemas/mount.v1.json) |
+| `berth.processes/v1` | `proc ls <org>` | [`processes.v1.json`](schemas/processes.v1.json) |
+| `berth.process/v1` | `proc show <org> <name>` | [`process.v1.json`](schemas/process.v1.json) |
 | `berth.default-org/v1` | `org use` | [`default-org.v1.json`](schemas/default-org.v1.json) |
 | `berth.image/v1` | `image-tag` | [`image.v1.json`](schemas/image.v1.json) |
 | `berth.error/v1` | any command that fails (on stderr) | [`error.v1.json`](schemas/error.v1.json) |
@@ -471,4 +473,34 @@ One socket mount, as it was set: the fields of a `mounts[]` entry, with `schema`
 ```json
 { "schema": "berth.mount/v1", "org": "acme", "name": "agent", "source": "/run/agent/agent.sock", "target": "/run/berth-mounts/agent/agent.sock", "mode": "rw", "applied": false }
 ```
+
+## `berth.processes/v1`: `proc ls <org>`
+
+An org's supervised processes (`GET /v1/orgs/{org}/processes`, [the API](api.md#supervised-processes)). A stopped
+org has none: a process lives as long as its container.
+
+```json
+{
+  "schema": "berth.processes/v1",
+  "org": "acme",
+  "processes": [
+    { "name": "worker", "state": "running", "pid": 41, "started_at": "2026-11-27T18:00:00Z", "exit_code": null,
+      "restarts": 1, "argv": ["worker", "--once"], "env_names": ["API_URL"] }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `state` | `starting`, `running`, `exited` (it ended, and isn't started again), or `backoff` (it failed, and is started again after a wait) |
+| `pid` | its pid in the container while it runs, else `null` |
+| `started_at` | when it was last started (RFC 3339, UTC), or `null` before its first start |
+| `exit_code` | how it last ended, or `null` before it has |
+| `restarts` | how many times its supervisor started it again after a failure |
+| `env_names` | its variables, by name: their values are never shown |
+
+## `berth.process/v1`: `proc show <org> <name>`
+
+One process, as each of `processes[]`, with `schema` and `org`. `POST /v1/orgs/{org}/processes/{name}` answers with
+it once the process has started, and `DELETE` with its last state once it has stopped.
 

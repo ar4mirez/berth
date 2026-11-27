@@ -120,10 +120,14 @@ func TestDocumentsValidate(t *testing.T) {
 	p.Step("image", "getting the image")
 	_, _ = p.Writer("stdout").Write([]byte("line\n"))
 	p.Done(fail(KindCommand, "", "docker exited with status 1"))
+	pid, started, code := 41, "2026-11-27T18:00:00Z", 0
+	proc := ProcessInfo{Name: "worker", State: "running", PID: &pid, StartedAt: &started, Restarts: 1, Argv: []string{"worker", "--once"}, EnvNames: []string{"API_URL"}}
+	procDoc := Process{Schema: "berth.process/v1", Org: "acme", Name: "worker", State: "exited", StartedAt: &started, ExitCode: &code, Argv: proc.Argv, EnvNames: proc.EnvNames}
 	mount := Mount{Name: "agent", Source: "/run/agent/agent.sock", Target: "/run/berth-mounts/agent/agent.sock", Mode: "rw", Applied: true}
 	samples := []any{g, Image{Schema: "berth.image/v1", Tag: "berth/claude-env:0123456789ab"}, doc,
 		Mounts{Schema: "berth.mounts/v1", Org: "acme", Mounts: []Mount{mount}, Pending: false},
-		MountDoc{Schema: "berth.mount/v1", Org: "acme", Name: mount.Name, Source: mount.Source, Target: mount.Target, Mode: "rw"}}
+		MountDoc{Schema: "berth.mount/v1", Org: "acme", Name: mount.Name, Source: mount.Source, Target: mount.Target, Mode: "rw"},
+		Processes{Schema: "berth.processes/v1", Org: "acme", Processes: []ProcessInfo{proc}}, procDoc}
 	for _, e := range events {
 		samples = append(samples, e)
 	}
