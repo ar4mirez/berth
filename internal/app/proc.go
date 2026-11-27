@@ -324,7 +324,7 @@ func (a *App) ProcStart(ctx context.Context, o, name string, spec ops.ProcSpec) 
 	}
 	raw, err := a.procRun(ctx, o, in, "start", name)
 	if err != nil {
-		if spec.Placement {
+		if spec.Placement && !errors.Is(err, ops.ErrProcInUse) {
 			a.dropPlacement(ctx, o, name)
 		}
 		return ops.Process{}, err

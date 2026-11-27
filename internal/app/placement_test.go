@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -26,9 +27,20 @@ type fakeDocker struct {
 	procs     string
 	tokens    []string
 	starts    []string
+	// gate, when set, holds each berth-proc status until all it counts have asked.
+	gate *sync.WaitGroup
+	// started is whether berth-proc started runner; file is its token file in the container, and
+	// lost counts its removals once it had started.
+	started bool
+	file    string
+	lost    int
 }
 
 func (f *fakeDocker) Run(_ context.Context, c host.Cmd) error {
+	if f.gate != nil && strings.HasSuffix(strings.Join(c.Args, " "), "berth-proc status") {
+		f.gate.Done()
+		f.gate.Wait()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	args := strings.Join(c.Args, " ")
@@ -43,12 +55,23 @@ func (f *fakeDocker) Run(_ context.Context, c host.Cmd) error {
 	case strings.HasSuffix(args, "berth-proc status"):
 		out = f.procs
 	case strings.HasSuffix(args, "berth-proc start runner"):
+		if f.gate != nil && f.started {
+			_, _ = io.WriteString(c.Stderr, "berth-proc: a process named runner exists: stop it first\n")
+			return &host.ExitError{Code: 3}
+		}
+		f.started = true
 		b, _ := io.ReadAll(c.Stdin)
 		f.starts = append(f.starts, string(b))
 		out = `{"name":"runner","state":"running","pid":7,"started_at":"2026-11-27T18:00:01Z","exit_code":null,"restarts":0,"argv":["runner"],"env_names":[]}`
 	case strings.Contains(args, "berth-placement"):
 		b, _ := io.ReadAll(c.Stdin)
 		f.tokens = append(f.tokens, c.Args[len(c.Args)-1]+" "+strings.TrimSpace(string(b)))
+		f.file = strings.TrimSpace(string(b))
+	case strings.HasSuffix(args, "rm -f "+PlacementDir+"/runner"):
+		f.file = ""
+		if f.started {
+			f.lost++
+		}
 	default:
 		return &host.ExitError{Code: 1}
 	}
@@ -185,4 +208,49 @@ func TestPlacementStart(t *testing.T) {
 	}
 	a.HostName = "box" // reached over ssh: no host API answered
 	refused("an org on a registered host")
+}
+
+// TestPlacementStartRace: two --placement starts of one name at once both pass the check for a
+// name in use; berth-proc starts one and refuses the other (exit 3). The one refused leaves the
+// token file alone, as it is the running process's: exactly one process runs, and its token is
+// there throughout and verifies, naming it (#216).
+func TestPlacementStartRace(t *testing.T) {
+	ctx := context.Background()
+	f := &fakeDocker{container: "c1", procs: "[]", gate: &sync.WaitGroup{}}
+	a := placementApp(t, f)
+	if err := a.beat(); err != nil {
+		t.Fatal(err)
+	}
+	f.gate.Add(2)
+	errs := make(chan error, 2)
+	for range 2 {
+		go func() {
+			_, err := a.ProcStart(ctx, "t-proc", "runner", ops.ProcSpec{Argv: []string{"runner"}, Placement: true})
+			errs <- err
+		}()
+	}
+	var ok, inUse int
+	for range 2 {
+		switch err := <-errs; {
+		case err == nil:
+			ok++
+		case errors.Is(err, ops.ErrProcInUse):
+			inUse++
+		default:
+			t.Errorf("a start: %v", err)
+		}
+	}
+	if ok != 1 || inUse != 1 || len(f.starts) != 1 {
+		t.Fatalf("started %d, refused as in use %d, berth-proc starts %d", ok, inUse, len(f.starts))
+	}
+	if f.lost != 0 || f.file == "" {
+		t.Fatalf("the running process's token was removed %d times; file %q", f.lost, f.file)
+	}
+	keys, err := a.PlacementKeys(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c, err := placement.Verify(f.file, keys.Keys, time.Now()); err != nil || c.Org != "t-proc" || c.Process != "runner" || c.Container != "c1" {
+		t.Errorf("the running process's token: %+v %v", c, err)
+	}
 }

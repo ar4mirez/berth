@@ -171,6 +171,9 @@ func procExec(org string, args ...string) []string {
 	return append([]string{"docker", "exec", "-u", ProcUser, contract.Container(org), ProcBin}, args...)
 }
 
+// ErrProcInUse is berth-proc's refusal of a start whose name a process holds (exit 3).
+var ErrProcInUse = errors.New("a process of that name exists")
+
 // ProcErr is berth-proc's exit code as an error a caller can act on: 3 a process of that name
 // exists (409 state), 4 no such process (404), 2 a spec it refused (400), 127 or 126 an image
 // that predates supervised processes.
@@ -180,7 +183,7 @@ func ProcErr(org string, code int, msg string) error {
 	case 2:
 		return Usage("%s", msg)
 	case 3:
-		return State("%s", msg)
+		return &Error{Kind: KindState, Code: 1, Msg: msg, Err: ErrProcInUse}
 	case 4:
 		return &Error{Kind: KindNotFound, Code: 1, Msg: msg}
 	case 126, 127:
