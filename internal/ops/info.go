@@ -65,12 +65,23 @@ func StartedAt(ctx context.Context, s System, org string) *string {
 	if err != nil {
 		return nil
 	}
-	t, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(out))
-	if err != nil || t.IsZero() || t.Year() < 2000 {
+	t, ok := parseStartedAt(strings.TrimSpace(out))
+	if !ok {
 		return nil
 	}
 	v := t.UTC().Format(time.RFC3339Nano)
 	return &v
+}
+
+// parseStartedAt reads State.StartedAt as Docker prints it (RFC 3339) or as Podman does (Go's
+// time.Time String).
+func parseStartedAt(s string) (time.Time, bool) {
+	for _, layout := range []string{time.RFC3339Nano, "2006-01-02 15:04:05.999999999 -0700 MST"} {
+		if t, err := time.Parse(layout, s); err == nil && !t.IsZero() && t.Year() >= 2000 {
+			return t, true
+		}
+	}
+	return time.Time{}, false
 }
 
 // catError is the reason cat gives for a file it can't read.
