@@ -310,7 +310,7 @@ func (a *App) ProcStart(ctx context.Context, o, name string, spec ops.ProcSpec) 
 	}
 	// With placement, its token first, so the process finds it from its start (#216).
 	if spec.Placement {
-		if err := a.placementReady(ctx, o); err != nil {
+		if err := a.placementReady(ctx, o, name); err != nil {
 			return ops.Process{}, err
 		}
 		if _, err := a.issuePlacement(ctx, o, name); err != nil {
@@ -324,7 +324,7 @@ func (a *App) ProcStart(ctx context.Context, o, name string, spec ops.ProcSpec) 
 	}
 	raw, err := a.procRun(ctx, o, in, "start", name)
 	if err != nil {
-		if spec.Placement && !ops.IsKind(err, ops.KindState) { // a name in use keeps its token
+		if spec.Placement {
 			a.dropPlacement(ctx, o, name)
 		}
 		return ops.Process{}, err

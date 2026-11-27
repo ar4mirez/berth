@@ -109,8 +109,9 @@ func (a *App) placementRefreshed() bool {
 }
 
 // placementReady refuses a start with placement wherever its token couldn't be written and kept
-// fresh: so a process never runs believing it has a proof it hasn't.
-func (a *App) placementReady(ctx context.Context, o string) error {
+// fresh, or the start wouldn't happen: so a process never runs believing it has a proof it hasn't,
+// and no token is written for a start that won't happen.
+func (a *App) placementReady(ctx context.Context, o, name string) error {
 	switch {
 	case a.HostName != "":
 		return &ops.Error{Kind: ops.KindState, Code: 1,
@@ -125,9 +126,16 @@ func (a *App) placementReady(ctx context.Context, o string) error {
 			Msg:  "placement needs " + Tool + " serve: nothing would keep the token fresh past its 15 minutes",
 			Hint: "start " + Tool + " serve (not --read-only) for this state root, or start the process without --placement"}
 	}
-	// An image that predates supervised processes is said as such, before a token is written.
-	_, err := ops.GetProcesses(ctx, a, o)
-	return err
+	// An image that predates supervised processes, or a name in use, is said as such, before a
+	// token is written.
+	ps, err := ops.GetProcesses(ctx, a, o)
+	if err != nil {
+		return err
+	}
+	if slices.ContainsFunc(ps.Processes, func(p ops.ProcessInfo) bool { return p.Name == name }) {
+		return ops.State("a process named %s exists: stop it first", name)
+	}
+	return nil
 }
 
 // issuePlacement writes a new token for o's process name into its container and returns when it

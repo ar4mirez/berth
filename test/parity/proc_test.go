@@ -1,15 +1,20 @@
 package parity
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ar4mirez/berth/internal/apiclient"
 )
 
 // TestProcCommand: `berth proc` (#216, berth-only). A process starts in a running org's container
@@ -49,7 +54,8 @@ func TestProcCommand(t *testing.T) {
 	// process is told where it is.
 	beat := File{Content: fmt.Sprintf(`{"pid":%d,"at":%q}`+"\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339Nano))}
 	served := withFile(twoOrgs, "state/placement-serve.json", beat)
-	r = run(t, raw, Scenario{Args: []string{"proc", "acme", "start", "worker", "--placement", "--", "worker", "--once"}, Files: served, Rules: running("acme", starting...)})
+	none := Rule{Bin: "docker", Match: `^exec -u node claude-acme /usr/local/bin/berth-proc status$`, Stdout: "[]\n"}
+	r = run(t, raw, Scenario{Args: []string{"proc", "acme", "start", "worker", "--placement", "--", "worker", "--once"}, Files: served, Rules: running("acme", append([]Rule{none}, starting...)...)})
 	tokenAt := slices.IndexFunc(r.Calls, func(c string) bool { return strings.Contains(c, `"berth-placement" "/run/berth/placement" "worker"`) })
 	startAt := slices.IndexFunc(r.Calls, func(c string) bool { return strings.Contains(c, `berth-proc" "start" "worker"`) })
 	if r.Exit != 0 || tokenAt < 0 || startAt < tokenAt || !strings.Contains(r.Calls[startAt], `BERTH_PLACEMENT_FILE\":\"/run/berth/placement/worker`) {
@@ -125,6 +131,12 @@ func TestProcCommand(t *testing.T) {
 			t.Errorf("%s: exit %d, stderr %q", name, r.Exit, r.Stderr)
 		}
 	}
+	// With --placement, a name in use is refused before a token is written.
+	r = run(t, raw, Scenario{Args: []string{"proc", "acme", "start", "worker", "--placement", "--", "worker"}, Files: served, Rules: running("acme", starting...)})
+	if r.Exit != 1 || !strings.Contains(r.Stderr, "a process named worker exists: stop it first") ||
+		callsMatching(r, regexp.MustCompile(`berth-placement|berth-proc" "start"`)) != 0 {
+		t.Errorf("--placement, a name in use: exit %d, stderr %q\n%s", r.Exit, r.Stderr, strings.Join(r.Calls, "\n"))
+	}
 	// berth-proc's own refusals: a name in use, and an image without berth-proc.
 	r = run(t, raw, Scenario{Args: []string{"proc", "acme", "start", "worker", "--", "worker"}, Files: twoOrgs, Rules: running("acme",
 		Rule{Bin: "docker", Match: `berth-proc start worker$`, Stderr: "berth-proc: a process named worker exists: stop it first\n", Exit: 3}, mcpRules[0], mcpRules[1])})
@@ -158,6 +170,66 @@ func TestProcCommand(t *testing.T) {
 	r = run(t, raw, Scenario{Args: []string{"--read-only", "proc", "acme", "start", "worker", "--", "worker"}, Files: twoOrgs, Rules: running("acme")})
 	if r.Exit != 1 || !strings.Contains(r.Stderr, "read-only") || callsMatching(r, regexp.MustCompile(`berth-proc`)) != 0 {
 		t.Errorf("--read-only: exit %d, stderr %q", r.Exit, r.Stderr)
+	}
+}
+
+// TestPlacementReadOnlyServe: a `berth serve --read-only` keeps no placement tokens fresh, so it
+// writes no heartbeat, and a start with placement on the command line beside it is refused before
+// a token or a process is made (#216).
+func TestPlacementReadOnlyServe(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "berth-ro-") // a socket's path must be short
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "s")
+	tool := allCalls()
+	command := tool.Command
+	tool.Command = func(run string, args []string) []string {
+		return append(append(command(run, nil), "--read-only", "serve"), args...)
+	}
+	sess, err := env.Start(t.TempDir(), tool, Scenario{Args: []string{"--socket", sock}, Files: twoOrgs,
+		Rules: running("acme", append([]Rule{{Bin: "docker", Match: `berth-placement`, Stdin: true}}, mcpRules...)...)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sess.Cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = sess.Cmd.Process.Signal(os.Interrupt)
+		_ = sess.Cmd.Wait()
+	})
+	c := apiclient.Unix(sock)
+	for i := 0; ; i++ {
+		if info, err := c.Info(context.Background()); err == nil {
+			if !info.ReadOnly {
+				t.Fatalf("the serve isn't read-only: %+v", info)
+			}
+			break
+		} else if i > 100 {
+			t.Fatalf("berth serve didn't start: %v", err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	time.Sleep(300 * time.Millisecond) // a refresher would have had its first round
+	state := sess.Cmd.Args[2]
+	if _, err := os.Stat(filepath.Join(state, "placement-serve.json")); !os.IsNotExist(err) {
+		t.Fatalf("a read-only serve wrote a heartbeat: %v", err)
+	}
+	cli := exec.Command(sess.Cmd.Args[0], "--home", state, "proc", "acme", "start", "worker", "--placement", "--", "worker")
+	cli.Dir, cli.Env = sess.Cmd.Dir, sess.Cmd.Env
+	var stderr strings.Builder
+	cli.Stderr = &stderr
+	if err := cli.Run(); err == nil || !strings.Contains(stderr.String(), "placement needs") || !strings.Contains(stderr.String(), "serve (not --read-only)") {
+		t.Errorf("--placement beside a read-only serve: %v, stderr %q", err, stderr.String())
+	}
+	r, err := sess.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if callsMatching(r, regexp.MustCompile(`berth-placement|berth-proc" "start"`)) != 0 {
+		t.Errorf("a token or a process beside a read-only serve:\n%s", strings.Join(r.Calls, "\n"))
 	}
 }
 

@@ -338,7 +338,8 @@ keys ([`berth.placement-keys/v1`](json.md#berthplacement-keysv1-placement-keys))
     a start with placement is refused rather than made over ssh without a token. A start without placement still
     goes over ssh. The API and MCP, which reach such an org over ssh, refuse it too.
   - **Apple's `container`**, which reports no start time, which a token names.
-  - **an image that predates supervised processes**, as any start on it is.
+  - **an image that predates supervised processes**, as any start on it is, and **a name in use**: both before a
+    token is written, so none is written for a start that won't happen.
 - **Where it is.** Before the process starts, berth writes its token to `/run/berth/placement/<name>` in the
   container (a directory and file of the container's user, mode 0700 and 0600) and gives the process its path as
   `BERTH_PLACEMENT_FILE` (it is in the process's `env_names`; a start may not set it itself). The token is never in
