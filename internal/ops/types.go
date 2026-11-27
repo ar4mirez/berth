@@ -133,7 +133,7 @@ type Info struct {
 	Tunnel *Tunnel `json:"tunnel"`
 	// StartedAt is when the running container was last started (RFC 3339, UTC): by an up, a restart,
 	// a migrate or a restore, by any caller, or by the engine restarting it (#216). null when the org
-	// is stopped.
+	// is stopped, or when its engine doesn't report a start time (Apple's container).
 	StartedAt *string `json:"started_at"`
 
 	// What only the text needs: the address as ccenv words it, the ports as org.env has them, and
