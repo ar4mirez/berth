@@ -26,11 +26,7 @@ type procStartArgs struct {
 }
 
 func (a procStartArgs) auditArgs() map[string]any {
-	names := slices.Sorted(maps.Keys(a.Env))
-	if names == nil {
-		names = []string{}
-	}
-	return map[string]any{"org": a.Org, "name": a.Name, "argv": a.Argv, "env_names": names, "cwd": a.Cwd, "restart": a.Restart, "stop_grace_seconds": a.Grace}
+	return map[string]any{"org": a.Org, "name": a.Name, "argv": a.Argv, "env_names": ops.EnvNames(slices.Collect(maps.Keys(a.Env))...), "cwd": a.Cwd, "restart": a.Restart, "stop_grace_seconds": a.Grace}
 }
 
 type procNameArgs struct {

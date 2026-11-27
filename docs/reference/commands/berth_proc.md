@@ -14,7 +14,9 @@ A named process in a running org's container, as its user (never root), inside i
 program that should keep running there. berth starts it and a supervisor in the container keeps it
 running (restart on-failure, with a capped backoff, or never); it outlives berth, and ends with the
 container: an up, restart or down ends it, and nothing starts it again until it is started again.
-Its variables (--env) are shown by name only.
+Its variables are shown by name only, and their values are never on the command line: --env NAME
+reads NAME's value from stdin (NAME=value lines, or the value alone for one --env), and
+--env-file PATH reads NAME=value lines.
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_proc/
 

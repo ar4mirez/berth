@@ -15,14 +15,15 @@ start a process in a running org's container, as its user
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_proc_start/
 
 ```
-berth proc start <org> <name> [--cwd DIR] [--env K=V]... [--restart never|on-failure] [--grace SECONDS] -- <command> [args...] [flags]
+berth proc start <org> <name> [--cwd DIR] [--env NAME]... [--env-file PATH] [--restart never|on-failure] [--grace SECONDS] -- <command> [args...] [flags]
 ```
 
 ### Examples
 
 ```
   berth proc start acme worker -- /usr/local/bin/worker --once
-  berth proc start acme api --env PORT=8080 --restart never -- node server.js
+  berth proc start acme api --env-file api.env --restart never -- node server.js
+  printf %s "$TOKEN" | berth proc start acme bot --env TOKEN -- /usr/local/bin/bot
 ```
 
 ### Options

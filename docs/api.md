@@ -277,7 +277,10 @@ curl --unix-socket "$s" -X DELETE http://berth/v1/orgs/acme/processes/worker
   in use is refused (409 `state`) until it is stopped.
 - **Its variables are secrets**: passed to the container on stdin, never on a command line, and never in an event,
   the audit log or any document, which list them by name (`env_names`). The audit log has the `argv`, the
-  variables' names and the caller.
+  variables' names and the caller; a `proc start` through `POST /v1/cli` or `--via-daemon` is in it with each
+  `--env` as `NAME=***`. On the command line, `berth proc start` never takes a value on its arguments, where `ps`
+  would show it: `--env NAME` reads it from stdin (`NAME=value` lines, or the value alone for one `--env`), and
+  `--env-file PATH` reads `NAME=value` lines.
 - No MCP server offers starting or stopping one: it runs a program in the org, as a session would. An org must run
   an image that has `berth-proc`: an older one is refused (409 `state`) until it is restarted on berth's current image.
 

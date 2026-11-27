@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -44,10 +45,11 @@ func TestBerthProc(t *testing.T) {
 	}
 	state := t.TempDir()
 	work := t.TempDir()
+	logMax := "10000000"
 	run := func(stdin string, args ...string) (string, string, int) {
 		t.Helper()
 		c := exec.Command(script, args...)
-		c.Env = append(os.Environ(), "BERTH_PROC_DIR="+state, "BERTH_PROC_BACKOFF_MAX=2")
+		c.Env = append(os.Environ(), "BERTH_PROC_DIR="+state, "BERTH_PROC_BACKOFF_MAX=2", "BERTH_PROC_LOG_MAX="+logMax)
 		c.Stdin = strings.NewReader(stdin)
 		var out, errb strings.Builder
 		c.Stdout, c.Stderr = &out, &errb
@@ -83,7 +85,7 @@ func TestBerthProc(t *testing.T) {
 		}
 	}
 	t.Cleanup(func() {
-		for _, n := range []string{"web", "flaky", "once", "stubborn"} {
+		for _, n := range []string{"web", "flaky", "once", "stubborn", "chatty", "stale"} {
 			_, _, _ = run("", "stop", n)
 		}
 	})
@@ -126,6 +128,8 @@ func TestBerthProc(t *testing.T) {
 		"a restart":        `{"argv":["true"],"restart":"always"}`,
 		"a grace too long": `{"argv":["true"],"stop_grace_seconds":301}`,
 		"a relative cwd":   `{"argv":["true"],"cwd":"tmp"}`,
+		"an option argv0":  `{"argv":["-i","true"]}`,
+		"a NAME=value one": `{"argv":["FOO=bar","true"]}`,
 	} {
 		if _, errs, code := run(bad, "start", "bad"); code != 2 {
 			t.Errorf("%s: %d %q", name, code, errs)
@@ -174,6 +178,50 @@ func TestBerthProc(t *testing.T) {
 	if syscall.Kill(-*stub.PID, 0) == nil {
 		t.Error("the stubborn group outlived its SIGKILL")
 	}
+	// The log is capped while the process runs: at the cap, log becomes log.1 and a new log starts.
+	logMax = "4096"
+	run(`{"argv":["sh","-c","i=0; while [ $i -lt 3000 ]; do echo line-$i; i=$((i+1)); done; echo last-line; exec sleep 60"],"cwd":"`+work+`"}`, "start", "chatty")
+	for deadline := time.Now().Add(15 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		if logs, _, _ := run("", "logs", "chatty", "--lines", "1"); logs == "last-line\n" {
+			break
+		} else if time.Now().After(deadline) {
+			t.Fatalf("chatty's logs: %q", logs)
+		}
+	}
+	for _, f := range []string{"log", "log.1"} {
+		if fi, err := os.Stat(filepath.Join(state, "chatty", f)); err != nil || fi.Size() > 4096 || fi.Size() == 0 {
+			t.Errorf("chatty's %s, past its cap: %v %v", f, fi, err)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(state, "chatty", "log.1")); strings.Contains(string(b), "last-line") {
+		t.Errorf("the newest output is in log.1: %q", b)
+	}
+	run("", "stop", "chatty")
+	logMax = "10000000"
+
+	// A supervisor.pid that outlived its supervisor (a pid reused since) is never signalled.
+	other := exec.Command("sleep", "30")
+	if err := other.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = other.Process.Kill(); _ = other.Wait() }()
+	sd := filepath.Join(state, "stale")
+	if err := os.Mkdir(sd, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for f, b := range map[string]string{"spec.json": `{"argv":["true"],"stop_grace_seconds":1}`, "state.json": `{"name":"stale","state":"running"}`,
+		"supervisor.pid": strconv.Itoa(other.Process.Pid) + "\n"} {
+		if err := os.WriteFile(filepath.Join(sd, f), []byte(b), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, errs, code := run("", "stop", "stale"); code != 0 || syscall.Kill(other.Process.Pid, 0) != nil {
+		t.Errorf("stop of a stale process: %d %q; the unrelated process lives: %v", code, errs, syscall.Kill(other.Process.Pid, 0) == nil)
+	}
+	if _, err := os.Stat(sd); !os.IsNotExist(err) {
+		t.Errorf("a stale process is forgotten: %v", err)
+	}
+
 	// Every one, as a list.
 	out, _, _ = run("", "status")
 	var all []procState

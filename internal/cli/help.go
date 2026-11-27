@@ -102,7 +102,7 @@ var examples = map[string][]string{
 	"ui":                 {"berth ui", "berth --read-only ui", "berth ui --port 7780 --no-open"},
 	"mcp":                {"berth mcp", "berth mcp --allow-writes", "claude mcp add berth -- berth mcp"},
 	"pkg":                {"berth pkg acme add @playwright-chromium", "berth pkg acme add libpq-dev", "berth pkg acme", "berth restart acme"},
-	"proc":               {"berth proc acme start worker -- /usr/local/bin/worker --once", "berth proc acme", "berth proc acme logs worker --follow", "berth proc acme stop worker"},
+	"proc":               {"berth proc acme start worker -- /usr/local/bin/worker --once", "printf %s \"$TOKEN\" | berth proc acme start bot --env TOKEN -- /usr/local/bin/bot", "berth proc acme", "berth proc acme logs worker --follow", "berth proc acme stop worker"},
 	"mount":              {"berth mount acme add agent /run/agent/agent.sock /run/berth-mounts/agent/agent.sock", "berth mount acme", "berth restart acme"},
 	"env":                {"berth env acme ls", "berth env acme set OPENROUTER_API_KEY", "berth env acme unset OPENROUTER_API_KEY", "berth env acme accept"},
 	"secrets":            {"berth secrets migrate acme"},

@@ -13,8 +13,8 @@ import (
 func TestProcCommand(t *testing.T) {
 	raw := allCalls()
 	start := Rule{Bin: "docker", Match: `^exec -u node -i claude-acme .*/usr/local/bin/berth-proc start worker$`, Stdout: procWorker + "\n"}
-	r := run(t, raw, Scenario{Args: []string{"proc", "acme", "start", "worker", "--env", "API_KEY=sk-proc-SECRET", "--", "worker", "--once"},
-		Files: twoOrgs, Rules: running("acme", start)})
+	r := run(t, raw, Scenario{Args: []string{"proc", "acme", "start", "worker", "--env", "API_KEY", "--", "worker", "--once"},
+		Stdin: "sk-proc-SECRET\n", Files: twoOrgs, Rules: running("acme", start)})
 	if r.Exit != 0 || !strings.HasPrefix(r.Stdout, "Started worker in acme.\nworker  running since 2026-01-02T03:04:05Z, 0 restarts\n  worker --once\n  variables: API_KEY\n") {
 		t.Fatalf("start: exit %d\nstdout %q\nstderr %q", r.Exit, r.Stdout, r.Stderr)
 	}
@@ -26,22 +26,37 @@ func TestProcCommand(t *testing.T) {
 		t.Errorf("start: one berth-proc as node, and nothing else:\n%s", strings.Join(r.Calls, "\n"))
 	}
 
+	// Several from stdin, and from --env-file; the values go on berth-proc's stdin.
+	envFile := merge(twoOrgs, map[string]File{"home/api.env": {Content: "# the worker's\nAPI_URL=http://example.com/?a=b\n\n", Mode: 0o600}})
+	r = run(t, raw, Scenario{Args: []string{"proc", "acme", "start", "worker", "--env", "API_KEY", "--env", "DEBUG", "--env-file", "api.env", "--", "worker"},
+		Stdin: "DEBUG=1\nAPI_KEY=sk-proc-SECRET\n", Files: envFile, Rules: running("acme", start)})
+	if r.Exit != 0 || strings.Contains(strings.Join(r.Calls, "\n"), "sk-proc-SECRET") {
+		t.Errorf("start with stdin and --env-file: exit %d, stderr %q\n%s", r.Exit, r.Stderr, strings.Join(r.Calls, "\n"))
+	}
+
 	// Refused before berth-proc runs: a stopped org, and specs berth doesn't take.
 	for name, tc := range map[string]struct {
 		args  []string
 		rules []Rule
 		want  string
+		stdin string
 	}{
-		"a stopped org":      {[]string{"proc", "acme", "start", "worker", "--", "worker"}, nil, "claude-acme is not running"},
-		"no --":              {[]string{"proc", "acme", "start", "worker", "worker"}, running("acme"), "missing -- before the command"},
-		"a relative argv[0]": {[]string{"proc", "acme", "start", "worker", "--", "bin/worker"}, running("acme"), "an absolute path, or a name on the container user's PATH"},
-		"a bad name":         {[]string{"proc", "acme", "start", "Worker", "--", "worker"}, running("acme"), "lowercase letters"},
-		"a bad variable":     {[]string{"proc", "acme", "start", "worker", "--env", "api=x", "--", "worker"}, running("acme"), "capitals, digits and underscores"},
-		"a long grace":       {[]string{"proc", "acme", "start", "worker", "--grace", "301", "--", "worker"}, running("acme"), "1 to 300"},
-		"a restart":          {[]string{"proc", "acme", "start", "worker", "--restart", "always", "--", "worker"}, running("acme"), "never or on-failure"},
+		"a stopped org":      {[]string{"proc", "acme", "start", "worker", "--", "worker"}, nil, "claude-acme is not running", ""},
+		"no --":              {[]string{"proc", "acme", "start", "worker", "worker"}, running("acme"), "missing -- before the command", ""},
+		"a relative argv[0]": {[]string{"proc", "acme", "start", "worker", "--", "bin/worker"}, running("acme"), "an absolute path, or a name on the container user's PATH", ""},
+		"a bad name":         {[]string{"proc", "acme", "start", "Worker", "--", "worker"}, running("acme"), "lowercase letters", ""},
+		"a bad variable":     {[]string{"proc", "acme", "start", "worker", "--env", "api", "--", "worker"}, running("acme"), "capitals, digits and underscores", "x"},
+		"a value on argv":    {[]string{"proc", "acme", "start", "worker", "--env", "API_KEY=sk-proc-SECRET", "--", "worker"}, running("acme"), "never on the command line: give --env API_KEY and its value on stdin, or NAME=value lines in --env-file", ""},
+		"a value not given":  {[]string{"proc", "acme", "start", "worker", "--env", "A", "--env", "B", "--", "worker"}, running("acme"), "stdin has no value for B", "A=1\n"},
+		"an extra on stdin":  {[]string{"proc", "acme", "start", "worker", "--env", "A", "--env", "B", "--", "worker"}, running("acme"), "C, which no --env names", "A=1\nB=2\nC=3\n"},
+		"no --env-file":      {[]string{"proc", "acme", "start", "worker", "--env-file", "nope.env", "--", "worker"}, running("acme"), "--env-file", ""},
+		"an option argv[0]":  {[]string{"proc", "acme", "start", "worker", "--", "-i", "worker"}, running("acme"), "an absolute path, or a name on the container user's PATH", ""},
+		"a NAME=value argv0": {[]string{"proc", "acme", "start", "worker", "--", "FOO=bar", "worker"}, running("acme"), "an absolute path, or a name on the container user's PATH", ""},
+		"a long grace":       {[]string{"proc", "acme", "start", "worker", "--grace", "301", "--", "worker"}, running("acme"), "1 to 300", ""},
+		"a restart":          {[]string{"proc", "acme", "start", "worker", "--restart", "always", "--", "worker"}, running("acme"), "never or on-failure", ""},
 	} {
-		r := run(t, raw, Scenario{Args: tc.args, Files: twoOrgs, Rules: tc.rules})
-		if r.Exit == 0 || !strings.Contains(r.Stderr, tc.want) || callsMatching(r, regexp.MustCompile(`berth-proc`)) != 0 {
+		r := run(t, raw, Scenario{Args: tc.args, Stdin: tc.stdin, Files: twoOrgs, Rules: tc.rules})
+		if r.Exit == 0 || !strings.Contains(r.Stderr, tc.want) || strings.Contains(r.Stderr, "sk-proc-SECRET") || callsMatching(r, regexp.MustCompile(`berth-proc`)) != 0 {
 			t.Errorf("%s: exit %d, stderr %q", name, r.Exit, r.Stderr)
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/ar4mirez/berth/internal/contract"
@@ -99,7 +100,8 @@ func CheckProcSpec(s *ProcSpec) error {
 	switch {
 	case len(s.Argv) == 0 || s.Argv[0] == "":
 		return Usage("argv is the command and its arguments, as a list; its first word is an absolute path or a name on the container user's PATH")
-	case strings.Contains(s.Argv[0], "/") && !path.IsAbs(s.Argv[0]):
+	case strings.Contains(s.Argv[0], "/") && !path.IsAbs(s.Argv[0]),
+		strings.HasPrefix(s.Argv[0], "-"), strings.Contains(s.Argv[0], "="):
 		return Usage("argv[0] %q: an absolute path, or a name on the container user's PATH", s.Argv[0])
 	case !path.IsAbs(s.Cwd) || path.Clean(s.Cwd) != s.Cwd:
 		return Usage("cwd %q: an absolute path in the container, written plainly", s.Cwd)
@@ -122,6 +124,36 @@ func CheckProcSpec(s *ProcSpec) error {
 		}
 	}
 	return nil
+}
+
+// EnvNames are a process's variables as the audit log holds them: each one's name, what comes
+// before its =, never its value; sorted. Each of vars is NAME=value or a name alone.
+func EnvNames(vars ...string) []string {
+	names := make([]string, 0, len(vars))
+	for _, v := range vars {
+		n, _, _ := strings.Cut(v, "=")
+		names = append(names, n)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// RedactEnvArgs is a command line as the audit log holds it: each --env keeps its variable's
+// name, NAME=***, never its value. The command after -- is kept as it is.
+func RedactEnvArgs(args []string) []string {
+	out := slices.Clone(args)
+	for i := 0; i < len(out); i++ {
+		switch x := out[i]; {
+		case x == "--":
+			return out
+		case x == "--env" && i+1 < len(out):
+			i++
+			out[i] = EnvNames(out[i])[0] + "=***"
+		case strings.HasPrefix(x, "--env="):
+			out[i] = "--env=" + EnvNames(strings.TrimPrefix(x, "--env="))[0] + "=***"
+		}
+	}
+	return out
 }
 
 // procExec is berth-proc's command line in the org's container, as its user.

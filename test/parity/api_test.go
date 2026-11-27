@@ -748,7 +748,22 @@ func TestBerthViaDaemon(t *testing.T) {
 	if out.Exit != 0 || !strings.Contains(out.Stdout, "allowed: via.example") || len(out.Tree) > 3 {
 		t.Errorf("a write through the daemon: %d %q %q, the client's tree: %v", out.Exit, out.Stdout, out.Stderr, out.Tree)
 	}
+	// A process's variable given on the command line, through the daemon or POST /v1/cli: refused,
+	// and audited with its name only.
+	out = via("proc", "acme", "start", "worker", "--env", "API_KEY=sk-via-SECRET", "--", "worker")
+	if out.Exit == 0 || !strings.Contains(out.Stderr, "never on the command line") || strings.Contains(out.Stdout+out.Stderr, "sk-via-SECRET") {
+		t.Errorf("--via-daemon proc start --env NAME=value: %d %q %q", out.Exit, out.Stdout, out.Stderr)
+	}
+	var cerr strings.Builder
+	if code, err := apiclient.Unix(sock).CLI(context.Background(), []string{"proc", "acme", "start", "worker", "--env=API_KEY=sk-cli-SECRET", "--", "worker", "--env", "kept"}, "", io.Discard, &cerr); err != nil || code == 0 {
+		t.Errorf("POST /v1/cli proc start --env=NAME=value: %d %v %q", code, err, cerr.String())
+	}
 	res := snap()
+	if audit := strings.Join(auditLines(t, res), "\n"); strings.Contains(audit, "sk-via-SECRET") || strings.Contains(audit, "sk-cli-SECRET") ||
+		!strings.Contains(audit, `cli proc start|failed|{"args":["acme","start","worker","--env","API_KEY=***","--","worker"]}`) ||
+		!strings.Contains(audit, `cli proc start|failed|{"args":["acme","start","worker","--env=API_KEY=***","--","worker","--env","kept"]}`) {
+		t.Errorf("the audit log has a variable's value, or not its name:\n%s", audit)
+	}
 	if !strings.Contains(treeLine(res, "state/orgs/acme/config/firewall.txt"), "via.example") {
 		t.Error("the server's firewall.txt didn't change")
 	}

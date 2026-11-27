@@ -831,7 +831,9 @@ func addCommands(root *cobra.Command) {
 				"program that should keep running there. berth starts it and a supervisor in the container keeps it\n" +
 				"running (restart on-failure, with a capped backoff, or never); it outlives berth, and ends with the\n" +
 				"container: an up, restart or down ends it, and nothing starts it again until it is started again.\n" +
-				"Its variables (--env) are shown by name only.",
+				"Its variables are shown by name only, and their values are never on the command line: --env NAME\n" +
+				"reads NAME's value from stdin (NAME=value lines, or the value alone for one --env), and\n" +
+				"--env-file PATH reads NAME=value lines.",
 			DisableFlagParsing: true,
 			ValidArgsFunction:  completeProc,
 			RunE: onOrgV(nthArg(0), procVerbs, func(a *app.App, cmd *cobra.Command, args []string) error {

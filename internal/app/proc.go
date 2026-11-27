@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -27,7 +29,7 @@ func (a *App) Proc(ctx context.Context, o string, args []string) error {
 	if len(args) > 0 {
 		sub, args = args[0], args[1:]
 	}
-	usage := fmt.Errorf("usage: %s proc <org> [ls | start <name> [--cwd DIR] [--env K=V]... [--restart never|on-failure] [--grace SECONDS] -- <command> [args...] | show <name> | stop <name> | logs <name> [--follow] [--lines N]]", Tool)
+	usage := fmt.Errorf("usage: %s proc <org> [ls | start <name> [--cwd DIR] [--env NAME]... [--env-file PATH] [--restart never|on-failure] [--grace SECONDS] -- <command> [args...] | show <name> | stop <name> | logs <name> [--follow] [--lines N]]", Tool)
 	if procWrites[sub] {
 		if err := a.writable(o, "start or stop "+o+"'s processes"); err != nil {
 			return err
@@ -58,7 +60,7 @@ func (a *App) Proc(ctx context.Context, o string, args []string) error {
 		if len(args) == 0 || strings.HasPrefix(args[0], "-") {
 			return usage
 		}
-		spec, err := parseProcStart(args[1:])
+		spec, err := a.parseProcStart(args[1:])
 		if err != nil {
 			return fmt.Errorf("%w; %s", err, usage)
 		}
@@ -135,14 +137,21 @@ func (a *App) procShow(p ops.Process, done string) error {
 	return nil
 }
 
-// parseProcStart reads `[--cwd DIR] [--env K=V]... [--restart R] [--grace N] -- <command>...`.
-// The `--` is required, so nothing of the command is ever read as berth's.
-func parseProcStart(args []string) (ops.ProcSpec, error) {
+// parseProcStart reads `[--cwd DIR] [--env NAME]... [--env-file PATH] [--restart R] [--grace N] --
+// <command>...`. The `--` is required, so nothing of the command is ever read as berth's. A
+// variable's value is never on the command line, where ps would show it: each --env NAME's value is
+// read from stdin, as NAME=value lines or, for a single --env NAME, the value alone; --env-file is
+// a file of NAME=value lines.
+func (a *App) parseProcStart(args []string) (ops.ProcSpec, error) {
 	s := ops.ProcSpec{Env: map[string]string{}}
+	var names []string
 	for i := 0; i < len(args); i++ {
 		x := args[i]
 		if x == "--" {
 			s.Argv = args[i+1:]
+			if err := a.procEnvStdin(names, s.Env); err != nil {
+				return s, err
+			}
 			return s, ops.CheckProcSpec(&s)
 		}
 		if !strings.HasPrefix(x, "--") {
@@ -157,11 +166,18 @@ func parseProcStart(args []string) (ops.ProcSpec, error) {
 		case "--cwd":
 			s.Cwd = v
 		case "--env":
-			k, val, ok := strings.Cut(v, "=")
-			if !ok {
-				return s, fmt.Errorf("--env %q: want KEY=VALUE", v)
+			if strings.Contains(v, "=") {
+				return s, fmt.Errorf("--env %s: a variable's value is never on the command line: give --env %s and its value on stdin, or NAME=value lines in --env-file", ops.EnvNames(v)[0], ops.EnvNames(v)[0])
 			}
-			s.Env[k] = val
+			names = append(names, v)
+		case "--env-file":
+			b, err := a.Host.FS.ReadFile(v)
+			if err != nil {
+				return s, fmt.Errorf("--env-file: %w", err)
+			}
+			if err := procEnvLines(string(b), nil, s.Env); err != nil {
+				return s, fmt.Errorf("--env-file %s: %w", v, err)
+			}
 		case "--restart":
 			s.Restart = v
 		case "--grace":
@@ -175,6 +191,58 @@ func parseProcStart(args []string) (ops.ProcSpec, error) {
 		}
 	}
 	return s, errors.New("missing -- before the command")
+}
+
+// procEnvStdin reads the values of the variables --env names from stdin: NAME=value lines or, for
+// a single one, the value alone.
+func (a *App) procEnvStdin(names []string, env map[string]string) error {
+	if len(names) == 0 {
+		return nil
+	}
+	if a.Stdin == nil {
+		return errors.New("--env NAME reads its value from stdin, and there is none: use --env-file")
+	}
+	b, err := io.ReadAll(a.Stdin)
+	if err != nil {
+		return fmt.Errorf("stdin: %w", err)
+	}
+	in := string(b)
+	if len(names) == 1 && !strings.HasPrefix(in, names[0]+"=") {
+		env[names[0]] = strings.TrimSuffix(strings.TrimSuffix(in, "\n"), "\r")
+		return nil
+	}
+	got := map[string]string{}
+	if err := procEnvLines(in, names, got); err != nil {
+		return fmt.Errorf("stdin: %w", err)
+	}
+	for _, n := range names {
+		v, ok := got[n]
+		if !ok {
+			return fmt.Errorf("stdin has no value for %s: one NAME=value line for each --env NAME", n)
+		}
+		env[n] = v
+	}
+	return nil
+}
+
+// procEnvLines reads NAME=value lines into env, past blank lines and # comments; with names, only
+// those may be there.
+func procEnvLines(in string, names []string, env map[string]string) error {
+	for _, l := range strings.Split(in, "\n") {
+		l = strings.TrimSuffix(l, "\r")
+		if strings.TrimSpace(l) == "" || strings.HasPrefix(strings.TrimSpace(l), "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(l, "=")
+		if !ok {
+			return errors.New("a line that isn't NAME=value")
+		}
+		if names != nil && !slices.Contains(names, k) {
+			return fmt.Errorf("%s, which no --env names", k)
+		}
+		env[k] = v
+	}
+	return nil
 }
 
 // ProcStart starts a supervised process in o's running container: berth-proc gets the spec, the

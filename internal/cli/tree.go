@@ -389,9 +389,9 @@ func layout(root *cobra.Command) {
 		t.verb(prc, "proc", sub, strings.TrimSpace(sub+" "+use), short, orgVerb(sub, fixed), org1, ex...)
 	}
 	pr("ls", "<org>", "an org's supervised processes and their state", 0, "berth proc ls acme")
-	pr("start", "<org> <name> [--cwd DIR] [--env K=V]... [--restart never|on-failure] [--grace SECONDS] -- <command> [args...]",
+	pr("start", "<org> <name> [--cwd DIR] [--env NAME]... [--env-file PATH] [--restart never|on-failure] [--grace SECONDS] -- <command> [args...]",
 		"start a process in a running org's container, as its user", -1,
-		"berth proc start acme worker -- /usr/local/bin/worker --once", "berth proc start acme api --env PORT=8080 --restart never -- node server.js")
+		"berth proc start acme worker -- /usr/local/bin/worker --once", "berth proc start acme api --env-file api.env --restart never -- node server.js", "printf %s \"$TOKEN\" | berth proc start acme bot --env TOKEN -- /usr/local/bin/bot")
 	pr("show", "<org> <name>", "one process: its state, pid, start, exit code and restarts", 1, "berth proc show acme worker")
 	pr("stop", "<org> <name>", "stop a process (SIGTERM, its grace, then SIGKILL of its group) and forget it", 1, "berth proc stop acme worker")
 	pr("logs", "<org> <name> [--follow] [--lines N]", "what a process printed; --follow streams it", -1, "berth proc logs acme worker --follow")

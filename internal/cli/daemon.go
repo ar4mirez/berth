@@ -92,7 +92,7 @@ func runFor(st config.State) func(ctx context.Context, by mcpsrv.Caller, args []
 		audit := func(outcome string) {
 			if op.Access == ops.Write {
 				a := appMaker(st)(io.Discard, io.Discard)
-				_ = a.Audit(ctx, app.AuditEntry{Via: "api", Tool: "cli " + strings.TrimSpace(name+" "+sub), Outcome: outcome, Args: map[string]any{"args": args[1:]}})
+				_ = a.Audit(ctx, app.AuditEntry{Via: "api", Tool: "cli " + strings.TrimSpace(name+" "+sub), Outcome: outcome, Args: map[string]any{"args": ops.RedactEnvArgs(args[1:])}})
 			}
 		}
 		switch {
