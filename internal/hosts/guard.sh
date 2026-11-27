@@ -34,6 +34,15 @@ set -u
 
 SOCK=${BERTH_GUARD_SOCK:-/var/run/docker.sock}
 NETNS=${BERTH_GUARD_NETNS:-}
+# The container's own state: a lock apply and remove share, and the mark remove leaves so that no
+# apply after it (the run loop's next round, or one already waiting) puts the rules back before
+# the container is removed.
+STATE=${BERTH_GUARD_STATE:-/run}
+LOCK="$STATE/berth-guard.lock"
+OFF="$STATE/berth-guard.off"
+
+# locked runs a command under the lock: an apply and a remove never interleave.
+locked() { { flock 9; "$@"; } 9>"$LOCK"; }
 
 api() { curl -fsS --unix-socket "$SOCK" "http://docker$1"; }
 
@@ -86,6 +95,7 @@ org_bridges() {
 
 apply() {
   local b ipt ifs i fwd dns=
+  if [ -e "$OFF" ]; then return 0; fi   # being removed: never put the rules back
   if stale; then echo "berth-guard: the rootless network came up after this container: it must restart to see it" >&2; return 75; fi
   if no_ns; then return 0; fi
   b=$(backend) || { echo "berth-guard: Docker's DOCKER-USER chain isn't there (yet)" >&2; return 1; }
@@ -139,13 +149,13 @@ status() {
 }
 
 case "${1:-run}" in
-  apply) apply ;;
-  remove) remove ;;
+  apply) locked apply ;;
+  remove) : > "$OFF"; locked remove ;;
   status) status ;;
   run)
     trap 'exit 0' TERM INT
     while :; do
-      apply
+      locked apply
       [ $? -ne 75 ] || exit 75   # stale: end, and be started again with the namespace in sight
       sleep 20 & wait $!
     done ;;
