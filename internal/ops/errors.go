@@ -112,3 +112,9 @@ func (e *Error) Doc() ErrorDoc {
 	// The commands a message names, as this command line spells them (spell.go).
 	return ErrorDoc{Schema: "berth.error/v1", Kind: e.Kind, Code: e.Code, Message: Respell(e.Msg), Hint: Respell(e.Hint)}
 }
+
+// IsKind reports whether err is an Error of kind k.
+func IsKind(err error, k Kind) bool {
+	var e *Error
+	return errors.As(err, &e) && e.Kind == k
+}

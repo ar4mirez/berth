@@ -43,6 +43,7 @@ var Documents = []Document{
 	{"berth.mounts/v1", "mount <org>", Mounts{}},
 	{"berth.mount/v1", "mount <org> add", MountDoc{}},
 	{"berth.tools/v1", "tool <org>", Tools{}},
+	{"berth.placement-keys/v1", "placement keys", PlacementKeys{}},
 	{"berth.processes/v1", "proc <org>", Processes{}},
 	{"berth.process/v1", "proc <org> show", Process{}},
 	{"berth.default-org/v1", "use", DefaultOrg{}},

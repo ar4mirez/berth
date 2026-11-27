@@ -11,6 +11,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/ar4mirez/berth/internal/placement"
 )
 
 const (
@@ -128,6 +130,7 @@ func TestDocumentsValidate(t *testing.T) {
 		Mounts{Schema: "berth.mounts/v1", Org: "acme", Mounts: []Mount{mount}, Pending: false},
 		MountDoc{Schema: "berth.mount/v1", Org: "acme", Name: mount.Name, Source: mount.Source, Target: mount.Target, Mode: "rw"},
 		Processes{Schema: "berth.processes/v1", Org: "acme", Processes: []ProcessInfo{proc}}, procDoc,
+		PlacementKeys{Schema: "berth.placement-keys/v1", Keys: []placement.PublicKey{{ID: "0123456789abcdef", Alg: "Ed25519", PublicKey: "MCowBQYDK2VwAyEA", NotAfter: "2026-12-04T18:15:00Z"}}},
 		Tools{Schema: "berth.tools/v1", Org: "acme", Tools: []PinnedTool{{Name: "gadget", Source: "github:acme/gadget", Version: "1.4.2", Installed: true}}}}
 	for _, e := range events {
 		samples = append(samples, e)

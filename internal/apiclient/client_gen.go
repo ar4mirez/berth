@@ -139,6 +139,11 @@ func (c *Client) MountRemove(ctx context.Context, org string, name string) (out 
 	return out, c.do(ctx, "DELETE", "/v1/orgs/"+url.PathEscape(org)+"/mounts/"+url.PathEscape(name), nil, nil, &out)
 }
 
+// PlacementKeys is GET /v1/placement/keys: The public keys (Ed25519) that verify the placement tokens berth gives supervised processes: the one signing, and older ones until their last token has expired.
+func (c *Client) PlacementKeys(ctx context.Context) (out ops.PlacementKeys, err error) {
+	return out, c.do(ctx, "GET", "/v1/placement/keys", nil, nil, &out)
+}
+
 // ToolsList is GET /v1/orgs/{org}/tools: An org's pinned tools: each one's mise source and exact version, and whether the running container installed it at its start.
 func (c *Client) ToolsList(ctx context.Context, org string) (out ops.Tools, err error) {
 	return out, c.do(ctx, "GET", "/v1/orgs/"+url.PathEscape(org)+"/tools", nil, nil, &out)

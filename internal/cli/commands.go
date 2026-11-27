@@ -188,6 +188,10 @@ func serveCmd() *cobra.Command {
 			}
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
+			if !st.ReadOnly {
+				// Supervised processes' placement tokens (#216), kept fresh while this serves.
+				go (&app.PlacementRefresher{}).Run(ctx, func() *app.App { return appFor(cmd) }, time.Minute, cmd.ErrOrStderr())
+			}
 			select {
 			case <-ctx.Done():
 			case err = <-errs:
@@ -845,6 +849,16 @@ func addCommands(root *cobra.Command) {
 				}
 				return a.Proc(cmd.Context(), args[0], args[1:])
 			}),
+		}),
+		reads(&cobra.Command{
+			Use: "placement keys", Short: "the public keys that verify supervised processes' placement tokens",
+			Long: "A supervised process gets a short-lived token, signed by a key berth keeps on this machine and in no\n" +
+				"container, that says which org's container it runs in (docs/api.md, placement proofs). These are the\n" +
+				"public keys to verify one with: the one signing, and older ones until their last token has expired.",
+			Args: cobra.MaximumNArgs(1), ValidArgs: []string{"keys"},
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return appFor(cmd).Placement(cmd.Context(), args)
+			},
 		}),
 		reads(&cobra.Command{
 			Use: "tool <org> [ls|set|rm] [name source version]", Short: "tools pinned to one exact version, installed at an org's start",

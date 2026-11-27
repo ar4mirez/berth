@@ -9733,6 +9733,115 @@
         "x-berth-operation": "pkg presets"
       }
     },
+    "/v1/placement/keys": {
+      "get": {
+        "description": "The public keys (Ed25519) that verify the placement tokens berth gives supervised processes: the one signing, and older ones until their last token has expired.",
+        "operationId": "placement_keys",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "keys": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "alg": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "not_after": {
+                            "type": "string"
+                          },
+                          "public_key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "alg",
+                          "public_key",
+                          "not_after"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "keys"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say)."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "The public keys (Ed25519) that verify the placement tokens berth gives supervised processes: the one signing, and older ones until their last token has expired",
+        "x-berth-about": "The public keys (Ed25519) that verify the placement tokens berth gives supervised processes: the one signing, and older ones until their last token has expired.",
+        "x-berth-access": "read",
+        "x-berth-operation": "placement keys"
+      }
+    },
     "/v1/schedule": {
       "delete": {
         "description": "Stop the nightly backups on this machine. The backups there are stay. Changes the org: needs the server started with --allow-writes.",

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/ar4mirez/berth/internal/contract"
+	"github.com/ar4mirez/berth/internal/placement"
 )
 
 // Supervised processes (#216): a named long-lived process in a running org's container, started
@@ -56,6 +57,13 @@ type Processes struct {
 	Schema    string        `json:"schema"`
 	Org       string        `json:"org"`
 	Processes []ProcessInfo `json:"processes"`
+}
+
+// PlacementKeys is `placement keys` (berth.placement-keys/v1): the public keys a consumer verifies
+// placement tokens with (internal/placement).
+type PlacementKeys struct {
+	Schema string                `json:"schema"`
+	Keys   []placement.PublicKey `json:"keys"`
 }
 
 // ProcSpec is what starts a process: berth-proc reads it on its stdin.

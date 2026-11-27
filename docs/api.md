@@ -162,6 +162,7 @@ others take a JSON body.
 | `POST /v1/orgs/{org}/processes/{name}` | Start a named long-lived process in a running org's container: `argv`, `cwd`, `env`, `restart`, `stop_grace_seconds` | write | `berth proc start` |
 | `GET /v1/orgs/{org}/processes/{name}` | One supervised process: its state, pid, start, exit code and restarts | read | `berth proc show` |
 | `DELETE /v1/orgs/{org}/processes/{name}` | Stop a supervised process and forget it; answers when it has exited | write | `berth proc stop` |
+| `GET /v1/placement/keys` | The public keys that verify supervised processes' [placement tokens](#placement-proofs) | read | `berth placement keys` |
 | `GET /v1/orgs/{org}/processes/{name}/logs/follow` | Follow what a supervised process prints (an event stream) | read | `berth proc logs --follow` |
 | `POST /v1/orgs/{org}/up` | Start an org: gets its image if needed, then recreates its container | restart | `berth up` |
 | `POST /v1/orgs/{org}/restart` | Restart an org: recreates its container, applying pending changes (a new image, packages, variables) | restart | `berth restart` |
@@ -315,6 +316,31 @@ curl --unix-socket "$s" -X DELETE http://berth/v1/orgs/acme/processes/worker
   in the body of `POST /v1/orgs/{org}/processes/{name}`.
 - No MCP server offers starting or stopping one: it runs a program in the org, as a session would. An org must run
   an image that has `berth-proc`: an older one is refused (409 `state`) until it is restarted on berth's current image.
+
+## Placement proofs
+
+A supervised process can prove which org's container it runs in, without a secret in the container: berth gives it
+a short-lived token, signed by a key berth keeps on its own machine, and anyone can verify it with berth's public
+keys ([`berth.placement-keys/v1`](json.md#berthplacement-keysv1-placement-keys)). The format and why are in
+[the decision](decisions/216-placement-proof.md).
+
+- **Where it is.** Before a process starts, berth writes its token to `/run/berth/placement/<name>` in the
+  container (a directory and file of the container's user, mode 0700 and 0600) and gives the process its path as
+  `BERTH_PLACEMENT_FILE`. The token is never in an answer, an event, a log or the audit log; a stop removes it.
+- **What it says.** A compact JWS (RFC 7515) signed with Ed25519 (`alg` `EdDSA`, RFC 8037; `typ`
+  `berth-placement+jwt`; `kid`, the key's id), with the claims `iss` (`berth`), `org`, `container` (the container's
+  id), `container_started_at` (as `GET /v1/orgs/{org}` has `started_at`), `process`, `iat`, `exp` (at most 15
+  minutes after `iat`) and `nonce`.
+- **Kept fresh.** `berth serve` replaces each running process's token 5 minutes before its end, for as long as the
+  process runs, and gives a process in a recreated container a token for that container. Without a `berth serve`
+  running, a token ends at most 15 minutes after it was written.
+- **Verifying one.** Check the signature with the key `kid` names in `GET /v1/placement/keys` (not after its
+  `not_after`), `typ`, `iss`, and that `now` is before `exp`; then that `org` is the org you expect and
+  `container_started_at` is that org's current `started_at`. A token from an older container fails the last check.
+- **Keys rotate.** A key signs for 7 days, then a new one does; the old one is listed until its last token has
+  expired. The keys are in berth's configuration on this machine (`~/.config/berth/placement/keys.json`, mode
+  0600), never in a container. An org on a registered host gets its tokens from the berth on that host.
+  Apple's `container` reports no start time, so a process there gets no token (and no `BERTH_PLACEMENT_FILE`).
 
 ## Errors
 

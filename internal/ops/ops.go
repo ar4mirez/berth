@@ -156,6 +156,8 @@ var Catalog = map[string]Op{
 		"logs":  events(Op{Access: Read}), // a stream with --follow: one event per line
 		"start": write, "stop": write,
 	}},
+	// Placement proofs (#216): the public keys; reading them may make the first key.
+	"placement": {Access: BySub, Subs: map[string]Op{"": readJSON, "keys": readJSON}},
 	// Pinned tools (#216): the list is saved; the org installs them at its next up or restart.
 	"tool": {Access: BySub, Subs: map[string]Op{
 		"": readJSON, "ls": readJSON, "list": readJSON,

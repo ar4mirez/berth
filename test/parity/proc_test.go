@@ -1,7 +1,10 @@
 package parity
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -12,16 +15,36 @@ import (
 // predates berth-proc are each refused with what to do; nothing restarts.
 func TestProcCommand(t *testing.T) {
 	raw := allCalls()
-	start := Rule{Bin: "docker", Match: `^exec -u node -i claude-acme .*/usr/local/bin/berth-proc start worker$`, Stdout: procWorker + "\n"}
+	start := Rule{Bin: "docker", Match: `^exec -u node -i claude-acme .*/usr/local/bin/berth-proc start worker$`, Stdout: procWorker + "\n", Stdin: true}
+	token := Rule{Bin: "docker", Match: `^exec -i -u node claude-acme sh -c .* berth-placement /run/berth/placement worker$`, Stdin: true}
+	// What a start runs: the container a placement token names (#216), the token, then berth-proc.
+	starting := append([]Rule{start, token}, mcpRules[:2]...)
 	r := run(t, raw, Scenario{Args: []string{"proc", "acme", "start", "worker", "--env", "API_KEY", "--", "worker", "--once"},
-		Stdin: "sk-proc-SECRET\n", Files: twoOrgs, Rules: running("acme", start)})
+		Stdin: "sk-proc-SECRET\n", Files: twoOrgs, Rules: running("acme", starting...)})
 	if r.Exit != 0 || !strings.HasPrefix(r.Stdout, "Started worker in acme.\nworker  running since 2026-01-02T03:04:05Z, 0 restarts\n  worker --once\n  variables: API_KEY\n") {
 		t.Fatalf("start: exit %d\nstdout %q\nstderr %q", r.Exit, r.Stdout, r.Stderr)
 	}
-	if strings.Contains(strings.Join(r.Calls, "\n"), "sk-proc-SECRET") {
-		t.Errorf("a variable's value is on a command line:\n%s", strings.Join(r.Calls, "\n"))
+	// The value goes on berth-proc's stdin, never in an argument, nor anywhere else.
+	for _, c := range r.Calls {
+		args, stdin, _ := strings.Cut(c, "  <stdin ")
+		if strings.Contains(args, "sk-proc-SECRET") || (strings.Contains(stdin, "sk-proc-SECRET") && !strings.Contains(args, `berth-proc" "start"`)) {
+			t.Errorf("a variable's value is on a command line, or went elsewhere: %s", c)
+		}
 	}
-	if callsMatching(r, regexp.MustCompile(`^docker "exec" "-u" "node" "-i" "claude-acme" .*"/usr/local/bin/berth-proc" "start" "worker"$`)) != 1 ||
+	// Its placement token, written first, as the container's user: a JWS naming the org, the
+	// container and the process; the process is told where it is.
+	tokenAt := slices.IndexFunc(r.Calls, func(c string) bool { return strings.Contains(c, `"berth-placement" "/run/berth/placement" "worker"`) })
+	startAt := slices.IndexFunc(r.Calls, func(c string) bool { return strings.Contains(c, `berth-proc" "start" "worker"`) })
+	if tokenAt < 0 || startAt < tokenAt || !strings.Contains(r.Calls[startAt], `BERTH_PLACEMENT_FILE\":\"/run/berth/placement/worker`) {
+		t.Errorf("the token, then the start with its path:\n%s", strings.Join(r.Calls, "\n"))
+	} else if claims := jwsClaims(t, r.Calls[tokenAt]); claims["org"] != "acme" || claims["container"] != "f00dcafe0123" ||
+		claims["container_started_at"] != "2026-01-02T03:04:05.123456789Z" || claims["process"] != "worker" {
+		t.Errorf("the token's claims: %v", claims)
+	}
+	if strings.Contains(r.Stdout+r.Stderr, ".eyJ") {
+		t.Errorf("the token is in berth's output: %q %q", r.Stdout, r.Stderr)
+	}
+	if callsMatching(r, regexp.MustCompile(`^docker "exec" "-u" "node" "-i" "claude-acme" .*"/usr/local/bin/berth-proc" "start" "worker"`)) != 1 ||
 		callsMatching(r, regexp.MustCompile(`"compose"|"restart"|"-u" "root"|"-u" "0"`)) != 0 {
 		t.Errorf("start: one berth-proc as node, and nothing else:\n%s", strings.Join(r.Calls, "\n"))
 	}
@@ -29,8 +52,11 @@ func TestProcCommand(t *testing.T) {
 	// Several from stdin, and from --env-file; the values go on berth-proc's stdin.
 	envFile := merge(twoOrgs, map[string]File{"home/api.env": {Content: "# the worker's\nAPI_URL=http://example.com/?a=b\n\n", Mode: 0o600}})
 	r = run(t, raw, Scenario{Args: []string{"proc", "acme", "start", "worker", "--env", "API_KEY", "--env", "DEBUG", "--env-file", "api.env", "--", "worker"},
-		Stdin: "DEBUG=1\nAPI_KEY=sk-proc-SECRET\n", Files: envFile, Rules: running("acme", start)})
-	if r.Exit != 0 || strings.Contains(strings.Join(r.Calls, "\n"), "sk-proc-SECRET") {
+		Stdin: "DEBUG=1\nAPI_KEY=sk-proc-SECRET\n", Files: envFile, Rules: running("acme", starting...)})
+	if r.Exit != 0 || slices.ContainsFunc(r.Calls, func(c string) bool {
+		a, _, _ := strings.Cut(c, "  <stdin ")
+		return strings.Contains(a, "sk-proc-SECRET")
+	}) {
 		t.Errorf("start with stdin and --env-file: exit %d, stderr %q\n%s", r.Exit, r.Stderr, strings.Join(r.Calls, "\n"))
 	}
 
@@ -65,7 +91,7 @@ func TestProcCommand(t *testing.T) {
 	}
 	// berth-proc's own refusals: a name in use, and an image without berth-proc.
 	r = run(t, raw, Scenario{Args: []string{"proc", "acme", "start", "worker", "--", "worker"}, Files: twoOrgs, Rules: running("acme",
-		Rule{Bin: "docker", Match: `berth-proc start worker$`, Stderr: "berth-proc: a process named worker exists: stop it first\n", Exit: 3})})
+		Rule{Bin: "docker", Match: `berth-proc start worker$`, Stderr: "berth-proc: a process named worker exists: stop it first\n", Exit: 3}, mcpRules[0], mcpRules[1])})
 	if r.Exit != 1 || !strings.Contains(r.Stderr, "a process named worker exists: stop it first") {
 		t.Errorf("a name in use: exit %d, stderr %q", r.Exit, r.Stderr)
 	}
@@ -97,4 +123,22 @@ func TestProcCommand(t *testing.T) {
 	if r.Exit != 1 || !strings.Contains(r.Stderr, "read-only") || callsMatching(r, regexp.MustCompile(`berth-proc`)) != 0 {
 		t.Errorf("--read-only: exit %d, stderr %q", r.Exit, r.Stderr)
 	}
+}
+
+// jwsClaims are the claims of the token a logged call got on its stdin.
+func jwsClaims(t *testing.T, call string) map[string]any {
+	t.Helper()
+	m := regexp.MustCompile(`<stdin "([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\\n">`).FindStringSubmatch(call)
+	if m == nil {
+		t.Fatalf("no token on stdin: %s", call)
+	}
+	b, err := base64.RawURLEncoding.DecodeString(m[2])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c map[string]any
+	if err := json.Unmarshal(b, &c); err != nil {
+		t.Fatal(err)
+	}
+	return c
 }

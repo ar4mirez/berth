@@ -81,6 +81,7 @@ from it; a field that may be `null` says so.
 | `berth.mounts/v1` | `mount ls <org>` | [`mounts.v1.json`](schemas/mounts.v1.json) |
 | `berth.mount/v1` | `PUT /v1/orgs/{org}/mounts/{name}` | [`mount.v1.json`](schemas/mount.v1.json) |
 | `berth.tools/v1` | `tool ls <org>` | [`tools.v1.json`](schemas/tools.v1.json) |
+| `berth.placement-keys/v1` | `placement keys` | [`placement-keys.v1.json`](schemas/placement-keys.v1.json) |
 | `berth.processes/v1` | `proc ls <org>` | [`processes.v1.json`](schemas/processes.v1.json) |
 | `berth.process/v1` | `proc show <org> <name>` | [`process.v1.json`](schemas/process.v1.json) |
 | `berth.default-org/v1` | `org use` | [`default-org.v1.json`](schemas/default-org.v1.json) |
@@ -545,3 +546,23 @@ org has none: a process lives as long as its container.
 One process, as each of `processes[]`, with `schema` and `org`. `POST /v1/orgs/{org}/processes/{name}` answers with
 it once the process has started, and `DELETE` with its last state once it has stopped.
 
+
+## `berth.placement-keys/v1`: `placement keys`
+
+The public keys that verify supervised processes' placement tokens (`GET /v1/placement/keys`,
+[the API](api.md#placement-proofs)): the one signing now, and older ones until their last token has expired.
+Newest first.
+
+```json
+{
+  "schema": "berth.placement-keys/v1",
+  "keys": [ { "id": "3f9a1c0d2b4e6f80", "alg": "Ed25519", "public_key": "u8V0…=", "not_after": "2026-12-04T18:15:00Z" } ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | the key's id: a token's header names it as `kid` |
+| `alg` | `Ed25519`: tokens are signed with EdDSA (RFC 8037) |
+| `public_key` | the key's 32 bytes, base64 (standard, padded) |
+| `not_after` | when its last token expires (RFC 3339, UTC); after it, it verifies nothing and is no longer listed |

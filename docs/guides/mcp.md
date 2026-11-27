@@ -75,6 +75,7 @@ uses to refuse writes under `--read-only`.
 | `packages_list`, `package_presets` | the system packages an org's image adds; the @presets and what each stands for | |
 | `mounts_list` | an org's socket mounts, and whether its container has them | |
 | `tools_list` | an org's pinned tools, and whether its container installed them | |
+| `placement_keys` | the public keys that verify supervised processes' placement tokens | |
 | `processes_list`, `process_show` | a running org's supervised processes, and one of them | |
 | `backups_list`, `schedule_status` | the backup files here; the nightly schedule | |
 | `firewall_allow`, `firewall_deny` | add or remove allowlist entries, applied live | `--allow-writes` |

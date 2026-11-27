@@ -43,6 +43,10 @@ func init() {
 }
 
 func (s *server) procTools() {
+	add(s, "placement_keys", "placement", "keys", "The public keys (Ed25519) that verify the placement tokens berth gives supervised processes: the one signing, and older ones until their last token has expired.",
+		func(ctx context.Context, c *call, _ noArgs) (ops.PlacementKeys, error) {
+			return c.app.PlacementKeys(ctx)
+		})
 	add(s, "processes_list", "proc", "ls", "An org's supervised processes: each one's state (starting, running, exited, backoff), pid, start time, exit code and restarts. A stopped org has none.",
 		func(ctx context.Context, c *call, in orgArg) (ops.Processes, error) {
 			b, o, err := c.at(ctx, in.Org)

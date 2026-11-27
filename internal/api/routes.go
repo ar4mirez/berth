@@ -50,6 +50,8 @@ var Routes = []Route{
 	{Method: "GET", Path: "/v1/orgs/{org}/mounts", Tool: "mounts_list"},
 	{Method: "PUT", Path: "/v1/orgs/{org}/mounts/{name}", Tool: "mount_set"},
 	{Method: "DELETE", Path: "/v1/orgs/{org}/mounts/{name}", Tool: "mount_remove"},
+	// Placement proofs (#216).
+	{Method: "GET", Path: "/v1/placement/keys", Tool: "placement_keys"},
 	// Pinned tools (#216).
 	{Method: "GET", Path: "/v1/orgs/{org}/tools", Tool: "tools_list"},
 	{Method: "PUT", Path: "/v1/orgs/{org}/tools/{name}", Tool: "tool_set"},

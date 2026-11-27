@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"strconv"
@@ -296,8 +297,18 @@ func (a *App) ProcStart(ctx context.Context, o, name string, spec ops.ProcSpec) 
 	if err := ops.CheckProcSpec(&spec); err != nil {
 		return ops.Process{}, err
 	}
+	spec.Env = maps.Clone(spec.Env) // the caller's own map stays as it was
+	if _, ok := spec.Env[PlacementEnv]; ok {
+		return ops.Process{}, ops.Usage("env %s is berth's: it names the process's placement token", PlacementEnv)
+	}
 	if err := a.needUp(ctx, o); err != nil {
 		return ops.Process{}, err
+	}
+	// Its placement token first, so the process finds it from its start (#216).
+	if exp, err := a.issuePlacement(ctx, o, name); err != nil {
+		return ops.Process{}, err
+	} else if !exp.IsZero() {
+		spec.Env[PlacementEnv] = PlacementDir + "/" + name
 	}
 	in, err := json.Marshal(spec)
 	if err != nil {
@@ -305,6 +316,9 @@ func (a *App) ProcStart(ctx context.Context, o, name string, spec ops.ProcSpec) 
 	}
 	raw, err := a.procRun(ctx, o, in, "start", name)
 	if err != nil {
+		if !ops.IsKind(err, ops.KindState) { // a name in use keeps its token
+			a.dropPlacement(ctx, o, name)
+		}
 		return ops.Process{}, err
 	}
 	return ops.ParseProcess(o, raw)
@@ -321,6 +335,9 @@ func (a *App) ProcAct(ctx context.Context, o, verb, name string) (ops.Process, e
 	raw, err := a.procRun(ctx, o, nil, map[string]string{"show": "status", "stop": "stop"}[verb], name)
 	if err != nil {
 		return ops.Process{}, err
+	}
+	if verb == "stop" {
+		a.dropPlacement(ctx, o, name)
 	}
 	return ops.ParseProcess(o, raw)
 }
