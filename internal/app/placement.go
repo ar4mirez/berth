@@ -138,6 +138,11 @@ func (a *App) placementReady(ctx context.Context, o, name string) error {
 	return nil
 }
 
+// placementWrite writes a token ($2 in directory $1) as the container's user: a directory of its
+// own, a file only it reads, replaced whole. Each write has a temp file of its own, so two starts of
+// one name that race don't move each other's file away.
+const placementWrite = `set -e; umask 077; mkdir -p "$1"; chmod 700 "$1"; t=$(mktemp "$1/.$2.XXXXXX"); cat > "$t"; mv -f "$t" "$1/$2"`
+
 // issuePlacement writes a new token for o's process name into its container and returns when it
 // expires. It names the container that runs now: its id and when it started.
 func (a *App) issuePlacement(ctx context.Context, o, name string) (time.Time, error) {
@@ -153,11 +158,9 @@ func (a *App) issuePlacement(ctx context.Context, o, name string) (time.Time, er
 	if err != nil {
 		return time.Time{}, err
 	}
-	// As the container's user: a directory of its own, a file only it reads, replaced whole.
-	script := `set -e; umask 077; mkdir -p "$1"; chmod 700 "$1"; cat > "$1/.$2.tmp"; mv -f "$1/.$2.tmp" "$1/$2"`
 	var errb bytes.Buffer
 	if err := a.Host.Exec.Run(ctx, host.Cmd{
-		Args:  []string{"docker", "exec", "-i", "-u", ops.ProcUser, contract.Container(o), "sh", "-c", script, "berth-placement", PlacementDir, name},
+		Args:  []string{"docker", "exec", "-i", "-u", ops.ProcUser, contract.Container(o), "sh", "-c", placementWrite, "berth-placement", PlacementDir, name},
 		Stdin: strings.NewReader(tok + "\n"), Stdout: io.Discard, Stderr: &errb,
 	}); err != nil {
 		return time.Time{}, fmt.Errorf("writing %s's placement token into its container: %w %s", name, err, strings.TrimSpace(errb.String()))

@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -282,5 +285,40 @@ func TestPlacementStartRace(t *testing.T) {
 	}
 	if c, err := placement.Verify(f.file, keys.Keys, time.Now()); err != nil || c.Org != "t-proc" || c.Process != "runner" || c.Container != "c1" {
 		t.Errorf("the running process's token: %+v %v", c, err)
+	}
+}
+
+// TestPlacementWriteConcurrent runs the token script with a real shell, many writers of one name at
+// once: every write succeeds, and the file left is one writer's whole token, with no temp file.
+func TestPlacementWriteConcurrent(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "placement")
+	const n = 16
+	var wg sync.WaitGroup
+	errs := make([]error, n)
+	for i := range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var errb bytes.Buffer
+			cmd := exec.Command("sh", "-c", placementWrite, "berth-placement", dir, "race")
+			cmd.Stdin = strings.NewReader(fmt.Sprintf("token-%02d\n", i))
+			cmd.Stderr = &errb
+			if err := cmd.Run(); err != nil {
+				errs[i] = fmt.Errorf("%w: %s", err, errb.String())
+			}
+		}()
+	}
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("writer %d: %v", i, err)
+		}
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "race"))
+	if err != nil || !regexp.MustCompile(`^token-\d\d\n$`).Match(got) {
+		t.Fatalf("token file = %q, %v", got, err)
+	}
+	if ents, _ := os.ReadDir(dir); len(ents) != 1 {
+		t.Errorf("left in %s: %v", dir, ents)
 	}
 }
