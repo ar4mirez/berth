@@ -11,5 +11,6 @@
   "user": "node",
   "ssh_host": "claude-acme",
   "git_public_key": "ssh-ed25519 AAAAFAKE claude-acme@parity-host",
-  "tunnel": null
+  "tunnel": null,
+  "started_at": "2026-01-02T03:04:05.123456789Z"
 }

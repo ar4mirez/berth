@@ -23,7 +23,7 @@ func (s *server) resources() {
 		Description: "Every org, here and on registered hosts, with its status."},
 		func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			var out, errb bytes.Buffer
-			return jsonResource(req.Params.URI, ops.ListOrgs(ctx, s.opts.NewApp(&out, &errb)))
+			return jsonResource(req.Params.URI, ops.ListOrgsStarted(ctx, s.opts.NewApp(&out, &errb)))
 		})
 	s.mcp.AddResourceTemplate(&mcp.ResourceTemplate{URITemplate: "berth://orgs/{org}", Name: "org", Title: "An org", MIMEType: "application/json",
 		Description: "An org's connection sheet: state, address, ports, git public key. Never a password."},
@@ -39,7 +39,7 @@ func (s *server) resources() {
 			if err != nil {
 				return nil, mcp.ResourceNotFoundError(req.Params.URI)
 			}
-			info, err := ops.GetInfo(ctx, b, o)
+			info, err := ops.GetInfoStarted(ctx, b, o)
 			if err != nil {
 				return nil, mcp.ResourceNotFoundError(req.Params.URI)
 			}

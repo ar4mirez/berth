@@ -34,6 +34,12 @@
         "null"
       ]
     },
+    "started_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "state": {
       "type": "string"
     },
@@ -79,7 +85,8 @@
     "user",
     "ssh_host",
     "git_public_key",
-    "tunnel"
+    "tunnel",
+    "started_at"
   ],
   "title": "berth.info/v1",
   "type": "object"

@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/ar4mirez/berth/internal/contract"
 )
@@ -45,6 +46,42 @@ func GetInfo(ctx context.Context, s System, org string) (Info, error) {
 	}
 	in.Tunnel = s.Tunnel(ctx, org, in.SSHRaw, in.TTYDRaw)
 	return in, nil
+}
+
+// GetInfoStarted is GetInfo with started_at: a docker call the text sheet, like ccenv's, doesn't
+// make (#216).
+func GetInfoStarted(ctx context.Context, s System, org string) (Info, error) {
+	in, err := GetInfo(ctx, s, org)
+	if err == nil && in.State == "running" {
+		in.StartedAt = StartedAt(ctx, s, org)
+	}
+	return in, err
+}
+
+// StartedAt is when org's container was last started, as the engine says (its State.StartedAt),
+// in UTC and RFC 3339 with the engine's precision; nil when it can't be read.
+func StartedAt(ctx context.Context, s System, org string) *string {
+	out, err := s.Capture(ctx, true, "docker", "inspect", "-f", "{{.State.StartedAt}}", contract.Container(org))
+	if err != nil {
+		return nil
+	}
+	t, ok := parseStartedAt(strings.TrimSpace(out))
+	if !ok {
+		return nil
+	}
+	v := t.UTC().Format(time.RFC3339Nano)
+	return &v
+}
+
+// parseStartedAt reads State.StartedAt as Docker prints it (RFC 3339) or as Podman does (Go's
+// time.Time String).
+func parseStartedAt(s string) (time.Time, bool) {
+	for _, layout := range []string{time.RFC3339Nano, "2006-01-02 15:04:05.999999999 -0700 MST"} {
+		if t, err := time.Parse(layout, s); err == nil && !t.IsZero() && t.Year() >= 2000 {
+			return t, true
+		}
+	}
+	return time.Time{}, false
 }
 
 // catError is the reason cat gives for a file it can't read.

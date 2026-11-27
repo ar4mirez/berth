@@ -136,6 +136,9 @@ func TestAppleTranslatesDockersCommands(t *testing.T) {
 	if _, err := run(f, nil, "docker", "inspect", "-f", "{{.State.Status}}", "nope"); err == nil {
 		t.Error("inspect -f of a missing container succeeded")
 	}
+	if out, err := run(f, nil, "docker", "inspect", "-f", "{{.State.StartedAt}}", "claude-acme"); err == nil {
+		t.Errorf("inspect -f {{.State.StartedAt}} answered %q, want an error", out)
+	}
 	if out, err := run(f, nil, "docker", "version", "--format", "{{.Server.Version}}"); err != nil || out != "1.5.0\n" {
 		t.Errorf("version: %q %v", out, err)
 	}

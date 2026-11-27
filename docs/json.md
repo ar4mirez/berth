@@ -187,7 +187,8 @@ can't be combined with `--output json`.
       "ttyd_port": 7701,
       "token": true,
       "remote": "on",
-      "host": "local"
+      "host": "local",
+      "started_at": "2026-11-27T18:00:00.123456789Z"
     }
   ],
   "unreachable": [],
@@ -203,6 +204,7 @@ can't be combined with `--output json`.
 | `token` | whether a Claude token or API key is set |
 | `remote` | Remote Control: `-` (down), `off`, `login-needed`, `on`, `blocked-by-org` or `restarting` |
 | `host` | where the org is: `local`, or a registered host's name (docs/hosts.md). This machine's orgs come first. |
+| `started_at` | when the org's running container was last started, as `berth.info/v1` has it; `null` when it is down, or when its engine doesn't report a start time (Apple's container) |
 | `unreachable` | the registered hosts whose orgs couldn't be listed: `{"host": "box1", "error": "…"}`. Always present, `[]` when none. |
 | `destroyed` | orgs `destroy` removed (offboarded), where, and when (UTC), that don't exist again since. Always present, `[]` when none. |
 
@@ -269,7 +271,8 @@ shows the same case as `(listed but missing)`.
   "user": "node",
   "ssh_host": "claude-acme",
   "git_public_key": "ssh-ed25519 AAAA… claude-acme@box",
-  "tunnel": null
+  "tunnel": null,
+  "started_at": "2026-11-27T18:00:00.123456789Z"
 }
 ```
 
@@ -283,6 +286,7 @@ shows the same case as `(listed but missing)`.
 | `user`, `ssh_host` | the account SSH uses, and the `Host` alias berth suggests for `~/.ssh/config` |
 | `git_public_key` | the org's git key; `""` if it can't be read (the reason is on stderr) |
 | `tunnel` | `null`, or `{"connect": "acme@box1", "ssh_target": "ops@box1.example"}` for an org reached through an SSH tunnel: the argument for `berth org connect`, and where to tunnel by hand (`""` when unknown) |
+| `started_at` | when the running container was last started (RFC 3339, UTC, with the engine's precision), as the engine says: it changes with every up, restart, migrate and restore, by any caller (the command line, a dashboard, the API, MCP), and when the engine restarts the container. `null` when the org is stopped, or when its engine doesn't report a start time (Apple's container). A supervisor that started the org can tell from it whether someone else has restarted it since |
 
 The browser terminal's password is never included: `berth org password show acme` prints it.
 

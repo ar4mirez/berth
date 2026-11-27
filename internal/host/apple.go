@@ -252,6 +252,9 @@ func (e engineExec) runApple(ctx context.Context, c Cmd) error {
 		return nil
 	case "inspect":
 		if len(a) == 4 && a[1] == "-f" { // inspect -f {{.State.Status}} NAME
+			if a[2] != "{{.State.Status}}" {
+				return fmt.Errorf("berth can't read %s of a container from Apple's container", a[2])
+			}
 			cs, err := e.appleList(ctx, true)
 			if err != nil {
 				return err

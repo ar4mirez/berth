@@ -12,10 +12,10 @@ import (
 // (#45), their orgs follow this machine's, with a HOST column; a host that can't be reached is
 // reported, never hidden. Without any, the output is ccenv's.
 func (a *App) Ls(ctx context.Context) error {
-	out := ops.ListOrgs(ctx, a)
 	if a.Output == OutputJSON {
-		return a.writeJSON(out)
+		return a.writeJSON(ops.ListOrgsStarted(ctx, a))
 	}
+	out := ops.ListOrgs(ctx, a)
 	format, head := "%-14s %-6s %-6s %-6s %-8s %s\n", []any{"ORG", "STATE", "SSH", "TTYD", "TOKEN", "REMOTE"}
 	if out.MultiHost {
 		format, head = "%-14s %-6s %-6s %-6s %-8s %-14s %s\n", append(head, "HOST")
@@ -40,7 +40,11 @@ func (a *App) Ls(ctx context.Context) error {
 
 // Info is `ccenv info <org>`: every way to connect.
 func (a *App) Info(ctx context.Context, o string) error {
-	in, err := ops.GetInfo(ctx, a, o)
+	get := ops.GetInfo
+	if a.Output == OutputJSON {
+		get = ops.GetInfoStarted
+	}
+	in, err := get(ctx, a, o)
 	if err != nil {
 		return err
 	}
