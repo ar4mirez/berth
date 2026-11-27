@@ -38,18 +38,18 @@ berth ui [--port N] [--no-open] [flags]
 ### Options
 
 ```
-  -h, --help       help for ui
-      --no-open    print the link and don't open a browser
-      --port int   the port on 127.0.0.1 to listen on (default: any free one)
+  -h, --help[=true|false]      help for ui
+      --no-open[=true|false]   print the link and don't open a browser
+      --port int               the port on 127.0.0.1 to listen on (default: any free one)
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --home string              state root (default: $BERTH_HOME, then home: in config.yaml, then ~/.local/share/berth)
-      --output string            output format for commands that return data: text or json (docs/json.md) (default "text")
-      --read-only                refuse any command that would change state
-      --via-daemon berth serve   run the command through a running berth serve, over its socket (docs/api.md)
+      --home string               state root (default: $BERTH_HOME, then home: in config.yaml, then ~/.local/share/berth)
+      --output string             output format for commands that return data: text or json (docs/json.md) (default "text")
+      --read-only[=true|false]    refuse any command that would change state
+      --via-daemon[=true|false]   run the command through a running berth serve, over its socket (docs/api.md)
 ```
 
 ### SEE ALSO

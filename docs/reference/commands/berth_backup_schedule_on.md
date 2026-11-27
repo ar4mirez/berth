@@ -29,16 +29,16 @@ berth backup schedule on [--at HH:MM] [--keep N] [-o dir] [--host <name>] [flags
 ### Options
 
 ```
-  -h, --help   help for on
+  -h, --help[=true|false]   help for on
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --home string              state root (default: $BERTH_HOME, then home: in config.yaml, then ~/.local/share/berth)
-      --output string            output format for commands that return data: text or json (docs/json.md) (default "text")
-      --read-only                refuse any command that would change state
-      --via-daemon berth serve   run the command through a running berth serve, over its socket (docs/api.md)
+      --home string               state root (default: $BERTH_HOME, then home: in config.yaml, then ~/.local/share/berth)
+      --output string             output format for commands that return data: text or json (docs/json.md) (default "text")
+      --read-only[=true|false]    refuse any command that would change state
+      --via-daemon[=true|false]   run the command through a running berth serve, over its socket (docs/api.md)
 ```
 
 ### SEE ALSO
