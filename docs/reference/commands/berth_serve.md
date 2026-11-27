@@ -44,21 +44,21 @@ berth serve [--socket PATH] [--listen ADDR [--tls-cert FILE --tls-key FILE]] [--
 ### Options
 
 ```
-  -h, --help              help for serve
-      --listen string     also listen on this TCP address (host:port), over TLS, for callers with a token
-      --no-ui             serve the API only, without the web dashboard (docs/guides/web.md)
-      --socket string     the Unix socket to listen on (default: $XDG_RUNTIME_DIR/berth.sock, or ~/.config/berth/berth.sock)
-      --tls-cert string   the certificate to serve TCP with (PEM; default: berth's own, self-signed)
-      --tls-key string    its private key (PEM)
+  -h, --help[=true|false]    help for serve
+      --listen string        also listen on this TCP address (host:port), over TLS, for callers with a token
+      --no-ui[=true|false]   serve the API only, without the web dashboard (docs/guides/web.md)
+      --socket string        the Unix socket to listen on (default: $XDG_RUNTIME_DIR/berth.sock, or ~/.config/berth/berth.sock)
+      --tls-cert string      the certificate to serve TCP with (PEM; default: berth's own, self-signed)
+      --tls-key string       its private key (PEM)
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --home string              state root (default: $BERTH_HOME, then home: in config.yaml, then ~/.local/share/berth)
-      --output string            output format for commands that return data: text or json (docs/json.md) (default "text")
-      --read-only                refuse any command that would change state
-      --via-daemon berth serve   run the command through a running berth serve, over its socket (docs/api.md)
+      --home string               state root (default: $BERTH_HOME, then home: in config.yaml, then ~/.local/share/berth)
+      --output string             output format for commands that return data: text or json (docs/json.md) (default "text")
+      --read-only[=true|false]    refuse any command that would change state
+      --via-daemon[=true|false]   run the command through a running berth serve, over its socket (docs/api.md)
 ```
 
 ### SEE ALSO
