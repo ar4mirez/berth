@@ -42,7 +42,7 @@ berth: --output json isn't available for "completion": it is a shell script
 `internal/ops` holds the list (`JSON` or `NoJSON` on each operation), and a test fails for a reading command with
 neither.
 
-Each document below has a golden file in `test/parity/testdata/json/`, which the tests compare byte for byte.
+Each command's document below has a golden file in `test/parity/testdata/json/`, which the tests compare byte for byte.
 
 ## Rules
 - **Every document names its schema and version:** `"schema": "berth.<kind>/v<N>"`.
@@ -61,7 +61,7 @@ from it; a field that may be `null` says so.
 
 | Document | From | Schema |
 |---|---|---|
-| `berth.api/v1` | `GET /v1` (the API, not a command) | |
+| `berth.api/v1` | `GET /v1` (the API, not a command) | in [`openapi.json`](api/openapi.json) |
 | `berth.orgs/v1` | `ls` | [`orgs.v1.json`](schemas/orgs.v1.json) |
 | `berth.info/v1` | `info <org>` | [`info.v1.json`](schemas/info.v1.json) |
 | `berth.whoami/v1` | `account whoami [org...]` | [`whoami.v1.json`](schemas/whoami.v1.json) |
