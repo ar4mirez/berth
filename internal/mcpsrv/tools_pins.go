@@ -30,6 +30,12 @@ func (a toolRemoveArgs) auditArgs() map[string]any {
 	return map[string]any{"org": a.Org, "name": a.Name}
 }
 
+func init() {
+	// A pin makes the org download and run a release binary at its next start: for a person to set
+	// through the API, never for an agent to give itself.
+	noMCP["tool_set"], noMCP["tool_remove"] = true, true
+}
+
 func (s *server) toolPinTools() {
 	add(s, "tools_list", "tool", "ls", "An org's pinned tools: each one's mise source and exact version, and whether the running container installed it at its start.",
 		func(ctx context.Context, c *call, in orgArg) (ops.Tools, error) {

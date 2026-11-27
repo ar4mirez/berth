@@ -48,12 +48,13 @@ type Tools struct {
 var (
 	toolName    = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
 	toolSource  = regexp.MustCompile(`^(github|aqua):[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
-	toolVersion = regexp.MustCompile(`^v?[0-9]+(\.[0-9]+){0,3}([-+][0-9A-Za-z][0-9A-Za-z.-]*)?$`)
+	toolVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?([-+][0-9A-Za-z][0-9A-Za-z.-]*)?$`)
 )
 
 // CheckTool checks a pinned tool: a name like the others ([a-z0-9-]{1,32}); a source that is a
 // mise backend whose downloads mise verifies (github:owner/repo or aqua:owner/repo); and an exact
-// version (0.6.0, v1.2.3-rc.1), never a range, a prefix like "1" alone with a wildcard, or latest.
+// version, at least major.minor.patch (0.6.0, v1.2.3-rc.1), never a range, a prefix like 1 or 1.4
+// (mise would take the newest that matches), or latest.
 func CheckTool(t PinnedTool) error {
 	switch {
 	case !toolName.MatchString(t.Name):
@@ -61,7 +62,7 @@ func CheckTool(t PinnedTool) error {
 	case !toolSource.MatchString(t.Source):
 		return Usage("source %q: a mise backend whose downloads it verifies, github:owner/repo or aqua:owner/repo", t.Source)
 	case !toolVersion.MatchString(t.Version):
-		return Usage("version %q: one exact version, as in 0.6.0 (no range, no latest)", t.Version)
+		return Usage("version %q: one exact version, major.minor.patch as in 0.6.0 (no range, no prefix, no latest)", t.Version)
 	}
 	return nil
 }

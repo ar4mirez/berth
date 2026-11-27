@@ -75,7 +75,6 @@ uses to refuse writes under `--read-only`.
 | `packages_list`, `package_presets` | the system packages an org's image adds; the @presets and what each stands for | |
 | `mounts_list` | an org's socket mounts, and whether its container has them | |
 | `tools_list` | an org's pinned tools, and whether its container installed them | |
-| `tool_set`, `tool_remove` | pin a tool to one exact version, or stop installing it (at the org's next start) | `--allow-writes` |
 | `processes_list`, `process_show` | a running org's supervised processes, and one of them | |
 | `backups_list`, `schedule_status` | the backup files here; the nightly schedule | |
 | `firewall_allow`, `firewall_deny` | add or remove allowlist entries, applied live | `--allow-writes` |
@@ -103,6 +102,7 @@ uses to refuse writes under `--read-only`.
 - upgrading berth: it replaces what is serving;
 - restoring a backup, and moving an org to another host: each replaces or stops an org.
 - adding or removing a socket mount: it gives an org a daemon of its host.
+- pinning a tool, or removing a pin: the org downloads and runs a release binary at its next start.
 - starting or stopping a supervised process: it runs a program in the org, as a session would.
 - anything that takes or shows a secret: setting a variable, an org's Claude token, a password rotated or shown,
   the backup key, and

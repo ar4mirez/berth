@@ -265,13 +265,18 @@ curl --unix-socket "$s" -X POST -d '{"confirm":"acme"}' http://berth/v1/orgs/acm
 ```
 
 - `source` is a mise backend whose downloads mise verifies, `github:owner/repo` or `aqua:owner/repo`; `version` is
-  one exact version (`0.6.0`, `v1.2.3-rc.1`), never a range or `latest`.
+  one exact version, at least major.minor.patch (`0.6.0`, `v1.2.3-rc.1`), never a range, a prefix like `1.4`, or `latest`;
+  the version mise installed must be that one.
 - **Installed at the org's start**, with the image's mise as the container's user, every check mise has on:
   paranoid mode, GitHub artifact attestations, SLSA provenance, cosign and minisign signatures, checksums. The
   org's firewall applies: its allowlist must let it reach the release (github.com and its download hosts).
 - **An up or restart waits for it** and fails (`berth.error/v1`, kind `failed`) with the reason when one didn't
   install, never a silent skip; the org is running, without it.
-- The list is `orgs/<org>/config/tools.txt`, kept in backups; setting or removing one restarts nothing.
+- The list is `orgs/<org>/config/tools.txt`, kept in backups; setting or removing one restarts nothing. At each
+  start, the tools that installed are put on PATH by a mise config berth owns and writes whole, so a pin removed or
+  changed is gone from the org after its next start.
+- No MCP server offers setting or removing one: the org downloads and runs a release binary at its next start,
+  which is a person's call. `tools_list` is there.
 
 ## Supervised processes
 

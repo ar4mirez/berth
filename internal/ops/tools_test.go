@@ -24,6 +24,10 @@ func TestCheckTool(t *testing.T) {
 		{PinnedTool{Name: "gadget", Source: "github:acme/gadget", Version: "^1.4"}, "exact version"},
 		{PinnedTool{Name: "gadget", Source: "github:acme/gadget", Version: "1.x"}, "exact version"},
 		{PinnedTool{Name: "gadget", Source: "github:acme/gadget", Version: ""}, "exact version"},
+		{PinnedTool{Name: "gadget", Source: "github:acme/gadget", Version: "1"}, "exact version"},
+		{PinnedTool{Name: "gadget", Source: "github:acme/gadget", Version: "1.4"}, "exact version"},
+		{PinnedTool{Name: "gadget", Source: "github:acme/gadget", Version: "v1.4"}, "exact version"},
+		{PinnedTool{Name: "gadget", Source: "github:acme/gadget", Version: "1.4.2.1"}, ""},
 	} {
 		err := CheckTool(tt.t)
 		if (tt.want == "") != (err == nil) || (err != nil && !strings.Contains(err.Error(), tt.want)) {

@@ -28,6 +28,8 @@ func TestToolCommand(t *testing.T) {
 		{"gadget", "npm:gadget", "1.4.2"},
 		{"gadget", "github:acme/gadget", "latest"},
 		{"gadget", "github:acme/gadget", "^1.4"},
+		{"gadget", "github:acme/gadget", "1"},
+		{"gadget", "github:acme/gadget", "1.4"},
 		{"Gadget", "github:acme/gadget", "1.4.2"},
 	} {
 		r := run(t, raw, Scenario{Args: append([]string{"tool", "acme", "set"}, args...), Files: twoOrgs})
@@ -42,6 +44,12 @@ func TestToolCommand(t *testing.T) {
 	r = run(t, raw, Scenario{Args: []string{"restart", "acme"}, Files: pinned, Rules: running("acme", failed)})
 	if r.Exit != 1 || !strings.Contains(r.Stderr, "acme's pinned tools didn't all install: gadget (github:acme/gadget@1.4.2): mise ERROR GitHub artifact attestation verification failed") {
 		t.Errorf("restart, a pin that failed: exit %d, stderr %q", r.Exit, r.Stderr)
+	}
+	// A status for another version of the pin (the list changed while it installed) fails too.
+	other := Rule{Bin: "docker", Match: `^exec claude-acme cat /run/berth/tools.status$`, Stdout: "gadget github:acme/gadget@1.4.1 ok\ndone\n"}
+	r = run(t, raw, Scenario{Args: []string{"restart", "acme"}, Files: pinned, Rules: running("acme", other)})
+	if r.Exit != 1 || !strings.Contains(r.Stderr, "gadget: not installed (the container read another list)") {
+		t.Errorf("restart, another version installed: exit %d, stderr %q", r.Exit, r.Stderr)
 	}
 	ok := Rule{Bin: "docker", Match: `^exec claude-acme cat /run/berth/tools.status$`, Stdout: "gadget github:acme/gadget@1.4.2 ok\ndone\n"}
 	r = run(t, raw, Scenario{Args: []string{"restart", "acme"}, Files: pinned, Rules: running("acme", ok)})

@@ -327,8 +327,6 @@ func TestBerthMCPSafety(t *testing.T) {
 		"repo_adopt":      {"org": "acme", "dirs": []string{"stray"}},
 		"repo_new":        {"org": "acme", "repo": "gadget", "local": true},
 		"packages_build":  {"org": "acme"},
-		"tool_set":        {"org": "acme", "name": "gadget", "source": "github:acme/gadget", "version": "1.4.2"},
-		"tool_remove":     {"org": "acme", "name": "gadget"},
 		"schedule_on":     {"at": "02:30"},
 		"schedule_off":    {},
 		"schedule_run":    {},

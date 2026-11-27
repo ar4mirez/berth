@@ -133,7 +133,7 @@ func (a *App) waitTools(ctx context.Context, o string) error {
 			for _, t := range ts {
 				r, ok := res[t.Name]
 				switch {
-				case !ok:
+				case !ok || r.Spec != t.Source+"@"+t.Version:
 					failed = append(failed, t.Name+": not installed (the container read another list)")
 				case !r.OK:
 					failed = append(failed, t.Name+" ("+r.Spec+"): "+r.Reason)
