@@ -308,11 +308,13 @@ driving it one ssh command at a time (#148). It forwards the host's API socket o
 has, so nothing listens on the host's network, and the host's berth runs the command there.
 
 - **What goes that way:** what is the same wherever it runs: `fw show|allow|deny|presets|test`,
-  `repo ls|add|rm`, `env ls`, `pkg ls`, `account remote status`.
+  `repo ls|add|rm`, `env ls`, `pkg ls`, `account remote status`, `proc ls|start|show|stop` (the host's berth
+  signs a [placement token](api.md#placement-proofs) and keeps it fresh).
 - **What keeps the ssh path:** what depends on this machine: `up`, `restart`, `down` (the active-host lease, the
   host guard), `info` and `ls` (the registry, the tunnel), backups (your key), and anything interactive.
 - **Nothing to set up here.** berth looks for the socket at each command; a host with no server, or one that
-  doesn't answer, is driven over ssh as before. `BERTH_HOST_API=off` keeps everything on ssh.
+  doesn't answer, is driven over ssh as before, but for `proc start --placement`, which is refused there: over
+  ssh nothing would sign its token. `BERTH_HOST_API=off` keeps everything on ssh.
 - **On the host**, run `berth serve` as the user berth logs in as: `berth system service install` there keeps
   it running ([as a service](api.md#running-it-as-a-service)). A change that
   comes through it is in that host's `audit.log`, with `"via":"api"`.

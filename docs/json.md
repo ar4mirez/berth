@@ -550,8 +550,9 @@ it once the process has started, and `DELETE` with its last state once it has st
 ## `berth.placement-keys/v1`: `placement keys`
 
 The public keys that verify supervised processes' placement tokens (`GET /v1/placement/keys`,
-[the API](api.md#placement-proofs)): the one signing now, and older ones until their last token has expired.
-Newest first.
+[the API](api.md#placement-proofs)): the one signing now, the next one from 1 hour 15 minutes before it signs,
+and older ones until their last token has expired. Newest first. Fetch it once, and again when a token names a key
+it doesn't list.
 
 ```json
 {

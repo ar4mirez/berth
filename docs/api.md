@@ -159,7 +159,7 @@ others take a JSON body.
 | `PUT /v1/orgs/{org}/tools/{name}` | Pin a tool to one exact version, installed at the org's next up or restart: `source`, `version` | write | `berth tool set` |
 | `DELETE /v1/orgs/{org}/tools/{name}` | Stop installing a pinned tool at the org's start | write | `berth tool rm` |
 | `GET /v1/orgs/{org}/processes` | A running org's [supervised processes](#supervised-processes) and their state | read | `berth proc ls` |
-| `POST /v1/orgs/{org}/processes/{name}` | Start a named long-lived process in a running org's container: `argv`, `cwd`, `env`, `restart`, `stop_grace_seconds` | write | `berth proc start` |
+| `POST /v1/orgs/{org}/processes/{name}` | Start a named long-lived process in a running org's container: `argv`, `cwd`, `env`, `restart`, `stop_grace_seconds`, `placement` | write | `berth proc start` |
 | `GET /v1/orgs/{org}/processes/{name}` | One supervised process: its state, pid, start, exit code and restarts | read | `berth proc show` |
 | `DELETE /v1/orgs/{org}/processes/{name}` | Stop a supervised process and forget it; answers when it has exited | write | `berth proc stop` |
 | `GET /v1/placement/keys` | The public keys that verify supervised processes' [placement tokens](#placement-proofs) | read | `berth placement keys` |
@@ -324,23 +324,42 @@ a short-lived token, signed by a key berth keeps on its own machine, and anyone 
 keys ([`berth.placement-keys/v1`](json.md#berthplacement-keysv1-placement-keys)). The format and why are in
 [the decision](decisions/216-placement-proof.md).
 
-- **Where it is.** Before a process starts, berth writes its token to `/run/berth/placement/<name>` in the
+- **Asked for, per start.** A process gets a token only when its start asks: `placement: true` in the body of
+  `POST /v1/orgs/{org}/processes/{name}`, or `berth proc <org> start <name> --placement -- …`. A start without it
+  is as it was: no token, and no `BERTH_PLACEMENT_FILE`. A process never runs believing it has a proof it hasn't,
+  so a start with placement is refused (409 `state`) where its token couldn't be written and kept fresh:
+  - **no `berth serve` keeps tokens fresh** (`placement needs berth serve`): a start with placement needs one that
+    isn't `--read-only`, for the same state root. A start inside it has one; a start on the command line counts on
+    its heartbeat, `<state>/placement-serve.json`, which its refresher writes each minute with its pid and removes
+    when it stops. It counts while that pid runs and the heartbeat is less than two minutes old. A `--read-only`
+    serve keeps none.
+  - **an org on a registered host whose `berth serve` can't be reached.** `berth proc acme@box start|stop|show|ls`
+    goes through that host's own berth (#148), which signs and writes the token itself; when it can't be reached,
+    a start with placement is refused rather than made over ssh without a token. A start without placement still
+    goes over ssh. The API and MCP, which reach such an org over ssh, refuse it too.
+  - **Apple's `container`**, which reports no start time, which a token names.
+  - **an image that predates supervised processes**, as any start on it is.
+- **Where it is.** Before the process starts, berth writes its token to `/run/berth/placement/<name>` in the
   container (a directory and file of the container's user, mode 0700 and 0600) and gives the process its path as
-  `BERTH_PLACEMENT_FILE`. The token is never in an answer, an event, a log or the audit log; a stop removes it.
+  `BERTH_PLACEMENT_FILE` (it is in the process's `env_names`; a start may not set it itself). The token is never in
+  an answer, an event, a log or the audit log; a stop removes it.
 - **What it says.** A compact JWS (RFC 7515) signed with Ed25519 (`alg` `EdDSA`, RFC 8037; `typ`
   `berth-placement+jwt`; `kid`, the key's id), with the claims `iss` (`berth`), `org`, `container` (the container's
   id), `container_started_at` (as `GET /v1/orgs/{org}` has `started_at`), `process`, `iat`, `exp` (at most 15
   minutes after `iat`) and `nonce`.
-- **Kept fresh.** `berth serve` replaces each running process's token 5 minutes before its end, for as long as the
-  process runs, and gives a process in a recreated container a token for that container. Without a `berth serve`
-  running, a token ends at most 15 minutes after it was written.
-- **Verifying one.** Check the signature with the key `kid` names in `GET /v1/placement/keys` (not after its
-  `not_after`), `typ`, `iss`, and that `now` is before `exp`; then that `org` is the org you expect and
-  `container_started_at` is that org's current `started_at`. A token from an older container fails the last check.
-- **Keys rotate.** A key signs for 7 days, then a new one does; the old one is listed until its last token has
-  expired. The keys are in berth's configuration on this machine (`~/.config/berth/placement/keys.json`, mode
-  0600), never in a container. An org on a registered host gets its tokens from the berth on that host.
-  Apple's `container` reports no start time, so a process there gets no token (and no `BERTH_PLACEMENT_FILE`).
+- **Kept fresh.** `berth serve`'s refresher replaces the token of each running process started with placement 5
+  minutes before its end, for as long as the process runs, and stops when the process or its container ends. It
+  finds those processes by `BERTH_PLACEMENT_FILE` among their variables, as berth-proc records them in the
+  container, so a `berth serve` started again keeps refreshing them.
+- **Verifying one.** Fetch `GET /v1/placement/keys` once and keep it. Check the signature with the key `kid` names
+  (not after its `not_after`), `typ`, `iss`, and that `now` is before `exp`; then that `org` is the org you expect
+  and `container_started_at` is that org's current `started_at`. A token from an older container fails the last
+  check. When a token names a `kid` you don't have, fetch the keys again, once, and check it with those.
+- **Keys rotate.** A key signs for 7 days, then the next one does. The next one is made, and listed, 1 hour 15
+  minutes (a token's 15 minutes and an hour) before it signs, so keys fetched in that time already verify the
+  tokens signed after the rotation; the refetch on an unknown `kid` covers keys fetched before it. The old one is
+  listed until its last token has expired. The keys are in berth's configuration on this machine
+  (`~/.config/berth/placement/keys.json`, mode 0600), never in a container.
 
 ## Errors
 

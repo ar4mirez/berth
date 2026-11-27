@@ -188,14 +188,22 @@ func serveCmd() *cobra.Command {
 			}
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			if !st.ReadOnly {
+			refreshed := make(chan struct{})
+			if st.ReadOnly {
+				close(refreshed)
+			} else {
 				// Supervised processes' placement tokens (#216), kept fresh while this serves.
-				go (&app.PlacementRefresher{}).Run(ctx, func() *app.App { return appFor(cmd) }, time.Minute, cmd.ErrOrStderr())
+				go func() {
+					defer close(refreshed)
+					(&app.PlacementRefresher{}).Run(ctx, func() *app.App { return appFor(cmd) }, cmd.ErrOrStderr())
+				}()
 			}
 			select {
 			case <-ctx.Done():
 			case err = <-errs:
 			}
+			stop()
+			<-refreshed // its heartbeat removed: a start with placement is refused from now on
 			// Requests in flight get a moment; a log follow ends with its client's context.
 			end, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -840,7 +848,8 @@ func addCommands(root *cobra.Command) {
 				"container: an up, restart or down ends it, and nothing starts it again until it is started again.\n" +
 				"Its variables are shown by name only, and their values are never on the command line: --env NAME\n" +
 				"reads NAME's value from stdin (NAME=value lines, or the value alone for one --env), and\n" +
-				"--env-file PATH reads NAME=value lines.",
+				"--env-file PATH reads NAME=value lines. --placement gives it a placement token, a proof of the org's\n" +
+				"container it runs in, at the path BERTH_PLACEMENT_FILE names; it needs a berth serve to keep it fresh.",
 			DisableFlagParsing: true,
 			ValidArgsFunction:  completeProc,
 			RunE: onOrgV(nthArg(0), procVerbs, func(a *app.App, cmd *cobra.Command, args []string) error {

@@ -6768,6 +6768,10 @@
                     "type": "object",
                     "writeOnly": true
                   },
+                  "placement": {
+                    "description": "true for a placement token: a proof signed by berth of the org's container it runs in, at the path BERTH_PLACEMENT_FILE names, kept fresh while it runs; refused when no berth serve (not --read-only) would keep it fresh",
+                    "type": "boolean"
+                  },
                   "restart": {
                     "description": "never, or on-failure (the default): started again after a failure, waiting 1s, then twice as long each time, up to 60s",
                     "type": "string"

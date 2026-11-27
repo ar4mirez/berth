@@ -3,11 +3,16 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path"
+	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/ar4mirez/berth/internal/contract"
@@ -20,7 +25,8 @@ import (
 // process gets a short-lived token, signed by a key berth keeps in its own configuration on the
 // host (never in a container), that says which org's container it runs in. It is written into the
 // container at PlacementDir/<process>, readable by the container's user and nothing outside it;
-// never in an answer, an event, a log or the audit log.
+// never in an answer, an event, a log or the audit log. Only a process started with placement gets
+// one (`proc start --placement`, placement: true), and only while a berth serve keeps it fresh.
 
 // PlacementDir is where a process's token is in its container.
 const PlacementDir = "/run/berth/placement"
@@ -30,6 +36,10 @@ const PlacementEnv = "BERTH_PLACEMENT_FILE"
 
 // placementRefresh is how long before its end a token is replaced.
 const placementRefresh = 5 * time.Minute
+
+// PlacementInterval is how often berth serve's refresher goes round. A start with placement
+// counts on it while its heartbeat is younger than two rounds.
+const PlacementInterval = time.Minute
 
 // PlacementStore is this machine's signing keys, in berth's configuration (0600).
 func (a *App) PlacementStore() placement.Store {
@@ -73,18 +83,56 @@ func (a *App) printPlacementKeys(ks ops.PlacementKeys) error {
 	return nil
 }
 
+// placementBeat is the file berth serve's refresher says it runs in: its pid and its last round.
+func (a *App) placementBeat() string { return path.Join(a.State.Home.Path, "placement-serve.json") }
+
+type serveBeat struct {
+	PID int       `json:"pid"`
+	At  time.Time `json:"at"`
+}
+
+// pidAlive reports whether a process of that pid runs on this machine.
+var pidAlive = func(pid int) bool {
+	err := syscall.Kill(pid, 0)
+	return err == nil || errors.Is(err, syscall.EPERM)
+}
+
+// placementRefreshed reports whether a berth serve that isn't read-only keeps this state root's
+// tokens fresh: its heartbeat names a live process, from within two of its rounds.
+func (a *App) placementRefreshed() bool {
+	b, err := a.Host.FS.ReadFile(a.placementBeat())
+	var beat serveBeat
+	if err != nil || json.Unmarshal(b, &beat) != nil || beat.PID <= 0 {
+		return false
+	}
+	return pidAlive(beat.PID) && time.Since(beat.At) < 2*PlacementInterval
+}
+
+// placementReady refuses a start with placement wherever its token couldn't be written and kept
+// fresh: so a process never runs believing it has a proof it hasn't.
+func (a *App) placementReady(ctx context.Context, o string) error {
+	switch {
+	case a.HostName != "":
+		return &ops.Error{Kind: ops.KindState, Code: 1,
+			Msg:  fmt.Sprintf("a placement token for %s@%s is signed on %s, by its %s serve, which can't be reached", o, a.HostName, a.HostName, Tool),
+			Hint: "start " + Tool + " serve on " + a.HostName + ", or start the process without --placement"}
+	case a.Host.EngineName() == host.EngineApple:
+		return &ops.Error{Kind: ops.KindState, Code: 1,
+			Msg:  "Apple's container reports no start time, which a placement token names",
+			Hint: "start the process without --placement"}
+	case !a.placementRefreshed():
+		return &ops.Error{Kind: ops.KindState, Code: 1,
+			Msg:  "placement needs " + Tool + " serve: nothing would keep the token fresh past its 15 minutes",
+			Hint: "start " + Tool + " serve (not --read-only) for this state root, or start the process without --placement"}
+	}
+	// An image that predates supervised processes is said as such, before a token is written.
+	_, err := ops.GetProcesses(ctx, a, o)
+	return err
+}
+
 // issuePlacement writes a new token for o's process name into its container and returns when it
 // expires. It names the container that runs now: its id and when it started.
 func (a *App) issuePlacement(ctx context.Context, o, name string) (time.Time, error) {
-	if a.HostName != "" {
-		// The org's own machine signs its tokens: its berth serve, through the host API (#148).
-		return time.Time{}, nil
-	}
-	if a.Host.EngineName() == host.EngineApple {
-		// Apple's container reports no start time, which a token must name: a process there
-		// runs without one, and a consumer that needs a proof refuses it.
-		return time.Time{}, nil
-	}
 	id, err := a.capture(ctx, true, "docker", "inspect", "-f", "{{.Id}}", contract.Container(o))
 	if err != nil {
 		return time.Time{}, fmt.Errorf("can't tell %s's container: %w", o, err)
@@ -117,32 +165,60 @@ func (a *App) dropPlacement(ctx context.Context, o, name string) {
 // placementKey is one token berth keeps fresh: an org's process, in one container.
 type placementKey struct{ org, container, process string }
 
-// PlacementRefresher keeps every supervised process's token fresh on this machine, for as long as
-// it runs: it replaces each one placementRefresh before its end, and gives a process in a new
-// container a token for that container. `berth serve` runs it until it stops. A token isn't
-// renewed while no berth serve runs; it ends at most 15 minutes later.
+// PlacementRefresher keeps the token of every supervised process started with placement fresh on
+// this machine, for as long as it runs: it replaces each one placementRefresh before its end, and
+// gives a process in a new container a token for that container. Which processes those are is
+// berth-proc's own record of each one's variables (PlacementEnv among them), so a berth serve
+// started again finds them too. `berth serve` runs it until it stops, and it keeps a heartbeat
+// (placementBeat) that a start with placement asks for.
 type PlacementRefresher struct {
 	mu      sync.Mutex
 	expires map[placementKey]time.Time
 }
 
-// Run refreshes every interval until ctx is done; what fails is said on log, and tried again.
-func (r *PlacementRefresher) Run(ctx context.Context, newApp func() *App, interval time.Duration, log io.Writer) {
+// Run refreshes every PlacementInterval until ctx is done, and then removes its heartbeat; what
+// fails is said on log, and tried again.
+func (r *PlacementRefresher) Run(ctx context.Context, newApp func() *App, log io.Writer) {
+	a := newApp()
+	defer a.dropBeat()
 	for {
-		r.Once(ctx, newApp(), log)
+		r.Once(ctx, a, log)
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(interval):
+		case <-time.After(PlacementInterval):
 		}
+		a = newApp()
 	}
 }
 
-// Once is one round: every running org's processes, each given a token when it has none from
-// this refresher or its token ends within placementRefresh.
+// beat says this process keeps the tokens fresh, as of now.
+func (a *App) beat() error {
+	b, _ := json.Marshal(serveBeat{PID: os.Getpid(), At: time.Now().UTC()})
+	if err := a.Host.FS.MkdirAll(path.Dir(a.placementBeat()), 0o700); err != nil {
+		return err
+	}
+	return a.Host.FS.WriteFileAtomic(a.placementBeat(), append(b, '\n'), 0o600)
+}
+
+// dropBeat removes the heartbeat, if it is this process's.
+func (a *App) dropBeat() {
+	b, err := a.Host.FS.ReadFile(a.placementBeat())
+	var beat serveBeat
+	if err == nil && json.Unmarshal(b, &beat) == nil && beat.PID == os.Getpid() {
+		_ = a.Host.FS.Remove(a.placementBeat())
+	}
+}
+
+// Once is one round: its heartbeat, then every running org's processes started with placement,
+// each given a token when it has none from this refresher or its token ends within
+// placementRefresh.
 func (r *PlacementRefresher) Once(ctx context.Context, a *App, log io.Writer) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if err := a.beat(); err != nil {
+		sayf(log, "berth serve: placement tokens: %v\n", err)
+	}
 	if r.expires == nil {
 		r.expires = map[placementKey]time.Time{}
 	}
@@ -160,7 +236,7 @@ func (r *PlacementRefresher) Once(ctx context.Context, a *App, log io.Writer) {
 			continue
 		}
 		for _, p := range ps.Processes {
-			if p.State == "exited" {
+			if p.State == "exited" || !slices.Contains(p.EnvNames, PlacementEnv) {
 				continue
 			}
 			k := placementKey{o, strings.TrimSpace(id), p.Name}

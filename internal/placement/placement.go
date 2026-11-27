@@ -31,6 +31,9 @@ const (
 	TokenTTL = 15 * time.Minute
 	// KeyLife is how long a key signs new tokens; it is listed until its last token has expired.
 	KeyLife = 7 * 24 * time.Hour
+	// KeyLead is how long before a key stops signing its successor is made and listed, so a
+	// consumer that fetched the keys in that time already has the key the next tokens name.
+	KeyLead = TokenTTL + time.Hour
 	// Type is the tokens' typ.
 	Type = "berth-placement+jwt"
 	// Issuer is the tokens' iss.
@@ -63,10 +66,25 @@ type PublicKey struct {
 }
 
 type key struct {
-	ID          string    `json:"id"`
-	Created     time.Time `json:"created"`
+	ID      string    `json:"id"`
+	Created time.Time `json:"created"`
+	// SignFrom is when it starts signing (a successor is listed before then), RetireAfter when
+	// it stops.
+	SignFrom    time.Time `json:"sign_from"`
 	RetireAfter time.Time `json:"retire_after"`
 	Seed        []byte    `json:"seed"`
+}
+
+// signer is the key that signs at now: of the ones whose time it is, the newest.
+func signer(ks []key, now time.Time) (key, bool) {
+	var k key
+	ok := false
+	for _, x := range ks {
+		if !now.Before(x.SignFrom) && now.Before(x.RetireAfter) && (!ok || x.SignFrom.After(k.SignFrom)) {
+			k, ok = x, true
+		}
+	}
+	return k, ok
 }
 
 // Store is the signing keys, in one file on the host (mode 0600, never in a container).
@@ -83,12 +101,13 @@ func (s Store) now() time.Time {
 	return time.Now().UTC()
 }
 
-// keys loads the keys, drops the ones whose last token has expired, and makes a new one when none
-// may sign any more; it saves the file when it changed it. The caller holds the lock.
-func (s Store) keys() ([]key, error) { return s.load(true) }
+// keys loads the keys as at now, drops the ones whose last token has expired, makes one that signs
+// at once when none may sign, and makes the next one KeyLead before the last one stops signing;
+// it saves the file when it changed it. The caller holds the lock.
+func (s Store) keys(now time.Time) ([]key, error) { return s.load(now, true) }
 
 // load is keys, and with write false it neither makes a key nor saves the file.
-func (s Store) load(write bool) ([]key, error) {
+func (s Store) load(now time.Time, write bool) ([]key, error) {
 	var ks []key
 	b, err := s.FS.ReadFile(s.Path)
 	switch {
@@ -100,7 +119,7 @@ func (s Store) load(write bool) ([]key, error) {
 			return nil, fmt.Errorf("%s: %w", s.Path, err)
 		}
 	}
-	now, changed := s.now(), false
+	changed := false
 	ks = slices.DeleteFunc(ks, func(k key) bool {
 		gone := !now.Before(k.RetireAfter.Add(TokenTTL)) || len(k.Seed) != ed25519.SeedSize
 		changed = changed || gone
@@ -109,17 +128,29 @@ func (s Store) load(write bool) ([]key, error) {
 	if !write {
 		return ks, nil
 	}
-	if !slices.ContainsFunc(ks, func(k key) bool { return now.Before(k.RetireAfter) }) {
+	add := func(from time.Time) error {
 		id := make([]byte, 8)
 		seed := make([]byte, ed25519.SeedSize)
 		if _, err := rand.Read(id); err != nil {
-			return nil, err
+			return err
 		}
 		if _, err := rand.Read(seed); err != nil {
+			return err
+		}
+		ks = append(ks, key{ID: hex.EncodeToString(id), Created: now, SignFrom: from, RetireAfter: from.Add(KeyLife), Seed: seed})
+		changed = true
+		return nil
+	}
+	if _, ok := signer(ks, now); !ok {
+		if err := add(now); err != nil {
 			return nil, err
 		}
-		ks = append(ks, key{ID: hex.EncodeToString(id), Created: now, RetireAfter: now.Add(KeyLife), Seed: seed})
-		changed = true
+	}
+	last := slices.MaxFunc(ks, func(x, y key) int { return x.RetireAfter.Compare(y.RetireAfter) })
+	if !now.Before(last.RetireAfter.Add(-KeyLead)) {
+		if err := add(last.RetireAfter); err != nil {
+			return nil, err
+		}
 	}
 	if changed {
 		b, _ := json.MarshalIndent(ks, "", "  ")
@@ -133,7 +164,7 @@ func (s Store) load(write bool) ([]key, error) {
 	return ks, nil
 }
 
-func (s Store) locked(ctx context.Context, f func([]key) error) error {
+func (s Store) locked(ctx context.Context, now time.Time, f func([]key) error) error {
 	if err := s.FS.MkdirAll(path.Dir(s.Path), 0o700); err != nil {
 		return err
 	}
@@ -142,25 +173,26 @@ func (s Store) locked(ctx context.Context, f func([]key) error) error {
 		return err
 	}
 	defer func() { _ = u.Unlock() }()
-	ks, err := s.keys()
+	ks, err := s.keys(now)
 	if err != nil {
 		return err
 	}
 	return f(ks)
 }
 
-// PublicKeys are the keys a token may be signed with now: the one signing, and older ones until
-// their last token has expired. Newest first. The first call makes the first key.
+// PublicKeys are the keys a token may be signed with: the one signing, the next one from KeyLead
+// before it signs, and older ones until their last token has expired. Newest first. The first
+// call makes the first key.
 func (s Store) PublicKeys(ctx context.Context) ([]PublicKey, error) {
 	var out []PublicKey
-	err := s.locked(ctx, func(ks []key) error { out = public(ks); return nil })
+	err := s.locked(ctx, s.now(), func(ks []key) error { out = public(ks); return nil })
 	return out, err
 }
 
 // PublicKeysReadOnly is PublicKeys without making or retiring a key, for --read-only: the keys as
 // saved, but for the ones whose last token has expired.
 func (s Store) PublicKeysReadOnly() ([]PublicKey, error) {
-	ks, err := s.load(false)
+	ks, err := s.load(s.now(), false)
 	return public(ks), err
 }
 
@@ -187,19 +219,16 @@ var b64 = base64.RawURLEncoding
 // of its own. c's Issuer, IssuedAt, Expires and Nonce are set here.
 func (s Store) Issue(ctx context.Context, c Claims) (string, Claims, error) {
 	var tok string
-	err := s.locked(ctx, func(ks []key) error {
-		// The newest key that may still sign: keys() leaves at least one.
-		var k key
-		for _, x := range ks {
-			if s.now().Before(x.RetireAfter) && (k.ID == "" || x.Created.After(k.Created)) {
-				k = x
-			}
+	now := s.now()
+	err := s.locked(ctx, now, func(ks []key) error {
+		k, ok := signer(ks, now)
+		if !ok {
+			return fmt.Errorf("%s: no key may sign at %s", s.Path, now.Format(time.RFC3339))
 		}
 		n := make([]byte, 16)
 		if _, err := rand.Read(n); err != nil {
 			return err
 		}
-		now := s.now()
 		c.Issuer, c.IssuedAt, c.Expires, c.Nonce = Issuer, now.Unix(), now.Add(TokenTTL).Unix(), hex.EncodeToString(n)
 		h, _ := json.Marshal(header{Alg: "EdDSA", Typ: Type, Kid: k.ID})
 		p, _ := json.Marshal(c)

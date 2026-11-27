@@ -119,3 +119,40 @@ func TestPlacementKeyRotation(t *testing.T) {
 		t.Errorf("the old key is still listed after its last token: %+v", keys)
 	}
 }
+
+// TestPlacementKeyPublishedAhead: the key that signs after a rotation is listed KeyLead before it
+// signs, so a consumer that fetched the keys once in that time verifies the tokens signed after
+// the rotation without fetching them again.
+func TestPlacementKeyPublishedAhead(t *testing.T) {
+	start := time.Date(2026, 11, 27, 18, 0, 0, 0, time.UTC)
+	now := start
+	s := store(t, &now)
+	ctx := context.Background()
+	first, _ := s.PublicKeys(ctx)
+	now = start.Add(KeyLife - KeyLead - time.Minute)
+	if keys, _ := s.PublicKeys(ctx); len(keys) != 1 {
+		t.Fatalf("a successor before its lead time: %+v", keys)
+	}
+	now = start.Add(KeyLife - KeyLead)
+	fetched, err := s.PublicKeys(ctx) // the consumer's one fetch
+	if err != nil || len(fetched) != 2 || fetched[1].ID != first[0].ID || fetched[0].ID == first[0].ID {
+		t.Fatalf("the keys KeyLead before the rotation: %+v %v", fetched, err)
+	}
+	kid := func(tok string) string {
+		b, _ := base64.RawURLEncoding.DecodeString(strings.Split(tok, ".")[0])
+		var h map[string]string
+		_ = json.Unmarshal(b, &h)
+		return h["kid"]
+	}
+	if tok, _, _ := s.Issue(ctx, Claims{Org: "acme", Container: "c1", Process: "runner"}); kid(tok) != first[0].ID {
+		t.Errorf("the successor signed before its time: %s", kid(tok))
+	}
+	now = start.Add(KeyLife + time.Minute)
+	tok, _, err := s.Issue(ctx, Claims{Org: "acme", Container: "c1", Process: "runner"})
+	if err != nil || kid(tok) != fetched[0].ID {
+		t.Fatalf("after the rotation: kid %s, %v", kid(tok), err)
+	}
+	if v, err := Verify(tok, fetched, now); err != nil || v.Org != "acme" {
+		t.Errorf("a token after the rotation, with the keys fetched before it: %v", err)
+	}
+}

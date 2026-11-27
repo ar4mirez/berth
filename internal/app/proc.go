@@ -33,7 +33,7 @@ func (a *App) Proc(ctx context.Context, o string, args []string) error {
 	if len(args) > 0 {
 		sub, args = args[0], args[1:]
 	}
-	usage := fmt.Errorf("usage: %s proc <org> [ls | start <name> [--cwd DIR] [--env NAME]... [--env-file PATH] [--restart never|on-failure] [--grace SECONDS] -- <command> [args...] | show <name> | stop <name> | logs <name> [--follow] [--lines N]]", Tool)
+	usage := fmt.Errorf("usage: %s proc <org> [ls | start <name> [--cwd DIR] [--env NAME]... [--env-file PATH] [--restart never|on-failure] [--grace SECONDS] [--placement] -- <command> [args...] | show <name> | stop <name> | logs <name> [--follow] [--lines N]]", Tool)
 	if procWrites[sub] {
 		if err := a.writable(o, "start or stop "+o+"'s processes"); err != nil {
 			return err
@@ -141,8 +141,8 @@ func (a *App) procShow(p ops.Process, done string) error {
 	return nil
 }
 
-// parseProcStart reads `[--cwd DIR] [--env NAME]... [--env-file PATH] [--restart R] [--grace N] --
-// <command>...`. The `--` is required, so nothing of the command is ever read as berth's. A
+// parseProcStart reads `[--cwd DIR] [--env NAME]... [--env-file PATH] [--restart R] [--grace N]
+// [--placement] -- <command>...`. The `--` is required, so nothing of the command is ever read as berth's. A
 // variable's value is never on the command line, where ps would show it: each --env NAME's value is
 // read from stdin, as NAME=value lines or, for a single --env NAME, the value alone; --env-file is
 // a file of NAME=value lines.
@@ -170,6 +170,10 @@ func (a *App) parseProcStart(ctx context.Context, args []string) (ops.ProcSpec, 
 		}
 		if !strings.HasPrefix(x, "--") {
 			return s, errors.New("missing -- before the command")
+		}
+		if x == "--placement" {
+			s.Placement = true
+			continue
 		}
 		if i+1 >= len(args) {
 			return s, fmt.Errorf("%s needs a value", x)
@@ -304,10 +308,14 @@ func (a *App) ProcStart(ctx context.Context, o, name string, spec ops.ProcSpec) 
 	if err := a.needUp(ctx, o); err != nil {
 		return ops.Process{}, err
 	}
-	// Its placement token first, so the process finds it from its start (#216).
-	if exp, err := a.issuePlacement(ctx, o, name); err != nil {
-		return ops.Process{}, err
-	} else if !exp.IsZero() {
+	// With placement, its token first, so the process finds it from its start (#216).
+	if spec.Placement {
+		if err := a.placementReady(ctx, o); err != nil {
+			return ops.Process{}, err
+		}
+		if _, err := a.issuePlacement(ctx, o, name); err != nil {
+			return ops.Process{}, err
+		}
 		spec.Env[PlacementEnv] = PlacementDir + "/" + name
 	}
 	in, err := json.Marshal(spec)
@@ -316,7 +324,7 @@ func (a *App) ProcStart(ctx context.Context, o, name string, spec ops.ProcSpec) 
 	}
 	raw, err := a.procRun(ctx, o, in, "start", name)
 	if err != nil {
-		if !ops.IsKind(err, ops.KindState) { // a name in use keeps its token
+		if spec.Placement && !ops.IsKind(err, ops.KindState) { // a name in use keeps its token
 			a.dropPlacement(ctx, o, name)
 		}
 		return ops.Process{}, err
@@ -336,10 +344,11 @@ func (a *App) ProcAct(ctx context.Context, o, verb, name string) (ops.Process, e
 	if err != nil {
 		return ops.Process{}, err
 	}
-	if verb == "stop" {
+	p, err := ops.ParseProcess(o, raw)
+	if err == nil && verb == "stop" && slices.Contains(p.EnvNames, PlacementEnv) {
 		a.dropPlacement(ctx, o, name)
 	}
-	return ops.ParseProcess(o, raw)
+	return p, err
 }
 
 // procCmd is berth-proc's command line in o's container, as its user; with a spec on stdin

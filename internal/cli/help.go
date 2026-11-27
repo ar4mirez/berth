@@ -104,7 +104,7 @@ var examples = map[string][]string{
 	"pkg":                {"berth pkg acme add @playwright-chromium", "berth pkg acme add libpq-dev", "berth pkg acme", "berth restart acme"},
 	"tool":               {"berth tool acme set gadget github:acme/gadget 1.4.2", "berth tool acme", "berth restart acme"},
 	"placement":          {"berth placement keys", "berth placement keys --output json"},
-	"proc":               {"berth proc acme start worker -- /usr/local/bin/worker --once", "printf %s \"$TOKEN\" | berth proc acme start bot --env TOKEN -- /usr/local/bin/bot", "berth proc acme", "berth proc acme logs worker --follow", "berth proc acme stop worker"},
+	"proc":               {"berth proc acme start worker -- /usr/local/bin/worker --once", "berth proc acme start runner --placement -- /usr/local/bin/runner", "printf %s \"$TOKEN\" | berth proc acme start bot --env TOKEN -- /usr/local/bin/bot", "berth proc acme", "berth proc acme logs worker --follow", "berth proc acme stop worker"},
 	"mount":              {"berth mount acme add agent /run/agent/agent.sock /run/berth-mounts/agent/agent.sock", "berth mount acme", "berth restart acme"},
 	"env":                {"berth env acme ls", "berth env acme set OPENROUTER_API_KEY", "berth env acme unset OPENROUTER_API_KEY", "berth env acme accept"},
 	"secrets":            {"berth secrets migrate acme"},

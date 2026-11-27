@@ -34,6 +34,8 @@ var hostAPIOps = map[string]bool{
 	"repo ls": true, "repo add": true, "repo rm": true,
 	"env ": true, "env ls": true, "pkg ": true, "pkg ls": true,
 	"remote ": true, "remote status": true,
+	// A process's placement token is signed and kept fresh by the berth on its org's host (#216).
+	"proc ": true, "proc ls": true, "proc start": true, "proc show": true, "proc stop": true,
 }
 
 // hostSocket finds the socket of the `berth serve` on b's host, as the user berth logs in as: ""

@@ -40,13 +40,27 @@ Public keys are served at `GET /v1/placement/keys` (`berth.placement-keys/v1`): 
   already reads, so a token from a container that has been replaced doesn't count.
 - **15 minutes, renewed 5 minutes before the end, by `berth serve`.** Short enough that a copied token is of little
   use, long enough that a server restart doesn't break a running process. The signing key never enters the
-  container, so the host side does the renewal, and only `berth serve` runs there for as long as processes do.
-- **Keys rotate every 7 days** and stay listed until their last token has expired (`not_after`), so verification
-  never fails across a rotation. The keys are in berth's configuration (`~/.config/berth/placement/keys.json`,
-  mode 0600), outside the state root that backups copy and every org's directory.
+  container, so the host side does the renewal, and only `berth serve` runs there for as long as processes do. No
+  other daemon is added for it.
+- **Asked for per start, and refused without a refresher.** A process must never run believing it has a proof it
+  hasn't. So a token is only for a start that asks (`placement: true`, `--placement`), and such a start is refused
+  (409 `state`) when nothing would keep its token fresh: no `berth serve` that isn't `--read-only` for the state
+  root (a start inside one has it; the command line reads its heartbeat, `<state>/placement-serve.json`: its pid
+  and its last round, live while the pid runs and the round is less than two minutes old, removed when it stops),
+  an org on a registered host whose own berth can't be reached (it signs there, through the host API, never over
+  ssh without a token), or Apple's `container` (no start time to name). Which processes to refresh is recorded
+  next to each one, by berth-proc: `BERTH_PLACEMENT_FILE` among its variables, so a `berth serve` started again
+  finds them.
+- **Keys rotate every 7 days**, and the next key is made and listed `TokenTTL` + 1 hour before it signs, so a
+  consumer that fetched the keys in that time verifies the tokens after the rotation. A consumer refetches the keys
+  once when a token names a `kid` it doesn't have, which covers keys fetched earlier. An old key stays listed until
+  its last token has expired (`not_after`), so verification never fails across a rotation. The keys are in berth's
+  configuration (`~/.config/berth/placement/keys.json`, mode 0600), outside the state root that backups copy and
+  every org's directory.
 
 ## What it doesn't do
 
 - It doesn't prove what the process is, only where it runs: a program in the same container, as the same user,
   can read the token too. The container is the boundary it attests to.
 - An org on a registered host gets its tokens from the berth on that host; the operator's berth doesn't sign for it.
+- It isn't given to a process that didn't ask for one, and a process that asked is never started without one.

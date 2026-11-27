@@ -73,6 +73,8 @@ type ProcSpec struct {
 	Env     map[string]string `json:"env"`
 	Restart string            `json:"restart"`
 	Grace   int               `json:"stop_grace_seconds"`
+	// Placement asks for a placement token (#216): berth's, never berth-proc's.
+	Placement bool `json:"-"`
 }
 
 var (

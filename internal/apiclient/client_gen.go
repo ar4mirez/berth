@@ -165,8 +165,8 @@ func (c *Client) ProcessesList(ctx context.Context, org string) (out ops.Process
 }
 
 // ProcessStart is POST /v1/orgs/{org}/processes/{name}: Start a named long-lived process in a running org's container, as its user (never root), inside its firewall.
-func (c *Client) ProcessStart(ctx context.Context, org string, name string, argv []string, cwd string, env map[string]string, restart string, stopGraceSeconds int) (out ops.Process, err error) {
-	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/processes/"+url.PathEscape(name), nil, map[string]any{"argv": argv, "cwd": cwd, "env": env, "restart": restart, "stop_grace_seconds": stopGraceSeconds}, &out)
+func (c *Client) ProcessStart(ctx context.Context, org string, name string, argv []string, cwd string, env map[string]string, restart string, stopGraceSeconds int, placement bool) (out ops.Process, err error) {
+	return out, c.do(ctx, "POST", "/v1/orgs/"+url.PathEscape(org)+"/processes/"+url.PathEscape(name), nil, map[string]any{"argv": argv, "cwd": cwd, "env": env, "restart": restart, "stop_grace_seconds": stopGraceSeconds, "placement": placement}, &out)
 }
 
 // ProcessShow is GET /v1/orgs/{org}/processes/{name}: One of an org's supervised processes: its state, pid, start time, exit code and restarts.
