@@ -85,6 +85,13 @@ func TestMountCommand(t *testing.T) {
 	} else {
 		t.Fatal(err)
 	}
+	wdir, s3 := socketDir(t, "w.sock")
+	if err := os.Mkdir(filepath.Join(wdir, "open"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Join(wdir, "open"), 0o777); err != nil {
+		t.Fatal(err)
+	}
 	for _, tt := range []struct {
 		name, source, target, want string
 	}{
@@ -93,6 +100,7 @@ func TestMountCommand(t *testing.T) {
 		{"others may write", osock, "/run/berth-mounts/x/b.sock", "others may write to its directory"},
 		{"another socket beside it", s1, "/run/berth-mounts/x/one.sock", "also holds " + filepath.Join(two, "two.sock")},
 		{"another socket below it", s2, "/run/berth-mounts/x/top.sock", "also holds " + filepath.Join(deep, "sub", "other.sock")},
+		{"a directory below it others may write to", s3, "/run/berth-mounts/x/w.sock", "others may write to " + filepath.Join(wdir, "open")},
 		{"a target outside", sock, "/home/node/agent.sock", "under /run/berth-mounts/"},
 		{"the root of the mounts", sock, "/run/berth-mounts/agent.sock", "a directory of its own under /run/berth-mounts/"},
 		{"another name in the container", sock, "/run/berth-mounts/x/other.sock", "keeps its name in the container"},

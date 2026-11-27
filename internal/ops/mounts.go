@@ -163,8 +163,8 @@ var sharedDirs = []string{"/", "/tmp", "/var/tmp", "/run", "/var/run", "/dev", "
 
 // CheckSocket checks a mount's socket on the org's host: a socket (not a link to one), owned by
 // berth's user, in a directory berth's user owns, that nobody else may write to, that is no shared
-// place (/tmp, the user's runtime directory or home), and whose whole tree holds no other socket and
-// no link, at any depth: the socket's directory, with everything under it, is all the container gets. It needs GNU stat and find (a Linux host).
+// place (/tmp, the user's runtime directory or home), and whose whole tree holds no other socket, no
+// link, and no directory berth's user doesn't own or others may write to, at any depth: the socket's directory, with everything under it, is all the container gets. It needs GNU stat and find (a Linux host).
 func CheckSocket(ctx context.Context, s System, source string) error {
 	uid, err := s.Capture(ctx, true, "id", "-u")
 	if err != nil {
@@ -208,12 +208,18 @@ func CheckSocket(ctx context.Context, s System, source string) error {
 	case mode&0o022 != 0:
 		return Usage("source %s: others may write to its directory %s (mode %o)", source, dir, mode)
 	}
-	list, err := s.Capture(ctx, true, "find", dir, "-mindepth", "1", "(", "-type", "s", "-o", "-type", "l", ")", "-print")
+	list, err := s.Capture(ctx, true, "find", dir, "-mindepth", "1", "(", "-type", "s", "-o", "-type", "l",
+		"-o", "-type", "d", "(", "-perm", "/022", "-o", "!", "-uid", uid, ")", ")", "-printf", `%y %p\n`)
 	if err != nil {
 		return State("source %s: can't list its directory: %v", source, err)
 	}
-	for _, p := range strings.Split(list, "\n") {
-		if p = strings.TrimSpace(p); p != "" && p != source {
+	for _, line := range strings.Split(list, "\n") {
+		t, p, _ := strings.Cut(strings.TrimSpace(line), " ")
+		switch {
+		case p == "" || p == source:
+		case t == "d":
+			return Usage("source %s: others may write to %s, or berth's user doesn't own it, and the container would get it too", source, p)
+		default:
 			return Usage("source %s: its directory also holds %s, which the container would get too; give the socket a directory of its own", source, p)
 		}
 	}
