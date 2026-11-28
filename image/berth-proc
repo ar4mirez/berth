@@ -13,7 +13,8 @@
 # A process's state is in $BERTH_PROC_DIR/<name>/ (mode 0700): spec.json (0600, it holds the
 # variables' values), state.json, log (and log.1, the one before it), and the supervisor's pid. Variables' values are never
 # printed: status lists them by name. Exit codes: 0 ok, 2 usage, 3 a process of that name exists,
-# 4 no such process, 1 anything else.
+# 4 no such process, 5 the container is still starting (its entrypoint hasn't made $DIR's
+# parent yet: try again), 1 anything else.
 set -uo pipefail
 
 DIR="${BERTH_PROC_DIR:-/run/berth/procs}"
@@ -25,6 +26,10 @@ now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 valid_name() { [[ "$1" =~ ^[a-z0-9-]{1,32}$ ]]; }
 
 [ "$(id -u)" != 0 ] || die 1 "runs as the container's user, never as root"
+
+# ready: the container's entrypoint has made $DIR's parent, as this user's. Until then the
+# container is still starting, and nothing is read or made.
+ready() { [ -d "$DIR" ] || [ -w "${DIR%/*}" ] || die 5 "the container is still starting: try again in a few seconds"; }
 
 # write_state <name> <state> <pid|null> <started_at|null> <exit|null> <restarts>
 write_state() {
@@ -188,8 +193,8 @@ cmd_logs() {
 }
 
 case "${1:-}" in
-  start) shift; cmd_start "$@" ;;
-  status) shift; cmd_status "$@" ;;
+  start) shift; ready; cmd_start "$@" ;;
+  status) shift; ready; cmd_status "$@" ;;
   stop) shift; cmd_stop "$@" ;;
   logs) shift; cmd_logs "$@" ;;
   supervise) shift; supervise "$@" ;;

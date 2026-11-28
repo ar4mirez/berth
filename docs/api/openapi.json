@@ -225,7 +225,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -353,7 +353,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -521,7 +521,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -618,7 +618,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -755,7 +755,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -891,7 +891,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -1050,7 +1050,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -1175,7 +1175,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -1283,7 +1283,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -1391,7 +1391,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -1499,7 +1499,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -1607,7 +1607,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -1704,7 +1704,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -1801,7 +1801,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -1998,7 +1998,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -2125,7 +2125,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -2258,7 +2258,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -2425,7 +2425,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -2554,7 +2554,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -2670,7 +2670,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -2810,7 +2810,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -2939,7 +2939,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -3038,7 +3038,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -3180,7 +3180,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -3329,7 +3329,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -3443,7 +3443,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -3609,7 +3609,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -3775,7 +3775,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -3918,7 +3918,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -4061,7 +4061,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -4176,7 +4176,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -4319,7 +4319,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -4455,7 +4455,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -4588,7 +4588,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -4696,7 +4696,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -4871,7 +4871,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -5003,7 +5003,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -5160,7 +5160,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -5328,7 +5328,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -5461,7 +5461,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -5648,7 +5648,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -5810,7 +5810,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -5999,7 +5999,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -6099,7 +6099,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -6228,7 +6228,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -6383,7 +6383,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -6551,7 +6551,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -6701,7 +6701,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -6767,6 +6767,10 @@
                     "format": "password",
                     "type": "object",
                     "writeOnly": true
+                  },
+                  "placement": {
+                    "description": "true for a placement token: a proof signed by berth of the org's container it runs in, at the path BERTH_PLACEMENT_FILE names, kept fresh while it runs; refused when no berth serve (not --read-only) would keep it fresh",
+                    "type": "boolean"
                   },
                   "restart": {
                     "description": "never, or on-failure (the default): started again after a failure, waiting 1s, then twice as long each time, up to 60s",
@@ -6911,7 +6915,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -7062,7 +7066,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -7178,7 +7182,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -7277,7 +7281,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -7406,7 +7410,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -7567,7 +7571,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -7709,7 +7713,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -7845,7 +7849,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -7963,7 +7967,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -8115,7 +8119,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -8251,7 +8255,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -8392,7 +8396,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -8504,7 +8508,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -8625,7 +8629,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -8758,7 +8762,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -8890,7 +8894,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -9032,7 +9036,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -9156,7 +9160,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -9305,7 +9309,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -9477,7 +9481,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -9610,7 +9614,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -9714,7 +9718,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -9731,6 +9735,115 @@
         "x-berth-about": "The @presets for system packages and the packages each one stands for.",
         "x-berth-access": "read",
         "x-berth-operation": "pkg presets"
+      }
+    },
+    "/v1/placement/keys": {
+      "get": {
+        "description": "The public keys (Ed25519) that verify the placement tokens berth gives supervised processes: the one signing, and older ones until their last token has expired.",
+        "operationId": "placement_keys",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "keys": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "alg": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "not_after": {
+                            "type": "string"
+                          },
+                          "public_key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "alg",
+                          "public_key",
+                          "not_after"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "keys"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The arguments don't fit."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No token, or a wrong one (TCP only)."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such org, host or endpoint."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The operation failed."
+          }
+        },
+        "summary": "The public keys (Ed25519) that verify the placement tokens berth gives supervised processes: the one signing, and older ones until their last token has expired",
+        "x-berth-about": "The public keys (Ed25519) that verify the placement tokens berth gives supervised processes: the one signing, and older ones until their last token has expired.",
+        "x-berth-access": "read",
+        "x-berth-operation": "placement keys"
       }
     },
     "/v1/schedule": {
@@ -9853,7 +9966,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -9961,7 +10074,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -10119,7 +10232,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -10258,7 +10371,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -10492,7 +10605,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -10619,7 +10732,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -10727,7 +10840,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {
@@ -10845,7 +10958,7 @@
                 }
               }
             },
-            "description": "The org isn't in a state for this (not running, say)."
+            "description": "The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."
           },
           "500": {
             "content": {

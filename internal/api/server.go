@@ -384,11 +384,15 @@ func Status(k ops.Kind) int {
 		return http.StatusNotFound
 	case ops.KindRefused:
 		return http.StatusForbidden
-	case ops.KindNotRunning, ops.KindState:
+	case ops.KindNotRunning, ops.KindState, ops.KindStarting:
 		return http.StatusConflict
 	}
 	return http.StatusInternalServerError
 }
+
+// RetryStarting is the Retry-After, in seconds, of a `starting` error: an org's container is
+// ready a few seconds after it starts.
+const RetryStarting = 3
 
 // ErrUnauthorized is a request with no credentials, or wrong ones.
 var ErrUnauthorized = errors.New("unauthorized")
@@ -400,6 +404,9 @@ func fail(w http.ResponseWriter, err error) {
 		return
 	}
 	e := ops.AsError(err)
+	if e.Kind == ops.KindStarting {
+		w.Header().Set("Retry-After", strconv.Itoa(RetryStarting))
+	}
 	writeJSON(w, Status(e.Kind), e.Doc())
 }
 

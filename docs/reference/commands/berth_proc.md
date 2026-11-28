@@ -16,7 +16,8 @@ running (restart on-failure, with a capped backoff, or never); it outlives berth
 container: an up, restart or down ends it, and nothing starts it again until it is started again.
 Its variables are shown by name only, and their values are never on the command line: --env NAME
 reads NAME's value from stdin (NAME=value lines, or the value alone for one --env), and
---env-file PATH reads NAME=value lines.
+--env-file PATH reads NAME=value lines. --placement gives it a placement token, a proof of the org's
+container it runs in, at the path BERTH_PLACEMENT_FILE names; it needs a berth serve to keep it fresh.
 
 Docs: https://ar4mirez.github.io/berth/reference/commands/berth_proc/
 

@@ -70,7 +70,10 @@ func callTool(t *testing.T, cs *mcp.ClientSession, name string, args map[string]
 const procWorker = `{"name":"worker","state":"running","pid":41,"started_at":"2026-01-02T03:04:05Z","exit_code":null,"restarts":0,"argv":["worker","--once"],"env_names":["API_KEY"]}`
 
 var mcpRules = append([]Rule{
-	// Supervised processes (#216): berth-proc in the container, as its user.
+	// Supervised processes (#216): berth-proc in the container, as its user, and the container a
+	// placement token names.
+	{Bin: "docker", Match: `^inspect -f \{\{\.Id\}\} claude-acme$`, Stdout: "f00dcafe0123\n"},
+	{Bin: "docker", Match: `^inspect -f \{\{\.State\.StartedAt\}\} claude-acme$`, Stdout: "2026-01-02T03:04:05.123456789Z\n"},
 	{Bin: "docker", Match: `^exec -u node claude-acme /usr/local/bin/berth-proc status$`, Stdout: "[" + procWorker + "]\n"},
 	{Bin: "docker", Match: `^exec -u node claude-acme /usr/local/bin/berth-proc status worker$`, Stdout: procWorker + "\n"},
 	{Bin: "docker", Match: `^exec -u node -i claude-acme .*/usr/local/bin/berth-proc start worker$`, Stdout: procWorker + "\n"},
@@ -174,6 +177,7 @@ func TestBerthMCPConformance(t *testing.T) {
 		"mounts_list":      {map[string]any{"org": "acme"}, []string{`"schema":"berth.mounts/v1"`, `"mounts":[]`}},
 		"processes_list":   {map[string]any{"org": "acme"}, []string{`"schema":"berth.processes/v1"`, `"name":"worker"`, `"env_names":["API_KEY"]`}},
 		"tools_list":       {map[string]any{"org": "acme"}, []string{`"schema":"berth.tools/v1"`, `"tools":[]`}},
+		"placement_keys":   {nil, []string{`"schema":"berth.placement-keys/v1"`, `"alg":"Ed25519"`}},
 		"process_show":     {map[string]any{"org": "acme", "name": "worker"}, []string{`"schema":"berth.process/v1"`, `"state":"running"`, `"pid":41`}},
 		"schedule_status":  {nil, []string{`"schema":"berth.schedule/v1"`, `"kind":"none"`}},
 		"backups_list":     {map[string]any{"org": "acme"}, []string{`"file":"acme-20261006-023000.tar.zst.age"`, `"encryption":"age"`, `"stamp":"20261006-023000"`}},

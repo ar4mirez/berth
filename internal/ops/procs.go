@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/ar4mirez/berth/internal/contract"
+	"github.com/ar4mirez/berth/internal/placement"
 )
 
 // Supervised processes (#216): a named long-lived process in a running org's container, started
@@ -58,6 +59,13 @@ type Processes struct {
 	Processes []ProcessInfo `json:"processes"`
 }
 
+// PlacementKeys is `placement keys` (berth.placement-keys/v1): the public keys a consumer verifies
+// placement tokens with (internal/placement).
+type PlacementKeys struct {
+	Schema string                `json:"schema"`
+	Keys   []placement.PublicKey `json:"keys"`
+}
+
 // ProcSpec is what starts a process: berth-proc reads it on its stdin.
 type ProcSpec struct {
 	Argv    []string          `json:"argv"`
@@ -65,6 +73,8 @@ type ProcSpec struct {
 	Env     map[string]string `json:"env"`
 	Restart string            `json:"restart"`
 	Grace   int               `json:"stop_grace_seconds"`
+	// Placement asks for a placement token (#216): berth's, never berth-proc's.
+	Placement bool `json:"-"`
 }
 
 var (
@@ -161,18 +171,23 @@ func procExec(org string, args ...string) []string {
 	return append([]string{"docker", "exec", "-u", ProcUser, contract.Container(org), ProcBin}, args...)
 }
 
+// ErrProcInUse is berth-proc's refusal of a start whose name a process holds (exit 3).
+var ErrProcInUse = errors.New("a process of that name exists")
+
 // ProcErr is berth-proc's exit code as an error a caller can act on: 3 a process of that name
-// exists (409 state), 4 no such process (404), 2 a spec it refused (400), 127 or 126 an image
-// that predates supervised processes.
+// exists (409 state), 4 no such process (404), 2 a spec it refused (400), 5 a container still
+// starting (409 starting), 127 or 126 an image that predates supervised processes.
 func ProcErr(org string, code int, msg string) error {
 	msg = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(msg), "berth-proc: "))
 	switch code {
 	case 2:
 		return Usage("%s", msg)
 	case 3:
-		return State("%s", msg)
+		return &Error{Kind: KindState, Code: 1, Msg: msg, Err: ErrProcInUse}
 	case 4:
 		return &Error{Kind: KindNotFound, Code: 1, Msg: msg}
+	case 5:
+		return fail(KindStarting, "try again in a few seconds", "%s's container is still starting", org)
 	case 126, 127:
 		return fail(KindState, Tool+" restart "+org+", which stops the work running in it", "%s's container runs an image that has no supervised processes: restart it on berth's current image", org)
 	}

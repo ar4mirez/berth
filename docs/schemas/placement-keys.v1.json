@@ -1,0 +1,44 @@
+{
+  "$id": "https://ar4mirez.github.io/berth/schemas/placement-keys.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "berth placement keys --output json",
+  "properties": {
+    "keys": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "alg": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "not_after": {
+            "type": "string"
+          },
+          "public_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "alg",
+          "public_key",
+          "not_after"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "const": "berth.placement-keys/v1"
+    }
+  },
+  "required": [
+    "schema",
+    "keys"
+  ],
+  "title": "berth.placement-keys/v1",
+  "type": "object"
+}

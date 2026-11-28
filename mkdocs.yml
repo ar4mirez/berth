@@ -79,3 +79,4 @@ nav:
       - Releases: releases.md
       - Phase 0: phase-0.md
       - "Decision: the first cloud provider": decisions/051-first-cloud-provider.md
+      - "Decision: the placement proof": decisions/216-placement-proof.md

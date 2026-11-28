@@ -261,3 +261,59 @@ func TestBerthProc(t *testing.T) {
 		t.Errorf("status of all: %q", out)
 	}
 }
+
+// TestBerthProcStarting: until the container's entrypoint has made berth-proc's directory's
+// parent as the container's user (/run/berth), the container is still starting: status and start
+// exit 5 and make nothing. Once it has, they work.
+func TestBerthProcStarting(t *testing.T) {
+	if runtime.GOOS != "linux" || os.Getuid() == 0 {
+		t.Skip("berth-proc runs in the Linux image, as the container's user")
+	}
+	for _, tool := range []string{"bash", "jq", "setsid"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			t.Skipf("no %s", tool)
+		}
+	}
+	script, err := filepath.Abs(filepath.Join(dir, "berth-proc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	parent := filepath.Join(root, "berth")
+	call := func(stdin string, args ...string) (string, int) {
+		t.Helper()
+		c := exec.Command(script, args...)
+		c.Env = append(os.Environ(), "BERTH_PROC_DIR="+filepath.Join(parent, "procs"))
+		c.Stdin = strings.NewReader(stdin)
+		out, err := c.CombinedOutput()
+		var e *exec.ExitError
+		if errors.As(err, &e) {
+			return string(out), e.ExitCode()
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		return string(out), 0
+	}
+	notYet := func(what string) {
+		t.Helper()
+		for _, args := range [][]string{{"status"}, {"start", "web"}} {
+			if out, code := call(`{"argv":["sleep","60"]}`, args...); code != 5 || !strings.Contains(out, "still starting") {
+				t.Errorf("%s: %v: %d %q", what, args, code, out)
+			}
+		}
+		if _, err := os.Stat(filepath.Join(parent, "procs")); !os.IsNotExist(err) {
+			t.Errorf("%s: something was made: %v", what, err)
+		}
+	}
+	notYet("no /run/berth")
+	if err := os.Mkdir(parent, 0o555); err != nil { // there, but not the container user's yet
+		t.Fatal(err)
+	}
+	notYet("a /run/berth the user can't write")
+	if err := os.Chmod(parent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if out, code := call("", "status"); code != 0 || strings.TrimSpace(out) != "[]" {
+		t.Errorf("ready: %d %q", code, out)
+	}
+}

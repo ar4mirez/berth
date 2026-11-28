@@ -118,7 +118,7 @@ func openAPI() map[string]any {
 			"400": errResp("The arguments don't fit."),
 			"401": errResp("No token, or a wrong one (TCP only)."),
 			"404": errResp("No such org, host or endpoint."),
-			"409": errResp("The org isn't in a state for this (not running, say)."),
+			"409": errResp("The org isn't in a state for this (not running, say). Kind `starting`: its container is still starting; a Retry-After header says when to try again."),
 			"500": errResp("The operation failed."),
 		}
 		if spec.Op.Access == ops.Write {

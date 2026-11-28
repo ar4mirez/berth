@@ -23,10 +23,12 @@ type procStartArgs struct {
 	Env     map[string]string `json:"env,omitempty" secret:"true" jsonschema:"its variables, {NAME: value}, names like API_URL, on top of the org's own; listed back by name only"`
 	Restart string            `json:"restart,omitempty" jsonschema:"never, or on-failure (the default): started again after a failure, waiting 1s, then twice as long each time, up to 60s"`
 	Grace   int               `json:"stop_grace_seconds,omitempty" jsonschema:"1 to 300, 30 by default: how long a stop waits after SIGTERM before it kills the process's whole group"`
+	// Placement is a placement token for the process (#216), kept fresh while it runs.
+	Placement bool `json:"placement,omitempty" jsonschema:"true for a placement token: a proof signed by berth of the org's container it runs in, at the path BERTH_PLACEMENT_FILE names, kept fresh while it runs; refused when no berth serve (not --read-only) would keep it fresh"`
 }
 
 func (a procStartArgs) auditArgs() map[string]any {
-	return map[string]any{"org": a.Org, "name": a.Name, "argv": a.Argv, "env_names": ops.EnvNames(slices.Collect(maps.Keys(a.Env))...), "cwd": a.Cwd, "restart": a.Restart, "stop_grace_seconds": a.Grace}
+	return map[string]any{"org": a.Org, "name": a.Name, "argv": a.Argv, "env_names": ops.EnvNames(slices.Collect(maps.Keys(a.Env))...), "cwd": a.Cwd, "restart": a.Restart, "stop_grace_seconds": a.Grace, "placement": a.Placement}
 }
 
 type procNameArgs struct {
@@ -43,6 +45,10 @@ func init() {
 }
 
 func (s *server) procTools() {
+	add(s, "placement_keys", "placement", "keys", "The public keys (Ed25519) that verify the placement tokens berth gives supervised processes: the one signing, and older ones until their last token has expired.",
+		func(ctx context.Context, c *call, _ noArgs) (ops.PlacementKeys, error) {
+			return c.app.PlacementKeys(ctx)
+		})
 	add(s, "processes_list", "proc", "ls", "An org's supervised processes: each one's state (starting, running, exited, backoff), pid, start time, exit code and restarts. A stopped org has none.",
 		func(ctx context.Context, c *call, in orgArg) (ops.Processes, error) {
 			b, o, err := c.at(ctx, in.Org)
@@ -67,7 +73,7 @@ func (s *server) procTools() {
 			if in.Name == "" {
 				return ops.Process{}, errors.New("name is required")
 			}
-			p, err := b.ProcStart(ctx, o, in.Name, ops.ProcSpec{Argv: in.Argv, Cwd: in.Cwd, Env: in.Env, Restart: in.Restart, Grace: in.Grace})
+			p, err := b.ProcStart(ctx, o, in.Name, ops.ProcSpec{Argv: in.Argv, Cwd: in.Cwd, Env: in.Env, Restart: in.Restart, Grace: in.Grace, Placement: in.Placement})
 			if err != nil {
 				c.forget()
 				for _, v := range in.Env {

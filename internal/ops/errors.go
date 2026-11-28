@@ -20,6 +20,9 @@ const (
 	KindNotRunning Kind = "not-running"
 	// KindRefused: berth won't do it: --read-only, an org another tool manages, a failed check.
 	KindRefused Kind = "refused"
+	// KindStarting: the org's container is still starting (its supervisor isn't ready yet): the
+	// same call shortly after succeeds.
+	KindStarting Kind = "starting"
 	// KindState: the org's own state is incomplete or inconsistent.
 	KindState Kind = "state"
 	// KindCommand: a command the operation ran (docker, systemctl, …) failed.
@@ -111,4 +114,10 @@ type ErrorDoc struct {
 func (e *Error) Doc() ErrorDoc {
 	// The commands a message names, as this command line spells them (spell.go).
 	return ErrorDoc{Schema: "berth.error/v1", Kind: e.Kind, Code: e.Code, Message: Respell(e.Msg), Hint: Respell(e.Hint)}
+}
+
+// IsKind reports whether err is an Error of kind k.
+func IsKind(err error, k Kind) bool {
+	var e *Error
+	return errors.As(err, &e) && e.Kind == k
 }

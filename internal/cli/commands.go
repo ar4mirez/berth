@@ -188,10 +188,22 @@ func serveCmd() *cobra.Command {
 			}
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
+			refreshed := make(chan struct{})
+			if st.ReadOnly {
+				close(refreshed)
+			} else {
+				// Supervised processes' placement tokens (#216), kept fresh while this serves.
+				go func() {
+					defer close(refreshed)
+					(&app.PlacementRefresher{}).Run(ctx, func() *app.App { return appFor(cmd) }, cmd.ErrOrStderr())
+				}()
+			}
 			select {
 			case <-ctx.Done():
 			case err = <-errs:
 			}
+			stop()
+			<-refreshed // its heartbeat removed: a start with placement is refused from now on
 			// Requests in flight get a moment; a log follow ends with its client's context.
 			end, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -836,7 +848,8 @@ func addCommands(root *cobra.Command) {
 				"container: an up, restart or down ends it, and nothing starts it again until it is started again.\n" +
 				"Its variables are shown by name only, and their values are never on the command line: --env NAME\n" +
 				"reads NAME's value from stdin (NAME=value lines, or the value alone for one --env), and\n" +
-				"--env-file PATH reads NAME=value lines.",
+				"--env-file PATH reads NAME=value lines. --placement gives it a placement token, a proof of the org's\n" +
+				"container it runs in, at the path BERTH_PLACEMENT_FILE names; it needs a berth serve to keep it fresh.",
 			DisableFlagParsing: true,
 			ValidArgsFunction:  completeProc,
 			RunE: onOrgV(nthArg(0), procVerbs, func(a *app.App, cmd *cobra.Command, args []string) error {
@@ -845,6 +858,16 @@ func addCommands(root *cobra.Command) {
 				}
 				return a.Proc(cmd.Context(), args[0], args[1:])
 			}),
+		}),
+		reads(&cobra.Command{
+			Use: "placement keys", Short: "the public keys that verify supervised processes' placement tokens",
+			Long: "A supervised process gets a short-lived token, signed by a key berth keeps on this machine and in no\n" +
+				"container, that says which org's container it runs in (docs/api.md, placement proofs). These are the\n" +
+				"public keys to verify one with: the one signing, and older ones until their last token has expired.",
+			Args: cobra.MaximumNArgs(1), ValidArgs: []string{"keys"},
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return appFor(cmd).Placement(cmd.Context(), args)
+			},
 		}),
 		reads(&cobra.Command{
 			Use: "tool <org> [ls|set|rm] [name source version]", Short: "tools pinned to one exact version, installed at an org's start",
